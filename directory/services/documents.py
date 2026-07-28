@@ -12,10 +12,18 @@ The contract, in one place:
 * The only way to a private object is ``signed_url()``, which mints a link with a
   short TTL (``PRIVATE_DOCUMENT_URL_TTL_SECONDS``, default 5 minutes).
 * ``signed_url()`` takes the ``user`` doing the looking and refuses anyone who is
-  not a verifier, via ``accounts.access.can_view_private_evidence``. ``admin`` is
+  not a verifier, via ``accounts.access.can_view_evidence``. ``admin`` is
   deliberately not enough (docs/architecture.md, "Roles").
 * Every mint is logged. From Phase 2 that log line is joined by a
   ``DocumentAccessLog`` row; the hook is marked below.
+
+The authored ``directory/models.py`` (Phase 1) names the caller that writes that
+row ``directory.services.documents.open_evidence()``. That function is Phase 2's
+to add and it belongs on top of this one, not instead of it: ``open_evidence()``
+takes a ``Document``, writes the ``DocumentAccessLog`` row, and calls
+``signed_url()`` for the link. Keeping the URL-minting separate is what lets the
+permission check and the "no public URL" guarantee be tested without a Document
+model existing yet.
 
 Why a TTL of minutes: the link is handed to one verifier for one look. A signed
 URL is a bearer credential — anyone who ends up with it can fetch the object —
@@ -30,7 +38,7 @@ import logging
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 
-from accounts.access import can_view_private_evidence
+from accounts.access import can_view_evidence
 
 from ..storages import private_storage
 
@@ -50,7 +58,7 @@ def signed_url(name: str, *, user, ttl_seconds: int | None = None, reason: str =
 
     Args:
         name: the storage key, as held on the (Phase 1) ``Document.file`` field.
-        user: who is asking. Checked against ``can_view_private_evidence``.
+        user: who is asking. Checked against ``can_view_evidence``.
         ttl_seconds: overrides ``PRIVATE_DOCUMENT_URL_TTL_SECONDS``. Keep it short.
         reason: free text recorded with the access — "DBS check", "registration
             re-verification". Phase 2's workbench passes the queue item.
@@ -64,7 +72,7 @@ def signed_url(name: str, *, user, ttl_seconds: int | None = None, reason: str =
     if not name:
         raise ValueError("signed_url() needs a storage key.")
 
-    if not can_view_private_evidence(user):
+    if not can_view_evidence(user):
         # Log the refusal too. An admin repeatedly reaching for evidence they
         # cannot open is something the compliance lead should be able to see.
         logger.warning(
@@ -98,7 +106,7 @@ def signed_url(name: str, *, user, ttl_seconds: int | None = None, reason: str =
         raise NotImplementedError(
             f"{type(storage).__name__} cannot sign URLs. Configure an object-storage "
             "backend for STORAGES['private'], or use the Phase 2 streaming view, "
-            "which re-checks can_view_private_evidence on every request."
+            "which re-checks can_view_evidence on every request."
         )
 
     return storage.signed_url(name, expire=ttl)

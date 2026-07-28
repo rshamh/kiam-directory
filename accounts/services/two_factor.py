@@ -6,10 +6,14 @@ own the login flow. The order here is deliberate:
     magic link  ->  session established  ->  TOTP challenge  ->  session marked verified
 
 A staff member is *authenticated* before the second factor and *authorised* only
-after it, which is why every staff capability in ``accounts.access`` goes through
-``two_factor_satisfied()`` rather than assuming an authenticated staff session is
-a usable one. The middleware in ``accounts.middleware`` is what stops an
-unverified staff session wandering anywhere except the challenge page.
+after it. ``accounts.middleware.TwoFactorEnforcementMiddleware`` is what makes
+that hold: it refuses to let an unverified staff session reach any page except
+the challenge, so a capability predicate in ``accounts.access`` is only ever
+evaluated on a session that has already cleared 2FA.
+
+``User.totp_enabled`` is the authored model's flag for this. It is kept in step
+with the device here rather than being settable on its own — a boolean that can
+drift from whether a device actually exists is worse than no boolean at all.
 """
 
 from __future__ import annotations
@@ -82,6 +86,7 @@ def confirm_enrolment(request, user, device: TOTPDevice, code: str) -> bool:
     device.name = DEVICE_NAME
     device.save(update_fields=["confirmed", "name"])
 
+    _sync_flag(user, True)
     otp_login(request, device)
     logger.info("two_factor.enrolled", extra={"user_id": user.pk})
     return True
@@ -107,6 +112,13 @@ def verify(request, user, code: str) -> bool:
     otp_login(request, device)
     logger.info("two_factor.verified", extra={"user_id": user.pk})
     return True
+
+
+def _sync_flag(user, enabled: bool) -> None:
+    """Keep ``User.totp_enabled`` truthful about whether a device exists."""
+    if user.totp_enabled != enabled:
+        user.totp_enabled = enabled
+        user.save(update_fields=["totp_enabled"])
 
 
 def issuer() -> str:

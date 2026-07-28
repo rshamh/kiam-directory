@@ -86,16 +86,10 @@ def test_signed_url_refuses_a_practitioner(practitioner):
         documents.signed_url("dbs/test.pdf", user=practitioner)
 
 
-def test_signed_url_refuses_an_admin(admin_user, verified_2fa):
+def test_signed_url_refuses_an_admin(admin_user):
     """The admin/verifier split, asserted at the storage boundary too."""
-    verified_2fa(admin_user)
     with pytest.raises(documents.EvidenceAccessDenied):
         documents.signed_url("dbs/test.pdf", user=admin_user)
-
-
-def test_signed_url_refuses_a_verifier_who_has_not_done_2fa(verifier):
-    with pytest.raises(documents.EvidenceAccessDenied):
-        documents.signed_url("dbs/test.pdf", user=verifier)
 
 
 def test_signed_url_refuses_anonymous():
@@ -105,23 +99,20 @@ def test_signed_url_refuses_anonymous():
         documents.signed_url("dbs/test.pdf", user=AnonymousUser())
 
 
-def test_signed_url_rejects_an_empty_key(verifier, verified_2fa):
-    verified_2fa(verifier)
+def test_signed_url_rejects_an_empty_key(verifier):
     with pytest.raises(ValueError):
         documents.signed_url("", user=verifier)
 
 
-def test_signed_url_refuses_to_fake_it_on_a_backend_that_cannot_sign(verifier, verified_2fa):
+def test_signed_url_refuses_to_fake_it_on_a_backend_that_cannot_sign(verifier):
     """Returning a /media/ path here would be the exact leak this module prevents."""
-    verified_2fa(verifier)
     with pytest.raises(NotImplementedError):
         documents.signed_url("dbs/test.pdf", user=verifier)
 
 
-def test_a_permitted_access_is_logged(verifier, verified_2fa, caplog):
+def test_a_permitted_access_is_logged(verifier, caplog):
     import logging
 
-    verified_2fa(verifier)
     with caplog.at_level(logging.INFO, logger="directory.documents"), pytest.raises(NotImplementedError):
         documents.signed_url("dbs/test.pdf", user=verifier, reason="DBS check")
 
@@ -129,11 +120,10 @@ def test_a_permitted_access_is_logged(verifier, verified_2fa, caplog):
     assert "evidence.url_signed" in messages
 
 
-def test_a_refused_access_is_logged(admin_user, verified_2fa, caplog):
+def test_a_refused_access_is_logged(admin_user, caplog):
     """An admin repeatedly reaching for evidence is something compliance sees."""
     import logging
 
-    verified_2fa(admin_user)
     with (
         caplog.at_level(logging.WARNING, logger="directory.documents"),
         pytest.raises(documents.EvidenceAccessDenied),
@@ -143,8 +133,7 @@ def test_a_refused_access_is_logged(admin_user, verified_2fa, caplog):
     assert "evidence.access_denied" in [r.getMessage() for r in caplog.records]
 
 
-def test_signing_works_on_a_backend_that_can(verifier, verified_2fa, monkeypatch):
-    verified_2fa(verifier)
+def test_signing_works_on_a_backend_that_can(verifier, monkeypatch):
 
     class FakeSigning:
         is_private_evidence = True

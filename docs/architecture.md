@@ -26,7 +26,7 @@ The table above is the intent. This is the repo.
 
 | App | Built at Phase 0 | Empty until |
 |---|---|---|
-| `accounts` | `User`, `MagicLinkToken`, `access.py`, `services/{magic_link,ratelimit,two_factor}.py`, `middleware.py`, views, admin | `Invite` — Phase 2 |
+| `accounts` | `User`, `LoginToken`, `Invite`, `access.py`, `services/{magic_link,ratelimit,two_factor}.py`, `middleware.py`, views, admin | the invite *flow* — Phase 2 |
 | `directory` | `storages.py`, `services/documents.py`. **No models.** | Phase 1 |
 | `search` | app config only | Phase 4 |
 | `dashboard` | app config only | Phase 6 |
@@ -34,8 +34,13 @@ The table above is the intent. This is the repo.
 | `seo` | `jsonld.py`, `sitemaps.py`, `views.py` (robots, llms.txt, `/healthz`, 404/500 handlers) | — |
 | `pages` | `nav.py` (kiam-ui chrome config), placeholder home | static pages Phase 3, landing pages Phase 7 |
 
-**Models:** `accounts.User`, `accounts.MagicLinkToken`. Nothing else. The `directory` models
-land in Phase 1.
+**Models:** `accounts.User`, `accounts.LoginToken`, `accounts.Invite`. Nothing else.
+
+`accounts/models.py` and `accounts/access.py` are **authored elsewhere and adopted verbatim** —
+`models.py` is byte-identical, and `access.py` has the Phase 0 two-factor helpers appended below
+the authored block, which is unchanged. `Invite` therefore lands in Phase 0 because it is in that
+file; only the issue/accept *flow* waits for Phase 2, and the admin registers it read-only until
+then. The `directory` models (also authored) land in Phase 1.
 
 **URLs:**
 
@@ -55,9 +60,15 @@ land in Phase 1.
 | `/accounts/two-factor/` | `accounts:two_factor_verify` | |
 | `/<ADMIN_URL_PATH>/` | Django admin | default `staff-console/`, not `/admin/` |
 
-**Roles:** all four from the matrix below exist as `accounts.models.Role` and every predicate is
-implemented in `accounts/access.py`. `TWO_FACTOR_REQUIRED_ROLES` covers `admin`, `verifier` and
-`superadmin`; `accounts/middleware.py` enforces it.
+**Roles:** all four exist as `accounts.models.User.Role`, and every predicate lives in
+`accounts/access.py`. Two things the matrix below does not spell out:
+
+* `can_manage_taxonomy` is **`admin` + `superadmin` only** — narrower than `is_staff_role`. A
+  verifier checks documents; they do not curate the vocabulary.
+* **Two-factor is not a capability predicate.** `access.py` answers "does this role have this
+  permission"; `accounts/middleware.py` answers "is this session fully authenticated", and
+  refuses to let an unverified staff session reach any page but the challenge. Keeping them apart
+  means a future predicate cannot forget to check 2FA — a whitelist, not a checklist.
 
 ## Why the taxonomy is four lists, not one
 

@@ -1,6 +1,8 @@
 """Issuing and consuming magic links.
 
-The whole flow, and the reasoning for each control:
+Builds on ``accounts.models.LoginToken``, which is authored and not rewritten
+here: it stores a hash, an expiry, a ``used_at`` and the requesting IP, and
+exposes ``is_usable``. Everything below is the flow around it.
 
     request  ->  rate-limit (email + IP)
              ->  find the user, or don't
@@ -10,8 +12,8 @@ The whole flow, and the reasoning for each control:
 
     consume  ->  hash the presented token
              ->  constant-time compare against the stored hash
-             ->  reject if consumed or expired
-             ->  mark consumed, invalidate the user's other live tokens
+             ->  reject if used or expired
+             ->  mark used, invalidate the user's other live tokens
              ->  cycle the session key, then log in
 
 Three rules that are easy to lose in a refactor:
@@ -37,6 +39,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import secrets
+from datetime import timedelta
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -46,12 +50,16 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
-from ..models import MagicLinkToken
+from ..models import LoginToken
 from . import ratelimit
 
 logger = logging.getLogger("accounts")
 
 User = get_user_model()
+
+#: Bytes of entropy in the raw token. 32 bytes -> a 43-character URL-safe string,
+#: well beyond guessing at any plausible request rate.
+TOKEN_BYTES = 32
 
 #: Rate-limit scopes. Separate so an attacker spraying one address cannot
 #: exhaust an unrelated visitor's IP budget, and vice versa.
@@ -91,19 +99,18 @@ def _check_rate_limits(email: str, ip: str | None) -> None:
             raise RateLimited
 
 
-def issue(user, *, ip: str | None = None, user_agent: str = "") -> tuple[MagicLinkToken, str]:
+def issue(user, *, ip: str | None = None) -> tuple[LoginToken, str]:
     """Mint a token for ``user``. Returns the row and the RAW token.
 
     The raw value is returned rather than stored so the caller can put it in the
     email; nothing else may keep it.
     """
-    raw_token = MagicLinkToken.new_raw_token()
-    token = MagicLinkToken.objects.create(
+    raw_token = secrets.token_urlsafe(TOKEN_BYTES)
+    token = LoginToken.objects.create(
         user=user,
         token_hash=hash_token(raw_token),
-        expires_at=MagicLinkToken.default_expiry(),
+        expires_at=timezone.now() + timedelta(minutes=settings.MAGIC_LINK_TTL_MINUTES),
         requested_ip=ip,
-        requested_user_agent=user_agent[:300],
     )
     logger.info("magic_link.issued", extra={"user_id": user.pk, "token_id": token.pk})
     return token, raw_token
@@ -131,18 +138,24 @@ def send_link_email(user, raw_token: str) -> None:
     message.send(fail_silently=False)
 
 
-def request_link(email: str, *, ip: str | None = None, user_agent: str = "") -> None:
+def request_link(email: str, *, ip: str | None = None) -> None:
     """Handle a login request.
 
     Returns ``None`` in every case that is not rate limiting — a caller cannot
     tell whether an email was sent, because the return value carries no signal.
     The only exception raised is ``RateLimited``, which is about the *requester*
     and reveals nothing about the account.
-    """
-    email = email.strip().lower()
-    _check_rate_limits(email, ip)
 
-    user = User.objects.filter(email=email, is_active=True).first()
+    The lookup is ``iexact``. ``BaseUserManager.normalize_email`` lowercases only
+    the DOMAIN, so an account created as "Nadia@example.com" is stored with its
+    capital N — an exact-match lookup on a lowercased input would silently fail
+    to find a real account, and the person would sit waiting for an email that
+    was never sent. See the note in the Phase 0 gate report.
+    """
+    email = email.strip()
+    _check_rate_limits(email.lower(), ip)
+
+    user = User.objects.filter(email__iexact=email, is_active=True).first()
     if user is None:
         # No email, no token, no timing shortcut worth engineering around: the
         # response is identical and the work skipped here is a hash and an SMTP
@@ -150,12 +163,12 @@ def request_link(email: str, *, ip: str | None = None, user_agent: str = "") -> 
         logger.info("magic_link.requested_unknown_email")
         return
 
-    _, raw_token = issue(user, ip=ip, user_agent=user_agent)
+    _, raw_token = issue(user, ip=ip)
     send_link_email(user, raw_token)
 
 
 @transaction.atomic
-def consume(raw_token: str) -> User | None:
+def consume(raw_token: str):
     """Redeem a token. Returns the user, or ``None`` if it is not usable."""
     if not raw_token:
         return None
@@ -163,7 +176,7 @@ def consume(raw_token: str) -> User | None:
     presented_hash = hash_token(raw_token)
 
     token = (
-        MagicLinkToken.objects.select_for_update()
+        LoginToken.objects.select_for_update()
         .select_related("user")
         .filter(token_hash=presented_hash)
         .first()
@@ -177,14 +190,14 @@ def consume(raw_token: str) -> User | None:
         logger.info("magic_link.consume_rejected", extra={"reason": "mismatch"})
         return None
 
-    if token.is_consumed:
+    if token.used_at is not None:
         logger.warning(
             "magic_link.consume_rejected",
-            extra={"reason": "already_consumed", "token_id": token.pk, "user_id": token.user_id},
+            extra={"reason": "already_used", "token_id": token.pk, "user_id": token.user_id},
         )
         return None
 
-    if token.is_expired:
+    if not token.is_usable:
         logger.info(
             "magic_link.consume_rejected",
             extra={"reason": "expired", "token_id": token.pk, "user_id": token.user_id},
@@ -199,15 +212,13 @@ def consume(raw_token: str) -> User | None:
         return None
 
     now = timezone.now()
-    token.consumed_at = now
-    token.save(update_fields=["consumed_at"])
+    token.used_at = now
+    token.save(update_fields=["used_at"])
 
     # One live link per person. Redeeming the newest link invalidates any older
     # one still sitting in an inbox — otherwise a forwarded or leaked earlier
     # email stays valid for the rest of its TTL.
-    MagicLinkToken.objects.filter(user=token.user, consumed_at__isnull=True).exclude(pk=token.pk).update(
-        consumed_at=now
-    )
+    LoginToken.objects.filter(user=token.user, used_at__isnull=True).exclude(pk=token.pk).update(used_at=now)
 
     logger.info("magic_link.consumed", extra={"user_id": token.user_id, "token_id": token.pk})
     return token.user
@@ -218,21 +229,28 @@ def log_in(request, user) -> None:
 
     ``login()`` cycles the session key itself, which is what closes session
     fixation: a key an attacker planted before authentication does not survive it.
+
+    Redeeming a link is also proof of control of the mailbox, so it is what sets
+    ``email_verified_at``. Nothing else in the project sets it.
     """
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-    user.last_login_at = timezone.now()
-    user.save(update_fields=["last_login_at"])
+
+    now = timezone.now()
+    fields = ["last_login_at"]
+    user.last_login_at = now
+    if user.email_verified_at is None:
+        user.email_verified_at = now
+        fields.append("email_verified_at")
+    user.save(update_fields=fields)
 
 
 def purge_expired(*, older_than_days: int = 7) -> int:
     """Delete spent and expired tokens. Wired to a scheduler in Phase 2.
 
-    Consumed rows are kept briefly so "this link was already used" can be
-    answered honestly, then dropped — GDPR minimisation, and there is no reason
-    to retain a record of every login attempt indefinitely.
+    Used rows are kept briefly so "this link was already used" can be answered
+    honestly, then dropped — GDPR minimisation, and there is no reason to retain
+    a record of every login attempt indefinitely.
     """
-    from datetime import timedelta
-
     cutoff = timezone.now() - timedelta(days=older_than_days)
-    deleted, _ = MagicLinkToken.objects.filter(created_at__lt=cutoff).delete()
+    deleted, _ = LoginToken.objects.filter(created_at__lt=cutoff).delete()
     return deleted

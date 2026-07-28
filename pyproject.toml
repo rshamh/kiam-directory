@@ -47,6 +47,19 @@ exclude = ["migrations"]
 select = ["E", "F", "I", "UP", "B", "DJ", "C4", "SIM"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# accounts/models.py is AUTHORED ELSEWHERE and adopted verbatim — CLAUDE.md and
+# docs/roadmap.md both say "review, don't rewrite". It is kept byte-identical to
+# what was supplied, so the divergence is recorded here rather than absorbed
+# silently by editing the file.
+#
+# DJ008: `LoginToken` and `Invite` define no __str__. Proposed upstream, not
+# applied. Note a __str__ on either is not free — both hold a token_hash, and the
+# obvious implementation puts a credential-shaped string into admin pages and log
+# lines. If one is added it should render the user and the timestamp, never the
+# hash.
+"accounts/models.py" = ["DJ008"]
+
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["test_*.py", "*_test.py"]

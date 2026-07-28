@@ -69,6 +69,16 @@ def test_a_correct_code_confirms_the_device(admin_user):
     assert two_factor.has_device(admin_user)
 
 
+def test_enrolling_sets_the_totp_enabled_flag(admin_user):
+    """The authored model carries the flag; it must not drift from reality."""
+    assert admin_user.totp_enabled is False
+
+    _enrol(admin_user)
+
+    admin_user.refresh_from_db()
+    assert admin_user.totp_enabled is True
+
+
 def test_a_wrong_code_does_not_confirm(admin_user):
     device = two_factor.start_enrolment(admin_user)
 

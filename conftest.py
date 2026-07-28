@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from django.core.cache import cache
 
-from accounts.models import Role
+from accounts.models import User
 
 
 @pytest.fixture(autouse=True)
@@ -22,9 +22,7 @@ def _clear_cache():
 
 @pytest.fixture
 def user_factory(db):
-    from accounts.models import User
-
-    def make(email="practitioner@example.com", role=Role.PRACTITIONER, **extra):
+    def make(email="practitioner@example.com", role=User.Role.PRACTITIONER, **extra):
         return User.objects.create_user(email=email, role=role, **extra)
 
     return make
@@ -32,29 +30,29 @@ def user_factory(db):
 
 @pytest.fixture
 def practitioner(user_factory):
-    return user_factory("practitioner@example.com", Role.PRACTITIONER)
+    return user_factory("practitioner@example.com", User.Role.PRACTITIONER)
 
 
 @pytest.fixture
 def admin_user(user_factory):
-    return user_factory("admin@example.com", Role.ADMIN)
+    return user_factory("admin@example.com", User.Role.ADMIN)
 
 
 @pytest.fixture
 def verifier(user_factory):
-    return user_factory("verifier@example.com", Role.VERIFIER)
+    return user_factory("verifier@example.com", User.Role.VERIFIER)
 
 
 @pytest.fixture
 def superadmin(user_factory):
-    return user_factory("super@example.com", Role.SUPERADMIN, is_staff=True, is_superuser=True)
+    return user_factory("super@example.com", User.Role.SUPERADMIN, is_staff=True, is_superuser=True)
 
 
 @pytest.fixture
 def verified_2fa():
     """Mark a user's session as having passed the TOTP challenge.
 
-    ``django_otp``'s middleware sets ``user.otp_device``; the predicates in
+    ``django_otp``'s middleware sets ``user.otp_device``; the helpers in
     ``accounts.access`` read exactly that, so simulating it here keeps the tests
     honest about what they are asserting.
     """

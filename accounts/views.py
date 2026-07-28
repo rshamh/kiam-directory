@@ -49,11 +49,7 @@ def login_view(request):
     if request.method == "POST" and form.is_valid():
         if not form.is_bot:
             try:
-                magic_link.request_link(
-                    form.cleaned_data["email"],
-                    ip=ratelimit.client_ip(request),
-                    user_agent=request.META.get("HTTP_USER_AGENT", ""),
-                )
+                magic_link.request_link(form.cleaned_data["email"], ip=ratelimit.client_ip(request))
             except magic_link.RateLimited:
                 # The one honest failure. It is about the requester's rate, not
                 # about whether the account exists, so it leaks nothing.

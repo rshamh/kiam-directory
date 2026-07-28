@@ -52,6 +52,27 @@ def test_the_login_page_offers_no_way_to_create_an_account(client):
         assert phrase not in visible
 
 
-def test_users_have_an_unusable_password(practitioner):
-    """There are no passwords. A settable one would be a second way in."""
-    assert not practitioner.has_usable_password()
+def test_users_have_an_unusable_password(practitioner, admin_user, verifier):
+    """Sign-in is a magic link. A settable password would be a second way in."""
+    for user in (practitioner, admin_user, verifier):
+        assert not user.has_usable_password()
+
+
+def test_createsuperuser_is_the_one_password_and_it_is_not_a_bypass(db, client, settings):
+    """The authored UserManager gives a superuser a password on purpose.
+
+    Django's own admin login form needs one. That is not a way around the magic
+    link: the admin sits behind TwoFactorEnforcementMiddleware, so a password
+    alone gets as far as the TOTP challenge and no further.
+    """
+    from accounts.models import User
+
+    user = User.objects.create_superuser(email="root@example.com", password="pw")
+    assert user.has_usable_password()
+    assert user.role == User.Role.SUPERADMIN
+
+    client.force_login(user)
+    response = client.get(f"/{settings.ADMIN_URL_PATH}/")
+
+    assert response.status_code == 302
+    assert response.url.startswith("/accounts/two-factor/")

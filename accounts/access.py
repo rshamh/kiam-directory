@@ -1,181 +1,138 @@
-"""Every role predicate in the project. There are no others.
-
-Views and templates never inspect ``user.role``. They ask a question here. Two
-reasons, both load-bearing:
-
-1. The later move to central SSO (docs/multi-project-architecture.md §3, Option B)
-   becomes a one-file change instead of a grep.
-2. A permission rule that exists in one place can be *tested* in one place. The
-   admin/verifier split below is a real control — ``admin`` deliberately cannot
-   open somebody's passport scan — and it only holds if there is exactly one
-   implementation of it.
-
-Naming: ``can_*`` for capability questions, ``is_*`` for identity questions. The
-decorators at the bottom are the only sanctioned way to gate a view.
 """
+Every role check in this project lives here.
 
-from __future__ import annotations
+docs/multi-project-architecture.md §3: "keep role checks in a single access.py per
+project". The reason is the OIDC migration — when the main site becomes the identity
+provider, the mapping from claims to permissions changes in exactly one file.
+
+Rule: views and templates call these predicates. They never inspect `user.role`
+directly, and never compare user ids across projects.
+"""
 
 from functools import wraps
 
-from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 
-from .models import TWO_FACTOR_REQUIRED_ROLES, Role
+from .models import User
 
-# ---------------------------------------------------------------------------
-# Identity
-# ---------------------------------------------------------------------------
-
-
-def _role(user) -> str | None:
-    if user is None or not user.is_authenticated or not user.is_active:
-        return None
-    return user.role
-
-
-def is_practitioner(user) -> bool:
-    return _role(user) == Role.PRACTITIONER
-
-
-def is_admin(user) -> bool:
-    """Strictly the admin role — NOT "admin or above".
-
-    Use ``can_*`` for capability questions. This one is for the rare case that
-    genuinely means "this person is an admin and not a verifier".
-    """
-    return _role(user) == Role.ADMIN
-
-
-def is_verifier(user) -> bool:
-    return _role(user) == Role.VERIFIER
-
-
-def is_superadmin(user) -> bool:
-    return _role(user) == Role.SUPERADMIN
+STAFF_ROLES = {User.Role.ADMIN, User.Role.VERIFIER, User.Role.SUPERADMIN}
 
 
 def is_staff_role(user) -> bool:
-    """Anyone who works for Kiam, as opposed to a listed practitioner."""
-    return _role(user) in {Role.ADMIN, Role.VERIFIER, Role.SUPERADMIN}
+    return bool(user and user.is_authenticated and user.role in STAFF_ROLES)
 
 
-# ---------------------------------------------------------------------------
-# Two-factor
-# ---------------------------------------------------------------------------
+def can_review_submissions(user) -> bool:
+    """Approve, request changes, publish, suspend."""
+    return is_staff_role(user)
+
+
+def can_view_evidence(user) -> bool:
+    """
+    Read a private verification document (ID, DBS, insurance certificate).
+
+    Deliberately narrower than can_review_submissions: a reviewer can approve profile
+    copy without opening someone's passport scan. Every call is logged by
+    directory.services.documents.open_evidence().
+    """
+    return bool(user and user.is_authenticated and user.role in {User.Role.VERIFIER, User.Role.SUPERADMIN})
+
+
+def can_grant_provisional_dbs(user) -> bool:
+    """
+    Start the clock on a listing that goes live for adult work while a DBS is pending.
+    Restricted to VERIFIER and above, always audit-logged with the named actor.
+    """
+    return can_view_evidence(user)
+
+
+def can_extend_provisional_window(user) -> bool:
+    """
+    An extension is a deliberate act, not a default. Second and subsequent extensions
+    additionally require Dr. Abbass sign-off recorded on the practitioner — see
+    docs/architecture.md, open decision 8.
+    """
+    return can_view_evidence(user)
+
+
+def can_manage_taxonomy(user) -> bool:
+    return bool(user and user.is_authenticated and user.role in {User.Role.ADMIN, User.Role.SUPERADMIN})
+
+
+def owns_practitioner(user, practitioner) -> bool:
+    return bool(user and user.is_authenticated and practitioner.user_id == user.id)
+
+
+def can_edit_practitioner(user, practitioner) -> bool:
+    return owns_practitioner(user, practitioner) or is_staff_role(user)
+
+
+def require(predicate):
+    """
+    View decorator.
+
+        @require(can_review_submissions)
+        def review_queue(request): ...
+    """
+
+    def decorator(view):
+        @wraps(view)
+        def wrapped(request, *args, **kwargs):
+            if not predicate(request.user):
+                raise PermissionDenied
+            return view(request, *args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
+# ===========================================================================
+# Phase 0 additions — two-factor authentication
+# ===========================================================================
+# Everything above is the authored file and is left exactly as written. The
+# functions below were added in Phase 0 to satisfy "TOTP 2FA enforced for admin,
+# verifier and superadmin roles".
+#
+# They are deliberately kept SEPARATE from the capability predicates rather than
+# folded into them, and that split is the design:
+#
+#   * a capability predicate answers "does this ROLE have this permission" — a
+#     property of the account, and the thing the OIDC migration will re-map;
+#   * two-factor answers "is this SESSION fully authenticated" — a property of
+#     the request, and nothing to do with what the role may do.
+#
+# Mixing them would mean every predicate above had to re-check the session, and
+# a future predicate that forgot would be a silent hole. Instead
+# `accounts.middleware.TwoFactorEnforcementMiddleware` refuses to let an
+# unverified staff session reach ANY page except the challenge, so a capability
+# predicate is only ever evaluated on a session that has already cleared 2FA.
+# That is a whitelist, not a checklist, and it fails closed.
+
+#: Roles that must carry a confirmed TOTP device. Read by the middleware and the
+#: enrolment views; do not test role strings for this anywhere else.
+TWO_FACTOR_REQUIRED_ROLES = STAFF_ROLES
 
 
 def requires_two_factor(user) -> bool:
     """Whether this account must carry a confirmed TOTP device at all."""
-    return _role(user) in TWO_FACTOR_REQUIRED_ROLES
+    return bool(user and user.is_authenticated and user.role in TWO_FACTOR_REQUIRED_ROLES)
 
 
 def has_verified_two_factor(user) -> bool:
     """Whether *this session* has been verified against a TOTP device.
 
-    ``django_otp``'s middleware sets ``user.otp_device`` when the session carries a
-    verified device. Absent the middleware the attribute is missing, and the
+    ``django_otp``'s middleware sets ``user.otp_device`` when the session carries
+    a verified device. Absent the middleware the attribute is missing, and the
     honest answer to "has this session been verified" is then no.
     """
-    if _role(user) is None:
+    if not (user and user.is_authenticated):
         return False
     return getattr(user, "otp_device", None) is not None
 
 
 def two_factor_satisfied(user) -> bool:
     """The gate itself: either 2FA is not required, or it has been completed."""
-    if _role(user) is None:
+    if not (user and user.is_authenticated):
         return False
     return not requires_two_factor(user) or has_verified_two_factor(user)
-
-
-# ---------------------------------------------------------------------------
-# Capabilities
-# ---------------------------------------------------------------------------
-# Every capability below is a question a view or template asks. Add to this list
-# rather than testing a role anywhere else.
-
-
-def can_access_dashboard(user) -> bool:
-    """The practitioner self-service area (Phase 6)."""
-    return is_practitioner(user) and two_factor_satisfied(user)
-
-
-def can_access_backoffice(user) -> bool:
-    """The staff queues (Phase 2)."""
-    return is_staff_role(user) and two_factor_satisfied(user)
-
-
-def can_review_submissions(user) -> bool:
-    """Approve, request changes on, or publish a submitted profile."""
-    return can_access_backoffice(user)
-
-
-def can_manage_taxonomy(user) -> bool:
-    return can_access_backoffice(user)
-
-
-def can_invite_users(user) -> bool:
-    """Account creation is by invite only — there is no public signup route."""
-    return can_access_backoffice(user)
-
-
-def can_suspend_listing(user) -> bool:
-    return can_access_backoffice(user)
-
-
-def can_view_private_evidence(user) -> bool:
-    """Open a verification document (passport, DBS certificate, registration).
-
-    ``admin`` is excluded on purpose, and this is the single reason the verifier
-    role exists: approving profile copy and inspecting identity documents are
-    different jobs, and every access is logged (docs/architecture.md, "Roles").
-    Widening this predicate widens who can read scans of people's passports.
-    """
-    return _role(user) in {Role.VERIFIER, Role.SUPERADMIN} and two_factor_satisfied(user)
-
-
-def can_grant_provisional_dbs(user) -> bool:
-    """Let a practitioner go live for adult work with a DBS still pending.
-
-    Not a verification toggle. ``Practitioner.is_verified`` and
-    ``minor_work_status`` stay computed from dated ``VerificationCheck`` rows by
-    ``directory.services.verification.recompute()`` — there is no admin toggle and
-    none may be added (CLAUDE.md). This grants the *input*, and writes an audit
-    entry; the state is still derived.
-    """
-    return can_view_private_evidence(user)
-
-
-def can_use_django_admin(user) -> bool:
-    return is_superadmin(user) and two_factor_satisfied(user)
-
-
-# ---------------------------------------------------------------------------
-# View decorators
-# ---------------------------------------------------------------------------
-
-
-def require(predicate):
-    """Gate a view on one of the predicates above.
-
-        @require(can_view_private_evidence)
-        def evidence_view(request, ...): ...
-
-    An anonymous user is sent to log in; a signed-in user who simply lacks the
-    capability gets a 403. Redirecting the second case to a login page would tell
-    them the URL exists and invite them to try another account.
-    """
-
-    def decorator(view):
-        @wraps(view)
-        def wrapper(request, *args, **kwargs):
-            if predicate(request.user):
-                return view(request, *args, **kwargs)
-            if not request.user.is_authenticated:
-                return redirect_to_login(request.get_full_path())
-            raise PermissionDenied
-
-        return wrapper
-
-    return decorator

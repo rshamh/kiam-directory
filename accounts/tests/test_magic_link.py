@@ -13,7 +13,7 @@ from django.core import mail
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import MagicLinkToken
+from accounts.models import LoginToken
 from accounts.services import magic_link, ratelimit
 
 pytestmark = pytest.mark.django_db
@@ -32,7 +32,7 @@ def test_raw_token_is_never_stored(practitioner):
     assert len(token.token_hash) == 64
 
     # The raw value must not appear in any column of the row.
-    row = MagicLinkToken.objects.filter(pk=token.pk).values().get()
+    row = LoginToken.objects.filter(pk=token.pk).values().get()
     assert raw not in str(row)
 
 
@@ -99,7 +99,7 @@ def test_request_sends_a_link_to_a_known_address(practitioner):
 
     assert len(mail.outbox) == 1
     assert mail.outbox[0].to == [practitioner.email]
-    assert MagicLinkToken.objects.filter(user=practitioner).count() == 1
+    assert LoginToken.objects.filter(user=practitioner).count() == 1
 
 
 def test_request_for_an_unknown_address_sends_nothing_and_says_nothing(db):
@@ -107,7 +107,7 @@ def test_request_for_an_unknown_address_sends_nothing_and_says_nothing(db):
 
     assert result is None
     assert mail.outbox == []
-    assert MagicLinkToken.objects.count() == 0
+    assert LoginToken.objects.count() == 0
 
 
 def test_request_for_a_deactivated_account_sends_nothing(user_factory):
@@ -201,10 +201,10 @@ def test_reset_clears_a_window(practitioner, settings):
 
 def test_purge_expired_removes_old_rows(practitioner):
     token, _ = magic_link.issue(practitioner)
-    MagicLinkToken.objects.filter(pk=token.pk).update(created_at=timezone.now() - timedelta(days=30))
+    LoginToken.objects.filter(pk=token.pk).update(created_at=timezone.now() - timedelta(days=30))
 
     assert magic_link.purge_expired(older_than_days=7) == 1
-    assert MagicLinkToken.objects.count() == 0
+    assert LoginToken.objects.count() == 0
 
 
 def test_purge_expired_keeps_recent_rows(practitioner):

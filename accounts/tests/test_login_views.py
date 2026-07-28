@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from django.urls import reverse
 
-from accounts.models import MagicLinkToken
+from accounts.models import LoginToken
 from accounts.services import magic_link
 
 pytestmark = pytest.mark.django_db
@@ -48,7 +48,7 @@ def test_the_confirmation_page_does_not_confirm_anything(client):
 
 def test_a_full_login_establishes_a_session(client, practitioner):
     client.post(reverse("accounts:login"), {"email": practitioner.email})
-    token = MagicLinkToken.objects.get(user=practitioner)
+    token = LoginToken.objects.get(user=practitioner)
 
     # The raw token is not recoverable from the row, so mint a known one.
     _, raw = magic_link.issue(practitioner)
@@ -86,7 +86,7 @@ def test_the_honeypot_silently_swallows_a_bot(client, practitioner):
 
     # Same redirect a human gets — a bot learns nothing — but no token minted.
     assert response.url == reverse("accounts:login_sent")
-    assert MagicLinkToken.objects.count() == 0
+    assert LoginToken.objects.count() == 0
 
 
 def test_rate_limiting_returns_429_without_revealing_the_account(client, settings):
