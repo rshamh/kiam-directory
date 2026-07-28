@@ -1,0 +1,14 @@
+{
+  "name": "kiam-directory",
+  "private": true,
+  "description": "Tailwind build for directory.kiamclinic.com. The shared kiam-ui layer needs no build; this compiles only the site's own layer.",
+  "scripts": {
+    "vendor:kiam-ui": "python manage.py kiam_ui_vendor",
+    "build:css": "npm run vendor:kiam-ui && tailwindcss -i ./static/src/app.css -o ./static/css/app.css --minify",
+    "watch:css": "npm run vendor:kiam-ui && tailwindcss -i ./static/src/app.css -o ./static/css/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.0",
+    "tailwindcss": "^4.1.0"
+  }
+}

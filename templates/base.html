@@ -1,0 +1,41 @@
+{% extends "kiam_ui/base.html" %}
+{% comment %}
+The directory's base template. Every page in this repo extends THIS, not
+kiam_ui/base.html directly — this is where the site-wide SEO defaults, the Open
+Graph image and our compiled stylesheet live.
+
+kiam-ui owns the document skeleton, the chrome and the design tokens. It ships no
+JSON-LD and no og:image on purpose: structured data is about what a *site* is,
+and image handling is site-specific. Both are filled in here.
+
+A page sets its SEO through context rather than by overriding blocks:
+
+    meta_title        -> <title> and og:title      (required)
+    meta_description  -> meta description, og:description  (required — golden rule #1)
+    canonical_url     -> absolute canonical. Defaults to this URL, which is right
+                         for every page that is not a facet permutation.
+    robots_content    -> e.g. "noindex, follow" on facet URLs (Phase 4)
+    jsonld            -> pre-rendered by seo.jsonld, already escaped
+
+Canonicals stay inside this subdomain. Never point one at kiamclinic.com
+(docs/multi-project-architecture.md §5).
+{% endcomment %}
+{% load static %}
+
+{% block title %}{% if meta_title %}{{ meta_title }} · {{ kiam_ui.SITE_NAME }}{% else %}{{ kiam_ui.SITE_NAME }}{% endif %}{% endblock %}
+
+{% block meta_description %}{{ meta_description|default:"A directory of independent mental-health practitioners, published by Kiam Clinic." }}{% endblock %}
+
+{% block canonical %}{% if canonical_url %}{{ canonical_url }}{% else %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endif %}{% endblock %}
+
+{% block robots %}{% if robots_content %}<meta name="robots" content="{{ robots_content }}">{% endif %}{% endblock %}
+
+{% block og_title %}{{ meta_title|default:kiam_ui.SITE_NAME }}{% endblock %}
+{% block og_description %}{{ meta_description|default:"A directory of independent mental-health practitioners, published by Kiam Clinic." }}{% endblock %}
+{% block og_image %}<meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/og-default.png' %}">{% endblock %}
+
+{% block jsonld %}{{ jsonld|default:"" }}{% endblock %}
+
+{# Our Tailwind build. Loaded after kiam-ui's layer so site CSS wins a genuine
+   collision — see docs/design-system.md §6. #}
+{% block site_css %}<link rel="stylesheet" href="{% static 'css/app.css' %}">{% endblock %}

@@ -1,0 +1,70 @@
+/* ============================================================
+   Kiam Clinic Directory — the site's own layer.
+
+   kiam-ui owns colour, type, spacing, effects, the chrome and the `ds-*`
+   component vocabulary. NOTHING in this file restates any of them: every value
+   below references a token the package defines. See docs/design-system.md.
+
+   Two @source lines, and the second is the one that bites: kiam-ui's templates
+   live in site-packages, so Tailwind cannot see them and would purge any utility
+   used only inside a packaged template. `base.html` puts `bg-page text-body
+   font-sans antialiased` on <body>, so those four utilities have to survive the
+   build. The failure is invisible in dev, where nothing is purged.
+
+   `build/kiam-ui/` is BUILD OUTPUT, produced by `manage.py kiam_ui_vendor` and
+   gitignored. `npm run build:css` runs the vendor step first so it cannot be
+   forgotten after a pin bump.
+   ============================================================ */
+
+@import "tailwindcss";
+
+@source "../../templates/**/*.html";
+@source "../../build/kiam-ui/templates/**/*.html";
+
+@import "../../build/kiam-ui/css/theme.css";
+
+/* ------------------------------------------------------------
+   Directory-specific components.
+
+   Namespaced `dir-*` so nothing here can collide with a `ds-*` or chrome class.
+   The components CLAUDE.md lists — SearchBar, PractitionerCard, VerifiedBadge
+   and the rest — are built in templates/components/ from Phase 3 onward and
+   their styles land here. At Phase 0 there are only the three the placeholder
+   home and the auth pages need.
+   ------------------------------------------------------------ */
+
+.dir-placeholder-note {
+  margin-block-start: var(--space-6);
+  color: var(--text-secondary);
+}
+
+.dir-steps {
+  margin-block: var(--space-6);
+  padding-inline-start: var(--space-6);
+  display: grid;
+  gap: var(--space-5);
+  color: var(--text-primary);
+}
+
+.dir-steps img {
+  display: block;
+  margin-block: var(--space-4);
+  background: var(--white);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+/* The TOTP secret is read out and typed in by hand, so it is monospaced and
+   spaced out. `user-select: all` makes one click select the whole key — a
+   32-character base32 string is genuinely hard to select by dragging. */
+.dir-totp-secret {
+  display: inline-block;
+  margin-block-start: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  user-select: all;
+}
