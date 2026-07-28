@@ -1,0 +1,53 @@
+[project]
+name = "kiam-directory"
+version = "0.1.0"
+description = "Kiam Clinic Directory — directory.kiamclinic.com"
+requires-python = ">=3.12"
+
+dependencies = [
+  # kiam-ui v1.0.1 itself requires >=5.2; the floor is raised to match so the
+  # declared range cannot resolve to a Django the UI package will not run on.
+  "Django>=5.2,<6.0",
+  "psycopg[binary]>=3.2",
+  "django-htmx>=1.19",
+  "Pillow>=10.4",
+  "django-environ>=0.11",
+  "whitenoise>=6.7",
+  "gunicorn>=23.0",
+  "redis>=5.0",
+  "django-storages[s3]>=1.14",
+  "requests>=2.32",
+  "sentry-sdk>=2.14",
+  # TOTP 2FA for admin / verifier / superadmin. django-otp supplies the device
+  # models and verification only — it does not own the login flow, which is
+  # magic-link (see accounts/services/magic_link.py).
+  "django-otp>=1.5",
+  "qrcode>=8.0",
+  # Shared UI package. PINNED — upgrade deliberately, never track a branch.
+  "kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-django>=4.9",
+  "pytest-cov>=5.0",
+  "factory-boy>=3.3",
+  "ruff>=0.6",
+  "django-debug-toolbar>=4.4",
+  "django-stubs>=5.0",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "DJ", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py", "*_test.py"]
+addopts = "--reuse-db --strict-markers"

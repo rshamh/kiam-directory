@@ -1,0 +1,33 @@
+# Secrets — never commit.
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build output.
+# `build/kiam-ui/` is produced by `manage.py kiam_ui_vendor` and re-created after
+# every kiam-ui pin bump. `static/css/app.css` is the Tailwind output.
+build/
+static/css/
+staticfiles/
+node_modules/
+
+# Media. `private-media/` holds verification evidence in development — it must
+# never reach a repository under any circumstances.
+media/
+private-media/
+.pytest-private-media/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
