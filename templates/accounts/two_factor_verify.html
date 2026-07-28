@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% comment %}
+The TOTP challenge. Reached by staff roles (admin, verifier, superadmin) after
+the magic link has established the session but before any staff capability is
+granted — see accounts/access.py::two_factor_satisfied.
+{% endcomment %}
+
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="container section">
+  {% include "kiam_ui/components/sections/section_head.html" with title="Enter your six-digit code" description="Open your authenticator app and enter the code it shows for the Kiam Clinic Directory." heading_level=1 %}
+
+  {% include "kiam_ui/components/forms/form_card.html" with body_template="accounts/_totp_form.html" %}
+</div>
+{% endblock %}

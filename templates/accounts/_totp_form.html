@@ -1,0 +1,14 @@
+{% comment %}
+The six-digit code form. Shared by the enrolment and challenge pages.
+
+autocomplete="one-time-code" and inputmode="numeric" come from the form widget,
+so a phone offers the numeric keypad and can autofill the code from a
+notification.
+{% endcomment %}
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% include "kiam_ui/components/forms/field.html" with name="code" label="Six-digit code" type="text" required=True autocomplete="one-time-code" error=form.code.errors|first %}
+  <p>
+    {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Verify" icon="arrow-right" %}
+  </p>
+</form>

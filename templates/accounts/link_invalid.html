@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% comment %}
+A link that was already used, has expired, or never existed. All three get the
+same page and the same 410, on purpose — distinguishing them would tell someone
+holding a stolen link which of those it was.
+{% endcomment %}
+
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="container section">
+  {% include "kiam_ui/components/sections/section_head.html" with title="That sign-in link no longer works" description="Sign-in links can only be used once, and they expire after a short time." heading_level=1 %}
+
+  <p>
+    {% include "kiam_ui/components/core/button.html" with variant="primary" label="Get a new sign-in link" href="/accounts/login/" icon="arrow-right" %}
+  </p>
+</div>
+{% endblock %}

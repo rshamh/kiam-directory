@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% comment %}
+"Check your email". Shown for EVERY request that got past rate limiting —
+matched account, deactivated account, or no account at all. The wording is
+careful about this: it says what we did ("if that address has an account, we've
+sent a link"), not what we found.
+{% endcomment %}
+
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="container section">
+  {% include "kiam_ui/components/sections/section_head.html" with title="Check your email" heading_level=1 %}
+
+  <p>
+    If that address has an account with the Kiam Clinic Directory, we've sent it a
+    sign-in link. The link works once and expires after a short time.
+  </p>
+  <p>
+    Nothing arrived? Check your spam folder, then
+    <a href="{% url 'accounts:login' %}">try again</a>. Take as long as you need —
+    there is no time limit on this page.
+  </p>
+</div>
+{% endblock %}

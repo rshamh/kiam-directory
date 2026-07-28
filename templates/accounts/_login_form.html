@@ -1,0 +1,28 @@
+{% comment %}
+The magic-link request form, rendered into kiam-ui's FormCard slot.
+
+Non-field errors are rendered in a role="alert" so a rate-limit refusal is
+announced rather than only appearing (WCAG 4.1.3). The honeypot is visually
+hidden with .sr-only rather than display:none — a display:none field is skipped
+by some bots, which is exactly backwards.
+{% endcomment %}
+<form method="post" action="{% url 'accounts:login' %}" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div role="alert" class="ds-field__desc ds-field__desc--error">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% include "kiam_ui/components/forms/field.html" with name="email" label="Email address" type="email" required=True autocomplete="email" full=True help=form.email.help_text error=form.email.errors|first value=form.email.value|default:"" %}
+
+  <div class="sr-only" aria-hidden="true">
+    <label for="website">Leave this field empty</label>
+    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+  </div>
+
+  <p>
+    {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Email me a sign-in link" icon="mail" icon_position="left" %}
+  </p>
+</form>

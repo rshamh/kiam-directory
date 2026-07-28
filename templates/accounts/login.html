@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% comment %}
+Sign in. One field, no password, no signup link — account creation is by admin
+invite only (Phase 2), and offering a "create an account" link that goes nowhere
+would be worse than not having one.
+
+Nothing on this page tells a visitor whether an address is registered. The
+success path is identical either way; see accounts/services/magic_link.py.
+{% endcomment %}
+
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="container section">
+  {% include "kiam_ui/components/sections/section_head.html" with title="Sign in" description="Enter your email address and we'll send you a link that signs you in." heading_level=1 %}
+
+  {% include "kiam_ui/components/forms/form_card.html" with body_template="accounts/_login_form.html" %}
+</div>
+{% endblock %}

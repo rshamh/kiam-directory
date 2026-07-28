@@ -1,0 +1,18 @@
+{% comment %}
+The magic-link email. Plain text only: an HTML email would need image hosting and
+a tracking-pixel decision nobody wants to have to make, and this has one job.
+
+The raw token appears here and nowhere else in the system.
+{% endcomment %}Hello,
+
+Here is your sign-in link for the {{ site_name }}:
+
+{{ link }}
+
+The link works once and expires in {{ ttl_minutes }} minutes.
+
+If you didn't ask to sign in, you can ignore this email — nobody can use the link
+without it, and no changes have been made to your account.
+
+--
+{{ site_name }}
