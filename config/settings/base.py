@@ -76,7 +76,15 @@ LOCAL_APPS = [
     "pages",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+# LOCAL_APPS come FIRST, which is not the usual ordering and is deliberate.
+# Django's get_commands() walks the app registry in REVERSE and lets later
+# updates win, so the app listed EARLIER in INSTALLED_APPS wins a management-
+# command name collision. That is what lets seo/management/commands/
+# collectstatic.py override the one in django.contrib.staticfiles — see the
+# docstring there for why it has to. None of these apps ships templates of its
+# own (they all render from the project-level templates/ directory), so nothing
+# else changes ordering-wise.
+INSTALLED_APPS = LOCAL_APPS + DJANGO_APPS + THIRD_PARTY_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

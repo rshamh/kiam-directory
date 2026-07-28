@@ -42,7 +42,12 @@ FROM node:20-slim AS assets
 
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=optional || npm install
+# NOT `--omit=optional`. Tailwind v4 compiles through lightningcss, whose native
+# binding ships as a per-platform OPTIONAL dependency — omitting them leaves
+# `require('lightningcss')` resolving to nothing and the build dies with
+# MODULE_NOT_FOUND. The lockfile carries every platform's variant; npm picks the
+# linux one here and the darwin one on a developer's machine.
+RUN npm ci || npm install
 
 COPY static/ ./static/
 COPY templates/ ./templates/

@@ -388,9 +388,36 @@ component**; each is either configured around or built locally in `templates/com
    comments themselves, which is the only copy this repo can see. If the full contrast matrix is
    needed for the Phase 7 WCAG audit, it has to come from the main site repo or be re-measured.
 
-8. **`kiam-ui` requires `Django>=5.2,<6.0`**, but this repo's `pyproject.toml` declares
-   `Django>=5.1,<6.0`. Resolution succeeds (5.2.x satisfies both) but our floor is misleading.
-   *Proposed edit, not applied:* raise this repo's floor to `Django>=5.2,<6.0`.
+8. **`kiam-ui` requires `Django>=5.2,<6.0`**, but this repo's `pyproject.toml` declared
+   `Django>=5.1,<6.0`. Resolution succeeded (5.2.x satisfies both) but our floor was
+   misleading. *Applied:* the floor is now `Django>=5.2,<6.0`, with a comment saying why.
+
+9. **The CSS source directory ships inside the package's `static/` tree, and it breaks
+   `collectstatic`.** `kiam_ui/static/kiam_ui/css/src/` is build input — `theme.css` is a
+   Tailwind v4 preset that opens with `@import "tailwindcss"` and resolves its values at runtime
+   from the compiled stylesheet. It is not a servable file. But because it sits under `static/`,
+   `collectstatic` collects it, and `ManifestStaticFilesStorage` (the standard production choice,
+   and what WhiteNoise recommends) post-processes every collected `.css` and tries to resolve
+   each `@import`. `tailwindcss` is a package name, not a path, so the command dies:
+
+   ```
+   whitenoise.storage.MissingFileError: The file 'kiam_ui/css/src/tailwindcss'
+   could not be found
+   ```
+
+   This hits **every** consumer using manifest static files, and it fails at deploy time rather
+   than in development. Note the irony: `kiam_ui_vendor`'s own docstring explains that the vendor
+   destination sits outside `static/` precisely so `collectstatic` cannot sweep it up — the same
+   reasoning applies to the package's own `css/src/`, which was not moved.
+
+   *Worked around:* `seo/management/commands/collectstatic.py` subclasses the command and adds
+   `src` to the default ignore patterns, so it works without anyone remembering a flag. This
+   requires `LOCAL_APPS` to precede `django.contrib.staticfiles` in `INSTALLED_APPS`, because
+   Django resolves a management-command name collision in favour of the app listed *earlier* —
+   see the comment in `config/settings/base.py`.
+   **Raise as a kiam-ui issue:** ship `css/src/` outside the package's static tree (e.g. as
+   package data at `kiam_ui/css_src/`), and `kiam_ui_vendor` copies from there instead. When
+   that lands, the local override can be deleted.
 
 ---
 

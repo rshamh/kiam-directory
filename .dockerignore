@@ -1,0 +1,50 @@
+# What must never enter an image layer.
+#
+# This file is a security control, not a build optimisation. `COPY . .` in the
+# runtime stage would otherwise bake in whatever happens to be in the working
+# tree — and .env is gitignored, so it is exactly the file a developer has
+# locally and never thinks about. Two things go wrong at once:
+#
+#   * the SECRET_KEY, database password and any object-storage credentials in it
+#     ship inside the image, readable by anyone who can pull it;
+#   * django-environ reads it at boot IN PREFERENCE to the real environment, so
+#     the container silently runs on a developer's machine-specific settings.
+#     That is how this was found: the image inherited a macOS Homebrew
+#     GDAL_LIBRARY_PATH and died on `collectstatic` with a dylib it could never
+#     have had.
+#
+# private-media/ is on the list for the obvious reason: it holds verification
+# evidence in development.
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+.git/
+.github/
+.gitignore
+
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+node_modules/
+# Rebuilt inside the image by the asset stage — a host copy would shadow it.
+build/
+static/css/
+staticfiles/
+
+media/
+private-media/
+.pytest-private-media/
+
+.DS_Store
+.idea/
+.vscode/
+docs/
