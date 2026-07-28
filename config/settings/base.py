@@ -31,7 +31,21 @@ env = environ.Env(
     PRIVATE_DOCUMENT_URL_TTL_SECONDS=(int, 300),
 )
 
-environ.Env.read_env(BASE_DIR / ".env")
+# Read `.env` only where a file is meant to be the configuration source.
+#
+# In a container the ENVIRONMENT is the configuration. But the development
+# Compose service bind-mounts the repo for live reload, which drags the
+# developer's `.env` in with it — and django-environ then fills in every key
+# Compose does *not* set from that file. Compose sets DATABASE_URL and REDIS_URL,
+# so those are safe; everything else silently inherits somebody's laptop. That is
+# how this was found: the container picked up a macOS Homebrew GDAL_LIBRARY_PATH
+# and died on a .dylib it could never have had.
+#
+# Evaluated before `read_env`, so it can only be answered by the real
+# environment. Compose sets it to False; a developer running `manage.py` never
+# sets it and gets the file, as they should.
+if env.bool("READ_DOT_ENV_FILE", default=True):
+    environ.Env.read_env(BASE_DIR / ".env")
 
 SECRET_KEY = env("SECRET_KEY", default="insecure-development-key-override-me")
 DEBUG = env("DEBUG")

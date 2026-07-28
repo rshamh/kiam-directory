@@ -141,6 +141,20 @@ Three services — `web`, `postgis`, `redis` — on their own network and their 
 is shared with the main site or with rooms; see `docs/multi-project-architecture.md` §6. Host
 ports are 8000, **5433** and **6380**, so a local Postgres and Redis keep their usual ports.
 
+```bash
+WEB_PORT=8001 docker compose up      # if something already has 8000
+```
+
+Two things about this stack that are not obvious:
+
+- **`postgis/postgis` publishes amd64 only**, so the service pins
+  `platform: linux/amd64` and runs under emulation on Apple Silicon. Slower than native,
+  immaterial for a development database, and a no-op on x86.
+- **The `web` service sets `READ_DOT_ENV_FILE=False`.** The repo is bind-mounted for live
+  reload, which brings your `.env` into the container; without this, every key Compose does not
+  set would be filled in from your machine's file. In a container the environment is the
+  configuration.
+
 ---
 
 ## Before every commit

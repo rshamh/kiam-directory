@@ -15,7 +15,19 @@ services:
   postgis:
     # PostGIS, not plain Postgres. The geo columns and the GiST index are load
     # bearing from Phase 1 and the extension cannot be added by the app.
+    #
+    # `postgis/postgis` publishes amd64 only, so on an Apple Silicon machine
+    # `docker compose up` fails outright with "no matching manifest for
+    # linux/arm64/v8". `platform:` pins it to amd64 and lets Docker Desktop
+    # emulate — slower than native, immaterial for a development database, and
+    # a no-op on the x86 servers and CI runners this also has to run on.
+    #
+    # The alternative is the community `imresamu/postgis` image, which does
+    # publish arm64. Not used: the development database should be the same
+    # build as production's, and a community rebuild of the data layer is not
+    # a dependency worth taking on to save some emulation overhead.
     image: postgis/postgis:17-3.5
+    platform: linux/amd64
     environment:
       POSTGRES_DB: kiam_directory
       POSTGRES_USER: postgres
@@ -50,6 +62,11 @@ services:
       dockerfile: Dockerfile
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.dev
+      # The repo is bind-mounted below, which brings the developer's .env with
+      # it. Here the environment IS the configuration; without this the settings
+      # would fill in every key this block does not set from that file. See the
+      # comment in config/settings/base.py.
+      READ_DOT_ENV_FILE: "False"
       SECRET_KEY: ${SECRET_KEY:-compose-development-key}
       DEBUG: "True"
       ALLOWED_HOSTS: localhost,127.0.0.1,web
@@ -69,7 +86,9 @@ services:
       # bind mount shadow them with whatever is on the host.
       - /app/staticfiles
     ports:
-      - "8000:8000"
+      # Overridable, because 8000 is a popular port on a development machine and
+      # a clash here fails the whole stack: WEB_PORT=8001 docker compose up
+      - "${WEB_PORT:-8000}:8000"
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py runserver 0.0.0.0:8000"
