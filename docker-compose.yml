@@ -1,0 +1,78 @@
+# The directory's own stack: its own database, its own Redis, its own network.
+#
+# Nothing here is shared with kiamclinic.com or rooms.kiamclinic.com. That is the
+# point — each project is independently deployable and independently down-able
+# (docs/multi-project-architecture.md §1, §6). One nginx in front routes by
+# subdomain; it is not this file's business.
+#
+# Build with an SSH agent so the private kiam-ui dependency resolves without the
+# key entering a layer:
+#
+#     docker compose build --ssh default
+#     docker compose up
+
+services:
+  postgis:
+    # PostGIS, not plain Postgres. The geo columns and the GiST index are load
+    # bearing from Phase 1 and the extension cannot be added by the app.
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: kiam_directory
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgis-data:/var/lib/postgresql/data
+      # pg_trgm alongside postgis — the search app needs it from Phase 4, and
+      # creating it once at init beats a migration that needs superuser.
+      - ./ops/postgres-init.sql:/docker-entrypoint-initdb.d/10-extensions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kiam_directory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5433:5432"   # 5433 on the host, so a local Postgres keeps 5432
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "6380:6379"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      SECRET_KEY: ${SECRET_KEY:-compose-development-key}
+      DEBUG: "True"
+      ALLOWED_HOSTS: localhost,127.0.0.1,web
+      CSRF_TRUSTED_ORIGINS: http://localhost:8000
+      SITE_BASE_URL: http://localhost:8000
+      DATABASE_URL: postgis://postgres:postgres@postgis:5432/kiam_directory
+      REDIS_URL: redis://redis:6379/0
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+    depends_on:
+      postgis:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      # Keep the image's site-packages and build output rather than letting the
+      # bind mount shadow them with whatever is on the host.
+      - /app/staticfiles
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+
+volumes:
+  postgis-data:
