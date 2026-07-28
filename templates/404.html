@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% comment %}
+404. Plain language and a way onward — this audience has a high rate of anxiety
+and neurodevelopmental conditions, and a dead end with a status code in it is a
+bad experience for everyone and a worse one here (golden rule #3).
+{% endcomment %}
+
+{% block robots %}<meta name="robots" content="noindex, follow">{% endblock %}
+
+{% block content %}
+<div class="container section">
+  {% include "kiam_ui/components/sections/section_head.html" with title="We couldn't find that page" description="The link may be out of date, or the address may have a typo in it." heading_level=1 %}
+
+  <p>
+    {% include "kiam_ui/components/core/button.html" with variant="primary" label="Go to the directory home page" href="/" icon="arrow-right" %}
+  </p>
+</div>
+{% endblock %}

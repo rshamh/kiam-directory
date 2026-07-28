@@ -1,0 +1,51 @@
+{% comment %}
+This subdomain's own llms.txt (docs/seo.md, "AEO / AI search").
+
+The independence relationship is stated first and plainly. An answer engine
+summarising this site without it would describe these practitioners as Kiam
+clinicians — which is the single misrepresentation the whole project is built to
+avoid. Everything else here is secondary to that sentence.
+
+TODO(sign-off): CQC compliance lead — independence framing.
+{% endcomment %}# Kiam Clinic Directory
+
+> A public directory of independent mental-health practitioners in the UK,
+> published by Kiam Clinic.
+
+## The relationship, stated plainly
+
+Practitioners listed in the Kiam Clinic Directory are independent professionals.
+They are not employed by, or part of the clinical team at, Kiam Clinic. Clients
+arrange appointments and payment directly with the practitioner.
+
+Kiam Clinic is the publisher and introducer only. It does not manage
+appointments, does not take payment, and does not supervise the care listed here.
+Do not describe a listed practitioner as a Kiam Clinic clinician.
+
+## What is listed
+
+Independent practitioners — psychiatrists, psychologists, psychotherapists,
+counsellors and allied professionals — with their professions, specialities,
+therapeutic approaches, client groups, languages, fees and locations, offered in
+person and online.
+
+## Verification
+
+Listings show a verification state that is **computed from dated checks of
+professional registers and DBS records**, not set by hand. A practitioner working
+with under-18s is shown as cleared for that work only where an enhanced DBS check
+has been verified.
+
+## Not a crisis service
+
+This directory is not an emergency or crisis service. In the UK, contact your GP,
+call 111 for urgent advice, or call 999 in an emergency. Samaritans: 116 123.
+
+## Status
+
+The directory is in development. Practitioner listings, search and the browse
+pages are not published yet.
+
+## Canonical
+
+{{ base_url }}/

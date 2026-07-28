@@ -1,0 +1,66 @@
+{% comment %}
+500 — deliberately self-contained.
+
+This does NOT extend base.html, and that is the point. A 500 can be caused by the
+database being down, by Redis being down, or by a context processor raising — and
+kiam-ui's chrome needs the `kiam_ui` and `a11y` context processors plus a static
+manifest lookup to render at all. A 500 page that needs any of those fails while
+rendering, and Django falls back to a bare "A server error occurred", which is
+what visitors would actually see exactly when things are worst.
+
+So: no {% templatetag openblock %} extends {% templatetag closeblock %}, no {% templatetag openblock %} static {% templatetag closeblock %}, no context variables. Inline styles only, using the same
+brand values kiam-ui defines — this is the one place in the repo permitted to
+restate them, because it cannot rely on the stylesheet having loaded.
+
+Crisis signposting stays present (docs/content-compliance.md §7): someone may
+have arrived here at a bad moment, and the footer that normally carries it is not
+rendering.
+{% endcomment %}<!doctype html>
+<html lang="en-gb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Something went wrong · Kiam Clinic Directory</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 3rem 1.5rem;
+      background: #FBFDFC;
+      color: #3A4A50;
+      font-family: Poppins, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+    }
+    main { max-width: 38rem; margin: 0 auto; }
+    h1 { color: #2E403F; font-size: 1.75rem; line-height: 1.25; margin: 0 0 1rem; }
+    p { margin: 0 0 1rem; }
+    a { color: #17684F; }
+    a:focus-visible { outline: 3px solid #1F7A5E; outline-offset: 2px; }
+    .urgent {
+      margin-top: 2rem;
+      padding: 1rem 1.25rem;
+      background: #E8F1EE;
+      border-radius: 12px;
+      font-size: 0.9375rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Something went wrong at our end</h1>
+    <p>
+      This is a problem with the website, not with anything you did. We have been
+      told about it. Please try again in a few minutes.
+    </p>
+    <p><a href="/">Go to the directory home page</a></p>
+
+    <div class="urgent">
+      <p>
+        If you need urgent help, contact your GP, call
+        <a href="tel:111">111</a>, or call <a href="tel:999">999</a> in an
+        emergency. Samaritans: <a href="tel:116123">116 123</a>.
+      </p>
+    </div>
+  </main>
+</body>
+</html>

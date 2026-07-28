@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% comment %}
+Placeholder home page (Phase 0).
+
+Its only job is to prove the wiring: kiam-ui's chrome renders, the tokens are
+loaded, our Tailwind layer is on top, and the SEO base emits a title, a
+description, a self-referencing canonical, OG tags and JSON-LD.
+
+The real home page — hero search, radius control, daily-rotating grid of twelve,
+trust strip — is Phase 5. Do not grow this one.
+{% endcomment %}
+
+{% block content %}
+<div class="container section">
+
+  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Kiam Clinic Directory" title="Find an independent mental-health practitioner" description="Search by speciality, approach and location, and contact practitioners directly." heading_level=1 %}
+
+  {% comment %}
+  The independence notice, verbatim from docs/content-compliance.md §5. It is
+  required on every profile page and every search-results page; it is here too
+  because the relationship should be clear from the first page a visitor lands
+  on, not only once they have gone looking.
+  {% endcomment %}
+  {% include "kiam_ui/components/feedback/disclaimer.html" with title="About the practitioners listed here" heading_level=2 body_template="components/_independence_notice.html" %}
+
+  <p class="dir-placeholder-note">
+    This directory is being built. Practitioner listings, search and the browse
+    pages are not available yet.
+  </p>
+
+</div>
+{% endblock %}
