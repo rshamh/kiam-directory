@@ -20,6 +20,45 @@ See `docs/multi-project-architecture.md` for how this sits alongside the main si
 
 Business logic lives in `<app>/services/`, not in views or models. Views stay thin.
 
+### What exists as of Phase 0
+
+The table above is the intent. This is the repo.
+
+| App | Built at Phase 0 | Empty until |
+|---|---|---|
+| `accounts` | `User`, `MagicLinkToken`, `access.py`, `services/{magic_link,ratelimit,two_factor}.py`, `middleware.py`, views, admin | `Invite` — Phase 2 |
+| `directory` | `storages.py`, `services/documents.py`. **No models.** | Phase 1 |
+| `search` | app config only | Phase 4 |
+| `dashboard` | app config only | Phase 6 |
+| `backoffice` | app config only | Phase 2 |
+| `seo` | `jsonld.py`, `sitemaps.py`, `views.py` (robots, llms.txt, `/healthz`, 404/500 handlers) | — |
+| `pages` | `nav.py` (kiam-ui chrome config), placeholder home | static pages Phase 3, landing pages Phase 7 |
+
+**Models:** `accounts.User`, `accounts.MagicLinkToken`. Nothing else. The `directory` models
+land in Phase 1.
+
+**URLs:**
+
+| Path | Name | Notes |
+|---|---|---|
+| `/` | `pages:home` | placeholder; the real home is Phase 5 |
+| `/robots.txt` | `seo:robots` | this subdomain's own |
+| `/llms.txt` | `seo:llms` | this subdomain's own |
+| `/sitemap.xml` | — | `django.contrib.sitemaps`, `seo.sitemaps.SITEMAPS` |
+| `/healthz` | `seo:healthz` | app + DB + Redis; 503 when degraded |
+| `/accounts/login/` | `accounts:login` | magic-link request. **No signup route exists** |
+| `/accounts/login/check-your-email/` | `accounts:login_sent` | |
+| `/accounts/login/<token>/` | `accounts:magic_link_consume` | token in the path, not a query string |
+| `/accounts/logout/` | `accounts:logout` | POST only |
+| `/accounts/two-factor/set-up/` | `accounts:two_factor_setup` | |
+| `/accounts/two-factor/set-up/qr.svg` | `accounts:two_factor_qr` | generated locally; the secret never leaves the host |
+| `/accounts/two-factor/` | `accounts:two_factor_verify` | |
+| `/<ADMIN_URL_PATH>/` | Django admin | default `staff-console/`, not `/admin/` |
+
+**Roles:** all four from the matrix below exist as `accounts.models.Role` and every predicate is
+implemented in `accounts/access.py`. `TWO_FACTOR_REQUIRED_ROLES` covers `admin`, `verifier` and
+`superadmin`; `accounts/middleware.py` enforces it.
+
 ## Why the taxonomy is four lists, not one
 
 | Axis | Answers | Example |
