@@ -1,9 +1,15 @@
 name: CI
 
+# Every branch, not just main. The work happens on phase branches and each phase
+# gate requires CI green *before* the branch is merged — a workflow that only
+# runs on main would first report on code that had already landed.
+#
+# `pull_request` is deliberately absent: a PR here always comes from a branch in
+# this repo, which has already run on push, so adding it would double every run
+# for nothing.
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: ["**"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
