@@ -38,6 +38,26 @@ dev = [
   "django-stubs>=5.0",
 ]
 
+[tool.setuptools]
+# This is a Django project, not a distributable library: manage.py runs every
+# app off the working directory on sys.path, so nothing here is ever imported as
+# the "kiam-directory" package. `pip install -e .` exists only to install the
+# [project.dependencies] list.
+#
+# Left to auto-discovery, setuptools scans the repo root for top-level packages
+# to include in the distribution. With a dozen app directories (accounts,
+# directory, seo, pages, search, dashboard, backoffice, config...) it cannot
+# guess which are "the package" and refuses outright:
+#
+#   error: Multiple top-level packages discovered in a flat-layout: [...]
+#
+# This passed locally the first time only because it was run before most of
+# those directories existed, then failed in CI against the full tree — a good
+# example of why "works on my machine" isn't proof for a from-scratch install.
+# `py-modules = []` tells setuptools there is nothing to discover, so the build
+# succeeds and installs only the dependencies, which is all this ever needed.
+py-modules = []
+
 [tool.ruff]
 line-length = 110
 target-version = "py312"
