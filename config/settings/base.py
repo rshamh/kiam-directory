@@ -297,12 +297,19 @@ KIAM_UI = {
     # No PRIMARY_CTA: the directory does not book anything. Kiam takes no
     # payment and manages no appointments (CLAUDE.md, "What this project is").
     "PRIMARY_CTA": None,
-    "SHOW_DISCLAIMER_BAR": True,
-    # The packaged emergency copy names the clinic as a service provider, which
-    # is wrong for a directory of independent practitioners. This is the
-    # package's own supported extension point — it keeps the marquee, the
-    # landmark, the pause control and the WCAG 2.2.2 behaviour.
-    "DISCLAIMER_TEMPLATE": "components/_disclaimer_bar.html",
+    # No emergency bar on the directory. kiam-ui's layer-1 marquee exists because
+    # the clinic and rooms ARE service providers and have to say when they are not
+    # an emergency one. This site provides no care at all — it publishes listings
+    # for independent practitioners — so a scrolling "we are not an emergency
+    # service" banner claims a clinical relationship the whole project exists to
+    # deny, and it is a moving, attention-grabbing element on a site whose
+    # audience has a high rate of anxiety and neurodevelopmental conditions
+    # (golden rule #3).
+    #
+    # The crisis signposting required by docs/content-compliance.md §7 is a
+    # SEPARATE obligation and is unaffected: it is in the footer of every page,
+    # via pages.nav.footer. Turning the bar off does not touch it.
+    "SHOW_DISCLAIMER_BAR": False,
     "CONTACT": {
         "street": "13 Worple Road",
         "locality": "Epsom",

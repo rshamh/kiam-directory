@@ -345,17 +345,20 @@ component**; each is either configured around or built locally in `templates/com
    template tags still resolve, they just return the single active language. **No `{% trans %}`
    tags, no locale dirs, no RTL work in this repo** (CLAUDE.md).
 
-2. **The emergency disclaimer bar's copy is the *clinic's*, not the directory's.**
-   The packaged copy says "*Please be advised that {SITE_NAME} is not an acute or emergency
-   service…*", which is right in shape but says nothing about the practitioners being
-   independent, and the crisis wording required by `docs/content-compliance.md` §7 (GP / 111 /
-   999 / Samaritans 116 123) is not what it renders.
-   *Worked around:* `DISCLAIMER_TEMPLATE` points at
-   `templates/components/_disclaimer_bar_directory.html` — the supported extension point, which
-   keeps the package's marquee, landmark, pause control and WCAG 2.2.2 behaviour. The §7 crisis
-   line is rendered separately in the footer via `FOOTER["NOTE"]`.
-   **`TODO(sign-off)` — Dr. Abbass on the crisis wording, CQC compliance lead on the
-   independence sentence.**
+2. **The emergency disclaimer bar does not apply to this site — it is switched off.**
+   kiam-ui's layer-1 marquee says "*Please be advised that {SITE_NAME} is not an acute or
+   emergency service…*". That is right for the clinic and for rooms, which **are** service
+   providers and have to say when they are not an emergency one. This site provides no care at
+   all — it publishes listings for independent practitioners — so a permanent banner in that
+   shape asserts a clinical relationship the whole project exists to deny. It is also a moving,
+   attention-grabbing element pinned to the top of every page, on a site whose audience has a
+   high rate of anxiety and neurodevelopmental conditions (golden rule #3).
+   *Handled by configuration, not an override:* `SHOW_DISCLAIMER_BAR = False`. No
+   `DISCLAIMER_TEMPLATE`, no local partial, nothing forked.
+   **This does not touch `docs/content-compliance.md` §7.** Crisis signposting is a separate
+   obligation with a separate home — the footer of every public page, via `pages.nav.footer` —
+   and `pages/tests/test_chrome.py` asserts that turning the bar off did not quietly take it with
+   it. **`TODO(sign-off)` — Dr. Abbass on the §7 crisis wording as rendered.**
 
 3. **Fonts are loaded from Google Fonts by default.** `{% block fonts %}` emits `preconnect` +
    a stylesheet `<link>` to `fonts.googleapis.com`. That is a third-party request on every page

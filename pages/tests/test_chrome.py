@@ -95,12 +95,35 @@ def test_the_independence_notice_is_verbatim(client):
     )
 
 
-def test_the_disclaimer_bar_uses_our_copy_not_the_clinics(client):
-    body = " ".join(client.get(reverse("pages:home")).content.decode().split())
+def test_there_is_no_emergency_disclaimer_bar(client, settings):
+    """The directory does not carry kiam-ui's layer-1 emergency marquee.
 
-    assert "Practitioners listed in this directory are independent and are not an emergency service" in body
-    # The packaged clinic sentence must not appear.
+    That bar exists because the clinic and rooms ARE service providers and have
+    to say when they are not an emergency one. This site provides no care at all,
+    so the banner would claim a clinical relationship the project exists to deny
+    — and it is a moving, attention-grabbing element for an audience with a high
+    rate of anxiety and neurodevelopmental conditions.
+    """
+    assert settings.KIAM_UI["SHOW_DISCLAIMER_BAR"] is False
+
+    body = client.get(reverse("pages:home")).content.decode()
+
+    assert "disclaimer-bar" not in body
+    # And specifically not the packaged clinic sentence.
     assert "is not an acute or emergency service" not in body
+
+
+def test_turning_the_bar_off_does_not_remove_the_crisis_signposting(client):
+    """docs/content-compliance.md §7 is a SEPARATE obligation from the bar.
+
+    The bar is header chrome; §7 requires persistent signposting in the FOOTER of
+    every public page. Removing one must never quietly remove the other.
+    """
+    body = client.get(reverse("pages:home")).content.decode()
+
+    assert "disclaimer-bar" not in body
+    assert "call 111, or call 999 in an emergency" in body
+    assert "Samaritans: 116 123" in body
 
 
 def test_the_chrome_never_calls_the_directory_a_clinic(client):
