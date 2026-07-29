@@ -33,6 +33,42 @@ class ConcernError(Exception):
     """The concern cannot be actioned."""
 
 
+@transaction.atomic
+def submit(*, practitioner, category: str, detail: str, reporter_email: str = "") -> ConcernReport:
+    """Record a concern reported from the public page (Phase 3).
+
+    It lives here, next to the queue it feeds, rather than in ``pages`` — one
+    module owns a ``ConcernReport`` from the moment it arrives to the moment it
+    is closed, so "what happens to a report" is one file to read. ``pages``
+    imports it; nothing here knows about a view.
+
+    **No IP address, no user agent.** The reporter is a member of the public who
+    may be reporting their own practitioner, and the only reason to store their
+    address would be abuse triage — which the rate limiter already does from a
+    hashed key that is not personal data at rest (golden rule #4). The email is
+    optional and the page says so.
+    """
+    report = ConcernReport.objects.create(
+        practitioner=practitioner,
+        category=category,
+        detail=detail,
+        reporter_email=reporter_email,
+    )
+
+    AuditLog.objects.create(
+        actor=None,
+        action="concern.submitted",
+        entity_type="ConcernReport",
+        entity_id=str(report.pk),
+        after={"category": category, "practitioner_id": str(practitioner.pk)},
+    )
+    logger.info(
+        "concerns.submitted",
+        extra={"concern_id": str(report.pk), "category": category},
+    )
+    return report
+
+
 def open_queue():
     """Unhandled concerns. Registration doubts first, then oldest first.
 

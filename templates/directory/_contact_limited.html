@@ -1,0 +1,47 @@
+{% comment %}
+Shown when the per-IP reveal limit is spent (HTTP 429).
+
+Params: display_name · heading_level (3 in the profile's Contact section, 2 on
+the standalone page).
+
+Written for the person who is not a scraper, because that is who reads it: a
+shared office or a public library sits behind one address and can genuinely
+exhaust the hour. So it says what happened, says it is temporary, and does not
+imply they did something wrong.
+
+The same focus pattern as a successful reveal — a labelled `role="group"` with
+`tabindex="-1"`, focused after the swap — rather than `role="alert"` on top of it.
+Alert plus focus is the double announcement the success path deliberately avoids,
+and there is no reason for a refusal to be the one place that shouts twice. The
+heading is what the focus move announces, so it has to say "paused", not "contact
+details": it is also the `<h1>` on the no-JavaScript page, where a heading reading
+"Contact Dr X" would announce a refusal as the thing it refused.
+
+The independence notice is here too. No contact detail is disclosed, so this is
+not the reveal interstitial §5 names — but it is a public page headed with a
+practitioner's name that sends the reader off to find them another way, and the
+relationship should not lapse just because the answer was "not now".
+{% endcomment %}
+<div class="dir-reveal dir-reveal--limited"
+     role="group"
+     tabindex="-1"
+     data-reveal-focus
+     aria-labelledby="reveal-limited-heading">
+
+  {% if heading_level == 2 %}
+    <h2 class="dir-reveal__title" id="reveal-limited-heading">Contact details are paused for now</h2>
+  {% else %}
+    <h3 class="dir-reveal__title" id="reveal-limited-heading">Contact details are paused for now</h3>
+  {% endif %}
+
+  <p>
+    A lot of requests have come from your connection in the last hour, so we have
+    paused showing contact details for a little while. Nothing is wrong with your
+    account and nothing has been recorded against you.
+  </p>
+  <p>Please try again later, or reach the practitioner through their own website.</p>
+
+  <div class="dir-reveal__notice">
+    {% include "components/_independence_notice.html" %}
+  </div>
+</div>

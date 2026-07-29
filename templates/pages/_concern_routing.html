@@ -1,0 +1,60 @@
+{% comment %}
+Where a complaint about CARE goes. Rendered inside the disclaimer component at
+the top of /report-a-concern/, above the form.
+
+Practitioners listed in this directory are independent. Kiam Clinic does not
+supervise their practice and is not in a position to investigate it — the body
+that regulates them is. Saying so plainly, and naming them, is the difference
+between routing someone correctly and collecting a complaint that goes nowhere.
+{% endcomment %}
+<p>
+  Practitioners listed here are independent professionals. Kiam Clinic does not
+  employ or supervise them and cannot investigate the care they provided.
+  <strong>A complaint about someone's care, safety or conduct goes to the body
+  that regulates them</strong> — not to Kiam.
+</p>
+<p>
+  Start with the practitioner themselves if you feel able to; every practitioner
+  is required to have a complaints procedure. Otherwise, contact their regulator:
+</p>
+<ul>
+  <li>
+    Doctors, including psychiatrists — the
+    <a href="https://www.gmc-uk.org/" rel="noopener">General Medical Council</a> (GMC).
+  </li>
+  <li>
+    Practitioner psychologists, occupational therapists, arts therapists,
+    dietitians and speech and language therapists — the
+    <a href="https://www.hcpc-uk.org/" rel="noopener">Health and Care Professions Council</a> (HCPC).
+  </li>
+  <li>
+    Nurses — the <a href="https://www.nmc.org.uk/" rel="noopener">Nursing and Midwifery Council</a> (NMC).
+  </li>
+  <li>
+    Pharmacists — the
+    <a href="https://www.pharmacyregulation.org/" rel="noopener">General Pharmaceutical Council</a> (GPhC).
+  </li>
+  <li>
+    Social workers — <a href="https://www.socialworkengland.org.uk/" rel="noopener">Social Work England</a>.
+  </li>
+</ul>
+<p>
+  Counsellors and psychotherapists are not regulated by law, but the great
+  majority belong to a professional body that holds a register and takes
+  complaints — the BACP, UKCP, BABCP, BPC, NCPS, BPS, ACP or AFT. The listing
+  shows which body a practitioner is registered with; that body's website has its
+  complaints procedure.
+</p>
+<p>
+  If the care was provided by a service registered with the Care Quality
+  Commission, you can tell the CQC as well.
+</p>
+{% comment %}
+The crisis line is READ, not retyped. This used to be a second copy differing
+from the canonical string by one word ("urgent help now"), and crisis wording is
+Dr. Abbass's gate — two near-identical variants is precisely how gated copy
+drifts. `kiam_ui.FOOTER.NOTE` is the same resolved value the footer renders, via
+pages.nav.CRISIS_SIGNPOSTING. `test_the_concern_page_does_not_fork_the_crisis_wording`
+asserts they stay identical.
+{% endcomment %}
+<p>{{ kiam_ui.FOOTER.NOTE }}</p>

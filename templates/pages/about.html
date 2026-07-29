@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% comment %}
+About the directory.
+
+The job of this page is to make the relationship unmistakable before anyone
+reads a listing: Kiam Clinic publishes the directory and introduces nothing
+else. Every sentence about what Kiam does is paired with what it does not do,
+because "publisher and introducer only" is a claim that only survives if the
+boundary is drawn explicitly (CLAUDE.md, docs/multi-project-architecture.md §5).
+
+TODO(sign-off): CQC compliance lead — the independence framing, i.e. "What Kiam
+Clinic does" and "What Kiam Clinic does not do" below.
+TODO(sign-off): Dr. Abbass — "What Kiam Clinic does" summarises the verification
+policy, which docs/verification-policy.md puts behind a clinical gate wherever it
+is stated publicly.
+{% endcomment %}
+
+{% block content %}
+<div class="container section dir-page">
+
+  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="About" title=page.title description="A public listing of independent mental-health practitioners, published by Kiam Clinic." heading_level=1 %}
+
+  {% include "kiam_ui/components/feedback/disclaimer.html" with title="About the practitioners listed here" heading_level=2 body_template="components/_independence_notice.html" %}
+
+  <div class="prose">
+    <h2>What this directory is</h2>
+    <p>
+      The Kiam Clinic Directory lists independent mental-health practitioners
+      working in the UK — psychiatrists, psychologists, psychotherapists,
+      counsellors and allied professionals — with their professions,
+      specialities, approaches, languages, fees and locations. You can read a
+      listing, decide whether someone looks right for you, and contact them
+      directly.
+    </p>
+
+    <h2>What Kiam Clinic does</h2>
+    <ul>
+      <li>Publishes the listings, and checks the evidence behind them.</li>
+      <li>
+        Checks each practitioner's identity, professional registration,
+        qualifications and indemnity insurance, and re-checks registrations
+        while a listing stays up. <a href="{% url 'pages:how_verification_works' %}">How verification works</a>.
+      </li>
+      <li>Takes listings down when something is wrong with them.</li>
+    </ul>
+
+    <h2>What Kiam Clinic does not do</h2>
+    <ul>
+      <li>
+        <strong>It does not employ or supervise the practitioners listed here.</strong>
+        They are independent professionals responsible for their own practice,
+        their own clinical decisions and their own regulation.
+      </li>
+      <li>
+        <strong>It does not arrange appointments</strong> and holds no booking on
+        your behalf. You arrange your appointment with the practitioner.
+      </li>
+      <li>
+        <strong>It does not take payment.</strong> Fees are set by the
+        practitioner and paid to them directly. Kiam takes no commission on
+        anyone's fees.
+      </li>
+      <li>
+        <strong>It does not choose a practitioner for you</strong> and does not
+        match or triage. What you see is what matches the filters you set.
+      </li>
+      <li>
+        <strong>It does not provide care through this directory</strong>, and it
+        is not an emergency or crisis service.
+      </li>
+    </ul>
+
+    <h2>How practitioners get listed</h2>
+    <p>
+      Listing is by invitation and membership. A practitioner submits their
+      details and their evidence, a member of Kiam staff reviews both, and the
+      listing goes live only once the required checks are verified. Practitioners
+      pay a membership fee to be listed; that fee buys a listing, and nothing
+      about it changes what the verification checks require.
+      <a href="{% url 'pages:for_practitioners' %}">More for practitioners</a>.
+    </p>
+
+    <h2>If something is wrong with a listing</h2>
+    <p>
+      Tell us — <a href="{% url 'pages:report_concern' %}">report a concern about a listing</a>.
+      If your concern is about the care a practitioner provided, that goes to
+      their regulator rather than to Kiam, and that page names them.
+    </p>
+
+    <h2>Kiam Clinic</h2>
+    <p>
+      Kiam Clinic is a private mental-health clinic in Epsom, Surrey, and is the
+      publisher of this directory. Its own clinical services are a separate
+      thing from the practitioners listed here — see
+      <a href="{{ kiam_ui.URLS.main|default:'https://kiamclinic.com' }}">kiamclinic.com</a>.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

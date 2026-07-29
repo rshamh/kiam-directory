@@ -422,6 +422,48 @@ component**; each is either configured around or built locally in `templates/com
    package data at `kiam_ui/css_src/`), and `kiam_ui_vendor` copies from there instead. When
    that lands, the local override can be deleted.
 
+10. **`kiam-ui` references `.prose` but does not define it.** The only rule mentioning it is the
+    high-contrast link underline (`html[data-contrast="high"] .prose a`). There is no block
+    definition, and the package's own reset (`p, h1..h4 { margin: 0 }`) plus Tailwind's preflight
+    (`*{margin:0;padding:0}`, `ol,ul,menu{list-style:none}`) means an unstyled `.prose` renders as
+    unspaced text with unmarked, unindented lists. A numbered `<ol>` loses its numbers, which is a
+    WCAG 1.3.1 failure wherever the sequence carries meaning.
+    *Worked around:* `.prose` is defined in the Phase 3 block of `static/src/app.css` — spacing,
+    list markers, heading separation and **link underlines** (see gap 11). Found at the Phase 3
+    a11y review, on eight pages at once.
+
+11. **Inline links are distinguished by colour alone, at ~1.4:1.** `a { color: var(--text-link);
+    text-decoration: none }`, and the package underlines prose links **only** in high-contrast
+    mode. `--text-link` against `--text-primary` is far below the 3:1 that WCAG G183 requires for
+    colour-only differentiation, and there is no hover underline either.
+    *Worked around locally:* our `.prose` underlines its links, as do the `dir-*` link classes.
+    §5 already told us this was ours ("any directory-specific component that renders links in
+    prose should pick up one of those containers or add its own rule") — but the default is the
+    wrong way round for every consumer. **Raise as a kiam-ui issue.**
+
+12. **`components/forms/field.html` destroys help text when it shows an error.** It renders
+    `{% if error %}{{ error }}{% else %}{{ help }}{% endif %}` into a single `aria-describedby`
+    target, so the hint disappears at the moment the reader is stuck and re-reading it. On the
+    concern form that removes "Paste the web address…", which is the guidance that resolves the
+    most likely error. **Raise as a kiam-ui issue** — both should render, help first.
+
+13. **`field.html`'s select renders a Python dict as the value of any falsy option.**
+    `{{ opt.value|default:opt }}` — Django's `default` filter substitutes on *falsy*, so an option
+    with `value=""` (a "Please choose…" placeholder) emits the whole dict as its value. The control
+    then always reports a non-empty value while carrying `required`, and the `selected` round-trip
+    breaks on re-render. Server-side validation still catches it, so the visible outcome survives
+    by luck. **Raise as a kiam-ui issue** — the filter should be `{{ opt.value|default_if_none:opt }}`
+    or an explicit `{% if %}`.
+
+14. **`.ds-control:focus-visible` sets `outline: none` and replaces it with a ~1.2:1 ring.** The
+    box-shadow ring composites to a very pale tint on white, and the border colour change between
+    rest and focus is ~1.6:1. That is the entire focus indicator on every form field.
+    **Raise as a kiam-ui issue** — it affects every form on all three sites.
+
+> §5's row *"Footer link text on `--green-900` uses `--mint-100`"* does not match the shipped
+> v1.0.1 footer, which is `--surface-inverse` with `#cdd6d6` links. Both pass AA; the documented
+> pairing is simply not the one in the package. Re-check on the next pin bump.
+
 ---
 
 ## 8. Rules for building directory-specific components

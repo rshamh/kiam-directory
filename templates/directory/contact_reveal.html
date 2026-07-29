@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% comment %}
+The no-JavaScript reveal: the same panel, on a page of its own.
+
+Reachable only by POST, so no crawler can arrive here and there is no URL to
+share — but `noindex, nofollow` says so anyway, and the view sets the matching
+X-Robots-Tag header for anything that reads headers rather than markup.
+
+No canonical override: this page is not an alternative address for the profile,
+it is the result of an action. A canonical pointing at /p/<slug>/ would invite a
+crawler to treat it as a duplicate of a page it should be indexing instead.
+{% endcomment %}
+
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="container section dir-reveal-page">
+
+  {% include "kiam_ui/components/navigation/breadcrumb.html" with back_href=profile_url back_label="Back to the listing" %}
+
+  {% comment %}
+  The h1 names the practitioner in both outcomes, because that is what the page
+  is about — you asked to contact them, and this is the answer. WHICH answer is
+  the panel's job: on a refusal its heading reads "Contact details are paused for
+  now", which is also what the focus move announces.
+  {% endcomment %}
+  <h1 class="dir-reveal-page__title">Contact {{ display_name }}</h1>
+
+  {% include panel_template %}
+
+  <p class="dir-reveal-page__back">
+    <a href="{{ profile_url }}">Back to {{ display_name }}'s listing</a>
+  </p>
+
+</div>
+{% endblock %}

@@ -161,8 +161,12 @@ def nightly_sweep():
     # brings the whole bucket inside the queryset; the `days_left in REMINDER_DAYS`
     # test below still decides who is actually notified.
     horizon = now + timedelta(days=max(REMINDER_DAYS) + 1)
-    affected = Practitioner.objects.filter(status__in=["published", "approved"]).filter(
-        models_Q_expiring(horizon, now)
+    # `.distinct()`: the expired-DBS clause in models_Q_expiring() joins across
+    # `verifications`, which duplicates a row per matching check.
+    affected = (
+        Practitioner.objects.filter(status__in=["published", "approved"])
+        .filter(models_Q_expiring(horizon, now))
+        .distinct()
     )
 
     notifications = []
@@ -201,6 +205,28 @@ def models_Q_expiring(horizon, now):
         Q(verification_expires_at__lte=horizon)
         | Q(provisional_expires_at__lte=now)
         | Q(minor_work_status=MinorWorkStatus.PROVISIONAL)
+        # An expired DBS on a CLEARED listing. Added at the Phase 3 gate; the
+        # authored clauses above do not reach it, and the omission was invisible
+        # until Phase 3 gave minor_work_status a public effect.
+        #
+        # DBS is not in BASE_REQUIRED, so it never contributes to
+        # `verification_expires_at` and the first clause cannot see it. The
+        # second and third only cover PROVISIONAL. So a CLEARED practitioner
+        # whose enhanced DBS expired was selected only by coincidence — if their
+        # insurance renewal happened to fall inside the 61-day horizon. Step 1
+        # above dutifully marked the check EXPIRED, recompute() would have
+        # returned BLOCKED, and nothing called it: the row kept saying `cleared`
+        # and visible_client_groups() kept publishing under-18 groups, for up to
+        # a year.
+        #
+        # recompute() itself was always right (see
+        # test_an_expired_dbs_blocks_rather_than_downgrading_to_provisional).
+        # This is the selection queryset catching up with it.
+        | Q(
+            minor_work_status=MinorWorkStatus.CLEARED,
+            verifications__type=VerificationType.DBS,
+            verifications__expires_at__lte=now,
+        )
     )
 
 

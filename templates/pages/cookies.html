@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% comment %}
+TODO(sign-off): solicitor — the whole body of this page.
+
+Placeholder, as CLAUDE.md requires. The table below is a technical statement of
+what the site sets right now, which is checkable and useful; the legal framing
+around it waits for the solicitor.
+
+Analytics are Phase 7 and are cookieless by design, firing only after consent
+(golden rule #4). There is no consent banner yet because there is nothing yet
+that needs consenting to — and a banner that asks permission for nothing is how
+people learn to dismiss them without reading.
+{% endcomment %}
+
+{% block content %}
+<div class="container section dir-page">
+
+  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Legal" title=page.title description="What this site stores in your browser, and why." heading_level=1 %}
+
+  {% include "kiam_ui/components/feedback/disclaimer.html" with title="In preparation" icon="file-text" heading_level=2 body_template="pages/_pending_legal.html" %}
+
+  <div class="prose">
+    <h2>What this site sets today</h2>
+    <p>
+      Reading this directory sets nothing that tracks you. There are no
+      advertising cookies, no third-party tags, and no cross-site identifiers.
+    </p>
+
+    <table class="dir-table">
+      <caption class="sr-only">Cookies set by this site</caption>
+      <thead>
+        <tr><th scope="col">Cookie</th><th scope="col">What it does</th><th scope="col">When it is set</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Display preferences</td>
+          <td>Remembers your text size, contrast, motion and typeface choices from the accessibility panel.</td>
+          <td>Only if you change one of those settings.</td>
+        </tr>
+        <tr>
+          <td>Sign-in session</td>
+          <td>Keeps you signed in.</td>
+          <td>Only if you sign in — practitioners and staff.</td>
+        </tr>
+        <tr>
+          <td>Form security</td>
+          <td>Protects forms against being submitted from another site on your behalf.</td>
+          <td>When a page with a form is shown.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Analytics</h2>
+    <p>
+      Listings show their owner how many times their page was viewed and their
+      contact details revealed. Those are daily totals held on the listing, not
+      records about you: nothing identifies a visitor, and nothing follows one
+      between pages or between sites.
+    </p>
+
+    <h2>Turning things off</h2>
+    <p>
+      You can clear or block cookies in your browser settings. Blocking them will
+      not stop you reading listings; it will mean your display preferences are
+      forgotten between visits, and that signing in stops working.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

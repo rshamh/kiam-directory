@@ -240,7 +240,6 @@ def test_no_contact_method_blocks_submission():
         ("public_email", "hello@example.com"),
         ("public_phone", "01372 660580"),
         ("public_website", "https://example.com"),
-        ("booking_url", "https://booking.example.com"),
     ],
 )
 def test_any_single_contact_method_satisfies_the_rule(field_name, value):
@@ -248,6 +247,40 @@ def test_any_single_contact_method_satisfies_the_rule(field_name, value):
     practitioner = PractitionerFactory(**{**blank, field_name: value})
 
     assert "contact" not in _rules(lint.run(practitioner))
+
+
+def test_a_booking_link_alone_is_not_a_contact_method():
+    """It counted until Phase 3, and Phase 3 is what made that wrong.
+
+    The profile deliberately does not render `booking_url` — a booking control
+    on a Kiam-branded page asserts Kiam manages the appointment
+    (docs/content-compliance.md §9). Accepting it here therefore published
+    listings that render "This listing does not publish contact details": the
+    check whose whole job is preventing an uncontactable listing was creating
+    them.
+    """
+    practitioner = PractitionerFactory(
+        public_email="",
+        public_phone="",
+        public_website="",
+        booking_url="https://booking.example.com",
+    )
+
+    assert "contact" in _rules(lint.run(practitioner))
+    assert lint.run(practitioner).is_blocked
+
+
+def test_the_contact_rule_and_the_profiles_channels_agree():
+    """Two lists, one promise: everything that satisfies the rule is rendered.
+
+    If a field is added to one and not the other, the failure is silent and lands
+    on a practitioner whose listing nobody can act on.
+    """
+    from directory.services.profile import CHANNELS
+
+    rendered = {spec["field"] for spec in CHANNELS.values()}
+
+    assert rendered == {"public_email", "public_phone", "public_website"}
 
 
 def test_whitespace_is_not_a_contact_method():

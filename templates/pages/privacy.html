@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% comment %}
+TODO(sign-off): solicitor — the whole body of this page.
+TODO(sign-off): CQC compliance lead — the DPIA this notice will summarise.
+
+Placeholder, as CLAUDE.md requires. The outline is real — the design decisions it
+describes are already built and are worth stating — but retention periods and the
+lawful-basis wording are solicitor questions and are not guessed at here. See
+docs/verification-policy.md, "Retention".
+{% endcomment %}
+
+{% block content %}
+<div class="container section dir-page">
+
+  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Legal" title=page.title description="What personal data this directory holds, and why." heading_level=1 %}
+
+  {% include "kiam_ui/components/feedback/disclaimer.html" with title="In preparation" icon="lock" heading_level=2 body_template="pages/_pending_legal.html" %}
+
+  <div class="prose">
+    <h2>What the finished notice will cover</h2>
+    <ul>
+      <li>Who the data controller is, and how to contact them.</li>
+      <li>
+        What is held about a <strong>listed practitioner</strong>: the profile
+        they publish, and — separately and privately — the evidence behind their
+        verification.
+      </li>
+      <li>
+        What is held about a <strong>visitor</strong>: no account, no profile, and
+        no per-visitor record of what you looked at.
+      </li>
+      <li>The lawful basis for each, and how consent is withdrawn.</li>
+      <li>How long each kind of record is kept, and what happens to evidence when a listing is removed.</li>
+      <li>Your rights, and how to exercise them.</li>
+      <li>The outcome of the data protection impact assessment.</li>
+    </ul>
+
+    <h2>What the site does today</h2>
+    <p>These are design decisions already made, and the finished notice will describe them:</p>
+    <ul>
+      <li>
+        <strong>You do not need an account to read this directory</strong>, and
+        there is no way to create one. Only listed practitioners and Kiam staff
+        sign in.
+      </li>
+      <li>
+        <strong>No per-visitor analytics.</strong> Listings count how many times a
+        page was viewed and a contact detail revealed, as daily totals. There are
+        no visitor records behind those numbers to identify, export or delete.
+      </li>
+      <li>
+        <strong>Nothing third-party loads before you have decided about cookies.</strong>
+        See <a href="{% url 'pages:cookies' %}">cookies</a>.
+      </li>
+      <li>
+        <strong>Verification evidence is stored apart from anything public</strong>,
+        has no public address at all, and every time a member of staff opens one
+        of those files it is recorded — who, when, and which file.
+      </li>
+      <li>
+        <strong>A practitioner can unpublish their own listing</strong> without
+        asking anyone.
+      </li>
+    </ul>
+  </div>
+
+</div>
+{% endblock %}
