@@ -25,11 +25,24 @@ def _all_patterns(resolver=None, prefix=""):
             yield prefix + str(entry.pattern), entry.name
 
 
-def test_no_url_looks_like_a_signup_route():
+def test_no_url_looks_like_a_signup_route(settings):
+    """The PUBLIC surface. The Django admin is deliberately excluded.
+
+    Phase 1 registered directory.Registration — professional-body registrations
+    (GMC, HCPC, BACP) — whose admin changelist is `.../registration/`. That is a
+    staff CRUD page behind superadmin plus TOTP, not a way for anybody to create
+    an account, and matching on the word alone would fail on it forever.
+
+    The test still covers every non-admin route, which is where a public signup
+    would actually have to appear to be reachable.
+    """
+    admin_prefix = settings.ADMIN_URL_PATH.strip("/")
+
     offenders = [
         (route, name)
         for route, name in _all_patterns()
-        if any(f in route.lower() or f in (name or "").lower() for f in FORBIDDEN_FRAGMENTS)
+        if not route.lstrip("^").startswith(admin_prefix)
+        and any(f in route.lower() or f in (name or "").lower() for f in FORBIDDEN_FRAGMENTS)
     ]
     assert offenders == [], (
         f"Found what looks like a signup route: {offenders}. Account creation is by "

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% comment %}
+Expired, already used, and never existed all render this. One page for all three
+so a stale link tells its holder nothing about whether it was ever real.
+{% endcomment %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block title %}This invitation link no longer works · {{ kiam_ui.SITE_NAME }}{% endblock %}
+
+{% block content %}
+<div class="container section">
+  {% include "kiam_ui/components/sections/section_head.html" with title="This invitation link no longer works" description="Invitations can only be used once, and they expire." heading_level=1 %}
+  <p>If you were expecting to list with us, contact the team and we'll send a new one.</p>
+</div>
+{% endblock %}

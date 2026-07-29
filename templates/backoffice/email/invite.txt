@@ -1,0 +1,18 @@
+{% comment %}Plain text — same reasoning as the magic-link email.{% endcomment %}Hello,
+
+Kiam Clinic has invited you to create a listing in the {{ site_name }}.
+
+To get started, open this link:
+
+{{ link }}
+
+It works once and expires on {{ expires_at|date:"j F Y" }}.
+
+Practitioners listed in the directory are independent professionals. You are not
+employed by, or part of the clinical team at, Kiam Clinic — clients arrange
+appointments and payment directly with you.
+
+If you weren't expecting this, you can ignore it. Nothing has been created.
+
+--
+{{ site_name }}

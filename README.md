@@ -109,8 +109,21 @@ createdb kiam_directory
 psql kiam_directory -c "CREATE EXTENSION postgis; CREATE EXTENSION pg_trgm;"
 
 python manage.py migrate
+python manage.py seed_taxonomy      # the controlled vocabulary; safe to re-run
 python manage.py runserver
 ```
+
+### Scheduled jobs
+
+Two nightly commands, defined in `ops/crontab`:
+
+| Time | Command | Why |
+|---|---|---|
+| 03:00 | `verification_sweep` | Lapses badges whose evidence expired, closes elapsed provisional-DBS windows, sends the 60/30/7/0-day reminders |
+| 03:30 | `rebuild_search_index` | Safety net behind the search-vector signals — and the only thing that picks up a synonym added to `taxonomy.py` |
+
+A missed `verification_sweep` night is a reminder nobody receives: the thresholds are exact
+day buckets. Re-run it the same day rather than waiting.
 
 ### 4. The stylesheet
 

@@ -1,0 +1,31 @@
+{% extends "backoffice/base.html" %}
+{% comment %}
+Read-only by construction: there is no delete view, no delete action and no
+bulk operation anywhere in this app. An audit log an admin can edit is not an
+audit log.
+{% endcomment %}
+{% block bo_title %}Audit log{% endblock %}
+
+{% block bo_content %}
+<h1>Audit log</h1>
+<p class="bo-note">Read-only. Entries cannot be edited or deleted from anywhere in this interface.</p>
+
+<form method="get" class="bo-filters">{{ filter_form.as_p }}<button type="submit">Filter</button></form>
+
+<table class="bo-table">
+  <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Detail</th></tr></thead>
+  <tbody>
+    {% for e in entries %}
+      <tr>
+        <td>{{ e.created_at|date:"j M Y H:i" }}</td>
+        <td>{{ e.actor.email|default:"system" }}</td>
+        <td><code>{{ e.action }}</code></td>
+        <td>{{ e.entity_type }} <span class="bo-id">{{ e.entity_id }}</span></td>
+        <td>{% if e.after %}<code class="bo-json">{{ e.after }}</code>{% endif %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5">No entries match.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

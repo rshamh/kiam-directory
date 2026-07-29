@@ -1,0 +1,95 @@
+{% extends "backoffice/base.html" %}
+{% comment %}
+One row per VerificationType, whether or not a check exists. A MISSING insurance
+check is exactly what a verifier needs to see, so rows are rendered from the
+type list, not from the rows in the database.
+
+Evidence links are POST forms, not anchors: opening evidence writes a
+DocumentAccessLog row, and a GET that mutates would be fetched by every
+link-prefetcher and preview bot that ever touches this page.
+{% endcomment %}
+{% block bo_title %}Verification: {{ practitioner.full_name }}{% endblock %}
+
+{% block bo_content %}
+<h1>Verification — {{ practitioner.full_name|default:"(no name yet)" }}</h1>
+<p><a href="{% url 'backoffice:practitioner_detail' practitioner.pk %}">Back to record</a></p>
+
+<div class="bo-computed">
+  <p><strong>Badge:</strong> {% if practitioner.is_verified %}verified{% else %}not verified{% endif %}
+     · <strong>Under-18:</strong> {{ practitioner.get_minor_work_status_display }}</p>
+  <p class="bo-note">
+    These are computed from the rows below. Nothing on this page sets them directly —
+    change the evidence and they follow.
+  </p>
+</div>
+
+{% if can_grant_provisional %}
+  <p class="bo-actions">
+    <a href="{% url 'backoffice:provisional_grant' practitioner.pk %}" class="btn btn-ghost">Grant provisional DBS</a>
+    <a href="{% url 'backoffice:provisional_extend' practitioner.pk %}" class="btn btn-ghost">Extend window</a>
+    {% if extension_blocked %}<span class="bo-blocked-note">Extension needs Dr. Abbass sign-off</span>{% endif %}
+  </p>
+{% endif %}
+
+{% for row in rows %}
+  <section class="bo-check">
+    <h2>{{ row.label }}{% if row.required %} <span class="bo-required">required</span>{% endif %}</h2>
+
+    <p>
+      Status: <strong>{{ row.check.get_status_display|default:"Not submitted" }}</strong>
+      {% if row.check.checked_at %} · checked {{ row.check.checked_at|date:"j M Y" }}{% endif %}
+      {% if row.check.expires_at %} · expires {{ row.check.expires_at|date:"j M Y" }}{% endif %}
+      {% if row.check.provisional_until %} · provisional until {{ row.check.provisional_until|date:"j M Y" }}{% endif %}
+    </p>
+
+    {% if row.documents %}
+      <ul class="bo-evidence">
+        {% for doc in row.documents %}
+          <li>
+            {{ doc.original_filename }} ({{ doc.size_bytes|filesizeformat }}, uploaded {{ doc.uploaded_at|date:"j M Y" }})
+            {% if can_view_evidence %}
+              <form method="post" action="{% url 'backoffice:evidence_open' doc.pk %}" class="bo-inline-form">
+                {% csrf_token %}
+                <input type="hidden" name="reason" value="{{ row.label }} check">
+                <button type="submit" class="btn btn-ghost btn-sm">Open evidence</button>
+              </form>
+            {% else %}
+              <span class="bo-note">Opening evidence needs the verifier role.</span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="bo-note">No evidence uploaded.</p>
+    {% endif %}
+
+    {% comment %}
+    The status form is verifier-only, matching the view's own gate. Marking a
+    check VERIFIED recomputes minor_work_status, so showing this to an `admin` —
+    who cannot open the evidence — would let them publish someone's under-18
+    client groups off the back of a DBS they are not permitted to look at.
+    {% endcomment %}
+    {% if can_view_evidence %}
+    <form method="post" action="{% url 'backoffice:verification_set_status' practitioner.pk row.type %}" class="bo-form bo-form--inline">
+      {% csrf_token %}
+      <label for="status-{{ row.type }}">Status</label>
+      <select name="status" id="status-{{ row.type }}">
+        {% for value, label in statuses %}
+          <option value="{{ value }}" {% if row.check.status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+
+      <label for="expires-{{ row.type }}">Expires{% if row.expires %} (required to verify){% endif %}</label>
+      <input type="datetime-local" name="expires_at" id="expires-{{ row.type }}">
+
+      <label for="notes-{{ row.type }}">Notes</label>
+      <textarea name="notes" id="notes-{{ row.type }}" rows="2"></textarea>
+
+      <button type="submit" class="btn btn-primary btn-sm">Save</button>
+    </form>
+    {% else %}
+    <p class="bo-note">Recording a verification decision needs the verifier role.</p>
+    {% endif %}
+  </section>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "backoffice/base.html" %}
+{% block bo_title %}Suspend listing{% endblock %}
+
+{% block bo_content %}
+<h1>Suspend {{ practitioner.full_name }}</h1>
+
+<section class="bo-warning" role="note">
+  <p><strong>This takes effect immediately.</strong> The public profile stops rendering
+  and the listing leaves search straight away.</p>
+  <p>
+    The public page will say only that the practitioner is not currently listed. It
+    will never say why — the reason below is for the audit log and for staff.
+  </p>
+</section>
+
+<form method="post" class="bo-form">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-primary">Suspend listing</button>
+  <a href="{% url 'backoffice:practitioner_detail' practitioner.pk %}">Cancel</a>
+</form>
+{% endblock %}

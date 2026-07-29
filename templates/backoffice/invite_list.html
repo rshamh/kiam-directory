@@ -1,0 +1,31 @@
+{% extends "backoffice/base.html" %}
+{% block bo_title %}Invites{% endblock %}
+
+{% block bo_content %}
+<h1>Invites</h1>
+<p>Account creation is invite-only. There is no public signup route.</p>
+
+<form method="post" class="bo-form">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-primary">Send invite</button>
+</form>
+
+<h2>Recent</h2>
+<table class="bo-table">
+  <thead><tr><th>Email</th><th>Invited by</th><th>Sent</th><th>Expires</th><th>Accepted</th></tr></thead>
+  <tbody>
+    {% for invite in invites %}
+      <tr>
+        <td>{{ invite.email }}</td>
+        <td>{{ invite.invited_by.email|default:"—" }}</td>
+        <td>{{ invite.created_at|date:"j M Y" }}</td>
+        <td>{{ invite.expires_at|date:"j M Y" }}</td>
+        <td>{% if invite.accepted_at %}{{ invite.accepted_at|date:"j M Y" }}{% else %}—{% endif %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5">No invites yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

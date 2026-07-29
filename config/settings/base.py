@@ -70,6 +70,10 @@ DJANGO_APPS = [
     "django.contrib.sitemaps",
     # GeoDjango. Requires GDAL and GEOS on the host — see README.md.
     "django.contrib.gis",
+    # Needed for the CreateExtension migration operations and, from Phase 4, the
+    # trigram lookups registered by this app. ArrayField and SearchVectorField
+    # work without it; TrigramSimilarity does not.
+    "django.contrib.postgres",
 ]
 
 THIRD_PARTY_APPS = [
@@ -263,6 +267,16 @@ MEDIA_ROOT = BASE_DIR / "media"
 #: TTL for a signed private-evidence URL. Short on purpose: the link is handed to
 #: one verifier for one look, not published.
 PRIVATE_DOCUMENT_URL_TTL_SECONDS = env("PRIVATE_DOCUMENT_URL_TTL_SECONDS")
+
+# ---------------------------------------------------------------------------
+# Submission lint
+# ---------------------------------------------------------------------------
+
+#: Prescription-only medicine blocklist, checked against practitioner free text
+#: at submission (docs/content-compliance.md §1). Held OUTSIDE the code so it can
+#: be updated without a deploy — the lint re-reads it when the file's mtime
+#: changes. A missing file raises rather than silently permitting everything.
+POM_DICTIONARY_PATH = env("POM_DICTIONARY_PATH", default=str(BASE_DIR / "ops" / "pom-dictionary.txt"))
 
 # ---------------------------------------------------------------------------
 # Email

@@ -34,6 +34,8 @@ EXEMPT_URL_NAMES = frozenset(
         "accounts:two_factor_qr",
         "accounts:two_factor_verify",
         "seo:healthz",
+        # An invitee has no session yet — they reach this holding only a token.
+        "backoffice:invite_accept",
     }
 )
 

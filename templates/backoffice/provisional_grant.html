@@ -1,0 +1,29 @@
+{% extends "backoffice/base.html" %}
+{% comment %}
+The scope limit is stated verbatim and above the fold, not in help text below the
+button. Granting this publishes a listing for someone whose DBS has not come
+back — the limit IS the decision, so it has to be the most prominent thing here.
+{% endcomment %}
+{% block bo_title %}Grant provisional DBS{% endblock %}
+
+{% block bo_content %}
+<h1>Grant a provisional DBS window</h1>
+<p>{{ practitioner.full_name }}</p>
+
+<section class="bo-warning" role="note">
+  <p><strong>This publishes the listing for adult work only. Under-18 client groups
+  stay hidden until the DBS is verified.</strong></p>
+  <p>
+    The window runs for {{ window_days }} days and does not renew itself. When it
+    ends, under-18 groups lock and both the practitioner and this queue are
+    notified — it is never silent.
+  </p>
+</section>
+
+<form method="post" class="bo-form">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-primary">Grant provisional window</button>
+  <a href="{% url 'backoffice:verification_workbench' practitioner.pk %}">Cancel</a>
+</form>
+{% endblock %}

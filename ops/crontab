@@ -1,0 +1,26 @@
+# Scheduled jobs for directory.kiamclinic.com
+#
+# Install into the container's crontab, or point a host scheduler at the same
+# commands. Times are the container's TZ — set TZ=Europe/London so 03:00 means
+# 03:00 to a UK practitioner reading the resulting email.
+#
+# Both jobs are idempotent and safe to re-run: the sweep recomputes from
+# evidence, and the reindex rewrites vectors from the current rows. A missed
+# night is caught up by the next one, with one exception noted below.
+
+TZ=Europe/London
+SHELL=/bin/sh
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# 03:00 — expire stale checks, recompute badges and under-18 gating, send the
+# 60/30/7/0-day reminders and any provisional-lapse notices.
+#
+# NOTE: reminders are keyed on an exact days-remaining bucket, so a night that
+# does not run is a reminder nobody receives. If the job fails, re-run it the
+# same day rather than waiting — see directory/services/verification.py.
+0 3 * * * cd /app && python manage.py verification_sweep >> /var/log/kiam/verification_sweep.log 2>&1
+
+# 03:30 — rebuild search vectors. Safety net behind the signals, and the only
+# thing that picks up a synonym added to taxonomy.py (which changes the
+# Speciality row, not the Practitioner, so nothing signals).
+30 3 * * * cd /app && python manage.py rebuild_search_index >> /var/log/kiam/search_index.log 2>&1

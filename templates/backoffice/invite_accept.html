@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% comment %}
+The one page in this app an unauthenticated person sees, reached only by holding
+a token an admin issued. Public-side tone applies here: plain language, no jargon.
+{% endcomment %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block title %}Accept your invitation · {{ kiam_ui.SITE_NAME }}{% endblock %}
+
+{% block content %}
+<div class="container section">
+  {% include "kiam_ui/components/sections/section_head.html" with title="You've been invited to list in the directory" description="Kiam Clinic has invited you to create a listing for your practice." heading_level=1 %}
+
+  <p>Your listing will be for <strong>{{ invite.email }}</strong>.</p>
+
+  <p>
+    When you continue, we'll email you a link to sign in. There's no password to
+    choose — you sign in with a link each time. You'll land on an empty draft
+    listing that only you and our team can see until it's reviewed and published.
+  </p>
+
+  {% include "kiam_ui/components/feedback/disclaimer.html" with title="You'll be listed as an independent practitioner" heading_level=2 body_template="components/_independence_notice.html" %}
+
+  <form method="post">
+    {% csrf_token %}
+    <p>{% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Continue and email me a sign-in link" icon="arrow-right" %}</p>
+  </form>
+</div>
+{% endblock %}
