@@ -33,6 +33,9 @@ dev = [
   "pytest-django>=4.9",
   "pytest-cov>=5.0",
   "factory-boy>=3.3",
+  # The verification sweep is entirely about dates crossing thresholds, so its
+  # tests need a controllable clock rather than sleeps or relative offsets.
+  "freezegun>=1.5",
   "ruff>=0.6",
   "django-debug-toolbar>=4.4",
   "django-stubs>=5.0",
@@ -79,6 +82,16 @@ ignore = ["E501"]
 # lines. If one is added it should render the user and the timestamp, never the
 # hash.
 "accounts/models.py" = ["DJ008"]
+# directory/models.py is authored elsewhere too and adopted essentially verbatim
+# (docs/roadmap.md Phase 1: "already written — review, don't rewrite"). The two
+# edits it did need are commented in place and were both blockers, not tidying:
+# a field named `check` that Django refuses outright, and `storage=None` on the
+# evidence FileField, which resolved to the PUBLIC bucket.
+#
+# DJ008: twelve models define no __str__. Proposed upstream, not applied —
+# adding them is a real improvement but it is a change to every model in the
+# file, which is exactly what "review, don't rewrite" is protecting against.
+"directory/models.py" = ["DJ008"]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"

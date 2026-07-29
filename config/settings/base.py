@@ -70,6 +70,10 @@ DJANGO_APPS = [
     "django.contrib.sitemaps",
     # GeoDjango. Requires GDAL and GEOS on the host — see README.md.
     "django.contrib.gis",
+    # Needed for the CreateExtension migration operations and, from Phase 4, the
+    # trigram lookups registered by this app. ArrayField and SearchVectorField
+    # work without it; TrigramSimilarity does not.
+    "django.contrib.postgres",
 ]
 
 THIRD_PARTY_APPS = [
