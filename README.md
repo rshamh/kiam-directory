@@ -6,13 +6,17 @@ directly.
 
 Django · PostgreSQL/PostGIS · Redis · Tailwind + HTMX + Alpine · [`kiam-ui`](#kiam-ui)
 
+**Phases 0–2 are built.** Foundation, data model and taxonomy, and the admin back office.
+Phase 3 (public profile) is next. There are **no public pages yet** beyond a placeholder home.
+
 ## Start here
 
-1. `CLAUDE.md` — working rules for this repo
+1. `CLAUDE.md` — working rules, and a "What already exists" section listing the names, services
+   and invariants that will otherwise bite you
 2. `docs/multi-project-architecture.md` — how this sits alongside the main site and rooms
-3. `docs/architecture.md` — apps, models, roles, storage
-4. `docs/design-system.md` — what `kiam-ui` actually exposes, and the gaps
-5. `docs/roadmap.md` — the eight build phases
+3. `docs/architecture.md` — apps, models, URLs, roles, as they actually are
+4. `docs/design-system.md` — what `kiam-ui` really exposes, and the nine gaps
+5. `docs/roadmap.md` — the eight build phases and their gates
 
 ---
 
@@ -178,6 +182,71 @@ ruff check . && ruff format --check . && pytest
 
 CI runs the same three, plus `makemigrations --check` and a full image build.
 
+**Run the app, not just the suite.** Three of the worst bugs found so far passed a green suite:
+a developer `.env` baked into a Docker layer, `collectstatic` failing on kiam-ui's shipped CSS
+source, and password sign-in rejecting the *correct* password for a mixed-case address. A green
+test run is not evidence the thing starts.
+
+```bash
+python manage.py runserver          # then actually load a page
+docker compose build --ssh default  # the image is where the .env leak surfaced
+```
+
+## Testing
+
+~400 tests. Two conventions worth knowing before adding more:
+
+- **Factories never write a verification field.** `PractitionerFactory(verified=True)` creates
+  dated checks and calls `recompute()`, exactly as production does. A factory that set
+  `is_verified` directly would make every downstream assertion a test of the factory.
+- **Side-effecting factory traits are `post_generation`, not `factory.Trait`.** A Trait sets
+  values in the attributes phase; pointed at a post-generation hook it either raises or silently
+  skips. Call syntax is the same either way.
+
+```bash
+pytest directory/tests/test_verification.py   # the service that decides what the public sees
+pytest backoffice/tests/test_flow.py          # invite -> draft -> submit -> verify -> publish
+pytest --create-db                            # after a migration, or the reused DB will lie
+```
+
+---
+
+## What's built
+
+### Back office — `/backoffice/` (staff only)
+
+Everything to take a practitioner from invite to published. Every view carries an
+`accounts.access` predicate, the whole prefix is behind the TOTP middleware, and it is
+`noindex` plus `Disallow`-ed.
+
+| Page | What it does |
+|---|---|
+| `/backoffice/invites/` | Issue an invite. Account creation is invite-only — there is no signup route |
+| `/backoffice/review/` | Submissions awaiting a decision, with lint flags surfaced first |
+| `/backoffice/review/<pk>/` | The frozen **snapshot** of what was submitted; approve / request changes / reject |
+| `/backoffice/practitioners/<pk>/verification/` | One row per check type; verifier-only |
+| `.../provisional-dbs/` | Grant an adult-work-only window. Second extension blocked pending Dr. Abbass |
+| `/backoffice/concerns/` | Triage listing concerns. Registration doubts sort first |
+| `/backoffice/audit/` | Read-only, filterable. No delete path anywhere |
+
+### Verification is computed, never set
+
+`directory.services.verification.recompute()` derives the badge and the under-18 gate from dated
+`VerificationCheck` rows. Nothing else writes those fields — a test walks the whole Django admin
+registry to enforce it. Insurance expiring lapses the badge overnight with no human action.
+
+### Evidence access
+
+Private files have no public URL; `.url` raises. `documents.open_evidence()` is the only door and
+writes a `DocumentAccessLog` row in the same transaction as it mints a short-lived link. `admin`
+deliberately cannot open evidence — that is the entire reason the `verifier` role exists.
+
+### Submission lint
+
+Runs at submit, before a human sees anything. Blocks on prescription-only medicine names and on
+having no contact method; holds for review on efficacy claims, under-18 language without
+clearance, and protected titles. Blocklist in `ops/pom-dictionary.txt`, editable without a deploy.
+
 ---
 
 ## Ops
@@ -197,6 +266,12 @@ and it requires the `superadmin` role with a verified TOTP device.
 tracker.
 
 **Logs** are one JSON object per line (`config/logging.py`). Development uses a plain formatter.
+Auth and evidence events log the user id and never the credential — no magic-link token, no
+evidence URL, no password.
+
+**Review agents** live in `.claude/agents/` — `compliance-reviewer`, `seo-reviewer`,
+`a11y-reviewer`. `CLAUDE.md` requires the relevant ones before closing a phase. They only
+register at session start.
 
 ---
 
@@ -228,7 +303,14 @@ Every role check in the project lives in `accounts/access.py`. Views and templat
 
 ---
 
-## Two things that are easy to get wrong
+## Things that are easy to get wrong
+
+**The under-18 gate has two halves and only one is built.** `Practitioner.can_show_minor_groups`
+and `visible_client_groups()` cover the profile side. The **search-queryset half is Phase 4 and
+does not exist yet**: whenever a search filters on a client group with `is_minors=True`, the
+queryset must also filter `minor_work_status=CLEARED`. Without it, a `PROVISIONAL` practitioner —
+live for adult work with a DBS still pending — is returned to somebody looking for a child
+therapist. This is the highest-severity thing in the project and it needs its own test.
 
 **Session cookies stay host-only.** Do not set `SESSION_COOKIE_DOMAIN`. Sharing the cookie
 across `.kiamclinic.com` requires a shared `SECRET_KEY`, a shared session store and a shared user
@@ -237,6 +319,17 @@ table — i.e. one database — which defeats the project separation entirely
 
 **The two storage backends are never merged.** Headshots go to the public backend; verification
 evidence goes to `STORAGES["private"]`, which has no public URL — `url()` raises. The only route
-to a private object is `directory.services.documents.signed_url()`, which checks
-`can_view_private_evidence` and logs the access. In production they are two separate buckets, not
-two prefixes in one.
+to a private object is `directory.services.documents.open_evidence()`, which checks
+`can_view_evidence` and writes a `DocumentAccessLog` row. In production they are two separate
+buckets, not two prefixes in one — a prefix is one bucket-policy edit away from being world
+readable and a separate bucket is not.
+
+**A suspended profile explains nothing.** Ask
+`backoffice.services.publication.is_publicly_visible()` and render the neutral "not currently
+listed" page or a 404. Never the reason — that lives in the audit log, for staff. Publishing it
+would be a defamation risk against someone who may be cleared next week.
+
+**Never retype the independence notice.** It is one partial,
+`templates/components/_independence_notice.html`, verbatim from `docs/content-compliance.md` §5.
+Profile pages, results pages and the contact-reveal interstitial all `{% include %}` it, so a
+change to §5 lands in one place.

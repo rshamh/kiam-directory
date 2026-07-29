@@ -68,6 +68,13 @@ only**: their minor client groups are hidden from the profile and excluded from 
 is applied in **two** places — `Practitioner.can_show_minor_groups` (profile) and the search
 queryset. Either alone leaks. Any change to one requires a matching change and test in the other.
 
+> **Only half of that gate exists today.** `Practitioner.can_show_minor_groups` and
+> `Practitioner.visible_client_groups()` are built and tested (Phase 1). **The search-queryset half
+> is Phase 4 and does not exist yet.** Building `/search/` without it is the single highest-severity
+> way to break this project: a `PROVISIONAL` practitioner would be returned to someone filtering for
+> a child therapist. The Phase 4 gate is `queryset.filter(minor_work_status=CLEARED)` whenever the
+> requested client groups include an `is_minors=True` term, and it needs its own test.
+
 ---
 
 ## Stack
@@ -98,14 +105,34 @@ queryset. Either alone leaks. Any change to one requires a matching change and t
 Pinned to `v1.0.1`. **Upgrade deliberately** — bump the pin, read the changelog, run the visual
 check, commit as its own change. Never track a branch.
 
-**Before using it, read the installed package** (`pip show -f kiam-ui`, then read its templates,
-template tags and settings) and write what it actually exposes into `docs/design-system.md`:
-base template name, block names, the settings dict keys, and the component partials available.
-Do not guess at its API from this file, and do not re-specify colours, type or spacing anywhere
-in this repo — `kiam-ui` is the source of truth for those.
+**`docs/design-system.md` already documents its real API** — base template, all 24 block names,
+every `KIAM_UI` settings key, all 17 component partials with parameters, the token families and
+the documented WCAG contrast pairings. Read that rather than guessing, and **re-read the installed
+package and update it whenever the pin moves**. Do not re-specify colours, type or spacing
+anywhere in this repo — `kiam-ui` is the source of truth for those.
+
+Its §7 "Gaps" is the list of things the package does not give us and how each is worked around.
+Two matter for the next phases:
+
+- **Fonts load from Google Fonts on every page**, before any consent decision (Gap 3). Unresolved,
+  and it collides with golden rule #4 the moment analytics or consent lands.
+- **`collectstatic` needs the override in `seo/management/commands/`** (Gap 9), because the package
+  ships its Tailwind source inside its own `static/` tree. Do not delete that command.
 
 **Do not fork or vendor its components.** If something needs changing, raise it as a `kiam-ui`
 change and bump the pin. A local override is a last resort and must be commented with why.
+
+### Chrome decisions already made
+- **`SHOW_DISCLAIMER_BAR = False`.** kiam-ui's layer-1 emergency marquee is off: this site
+  provides no care, so "we are not an emergency service" asserts a clinical relationship the
+  project exists to deny. Do not switch it back on.
+- **Crisis signposting lives in the FOOTER**, via `pages.nav.footer` → `FOOTER["NOTE"]`. That is
+  `docs/content-compliance.md` §7 and it is a separate obligation from the bar. A test asserts
+  removing the bar did not take it with it.
+- **`SHOW_LANGUAGE_SWITCHER = False`**, `USE_I18N = False`. English only.
+- The independence notice is one partial: **`templates/components/_independence_notice.html`**,
+  verbatim from §5. Profile pages, results pages and the contact-reveal interstitial must
+  `{% include %}` it — never retype the sentence.
 
 ### Directory-specific components (build here, not in kiam-ui)
 `SearchBar`, `LocationInput` (postcode/place autocomplete), `RadiusSelect`, `FilterSidebar`,
@@ -130,17 +157,128 @@ is the curated landing pages, not the facet engine.
 
 ---
 
+---
+
+## What already exists (Phases 0–2)
+
+Read this before starting a phase. Everything here is built, tested and load-bearing; the
+mistakes below are ones already made once in this repo.
+
+### Names that differ from what you would guess
+
+| You might write | It is actually |
+|---|---|
+| `MagicLinkToken` | `accounts.LoginToken` (`used_at`, not `consumed_at`) |
+| `document.check` | `document.verification_check` — `check` shadowed `Model.check()` and Django refused to load the app |
+| `can_view_private_evidence` | `accounts.access.can_view_evidence` |
+| `user.full_name` | `user.display_name` (`Practitioner.full_name` is a different field and does exist) |
+
+### Services — the work lives here, not in views
+
+    accounts/services/    magic_link · passwords · two_factor · ratelimit
+    directory/services/   verification · lint · documents · search_index
+    backoffice/services/  invites · review · publication · concerns
+
+**Only `directory/services/verification.py` may write the five computed fields.** Nothing else,
+ever. `directory/tests/test_admin_readonly.py` enforces this by walking the whole admin registry —
+if it fails, do not add the field to `readonly_fields` to go green; something is trying to set a
+computed value by hand.
+
+### The public-visibility question has one answer
+
+`backoffice.services.publication.is_publicly_visible(practitioner)` — a bare boolean. The Phase 3
+profile view must ask exactly this and nothing more. A **suspended** profile must be
+indistinguishable from one that never existed: neutral "not currently listed" page or a 404,
+never an explanation. The reason is in the audit log, for staff. Publishing it would be a
+defamation risk against someone who may be cleared next week.
+
+### Evidence access
+
+`directory.services.documents.open_evidence()` is the only door. It writes a `DocumentAccessLog`
+row in the same transaction as it mints the URL, so no ordering exists in which a link is handed
+out and the record is not. Private files have **no public URL** — `.url` raises. There is no
+debug bypass and a test asserts `DEBUG=True` is not one.
+
+### Submission lint
+
+`directory/services/lint.py`, run by `review.submit()`. BLOCK on `pom` and `contact`; HOLD on
+`efficacy`, `child_work`, `restricted_title`. The POM blocklist is `ops/pom-dictionary.txt`
+(`settings.POM_DICTIONARY_PATH`), held outside the code so it updates without a deploy — and a
+**missing file raises rather than permitting everything**, because an empty blocklist silently
+disables the control.
+
+`restricted_title` holds rather than blocks because verification happens *after* review — nobody
+has a verified registration at submission time by definition. §3's "cannot publish" is enforced in
+`backoffice.services.review.approve()` via `blocking_publication_reasons()`, which also runs on
+`publication.lift_suspension()`.
+
+### Search index
+
+Two signals, and the second is the one that matters: `post_save` on `Practitioner`, **and**
+`m2m_changed` on `Practitioner.specialities`. An M2M change fires no save signal, so a listing
+tagged "Adult ADHD assessment" would otherwise carry a vector that has never heard of ADHD —
+unfindable, no error, nothing logged. `rebuild_search_index` (nightly) is the only thing that
+catches a synonym added to `taxonomy.py`, because that edits the Speciality row, not the
+Practitioner.
+
+Note `SearchVector` over a joined field raises inside a queryset `.update()`, and NULL columns
+NULL the whole concatenation — both already worked around in `search_index.py`.
+
+### Test factories
+
+`directory/factories.py`. Traits: `published`, `verified`, `provisional_dbs`, `dbs_cleared`,
+`online_only`, `in_person_only`, `multi_location`, `prescriber`, `locations=<n>`.
+
+**No factory writes a verification field** — `verified=True` creates dated checks and calls
+`recompute()`, as production does. Keep it that way, or every downstream assertion is testing the
+factory instead of the service.
+
+The side-effecting traits are `@factory.post_generation`, **not** `factory.Trait`: a Trait sets
+values in the attributes phase, so pointing one at a post-generation hook either raises or —
+worse — silently skips it. Call syntax is identical.
+
+### Commands and schedule
+
+`seed_taxonomy` (idempotent, never deletes — retired terms go `active=False`),
+`verification_sweep` (03:00), `rebuild_search_index` (03:30), plus the `collectstatic` override.
+Schedule in `ops/crontab`. A missed sweep night is a reminder nobody receives: the thresholds are
+exact day buckets.
+
+### Still to build, and where the source is
+
+`directory/services/search.py` (Phase 4) was authored and is **recoverable from the rooms repo's
+git history** — `git -C ../rooms show f49d0c2^:search.py`. It is not in this repo yet. Check there
+before writing a ranking algorithm from scratch.
+
+---
+
 ## How to work here
 
 - **Work in phases.** Follow `docs/roadmap.md`. Do not jump ahead or chain phases.
 - **Pause at each gate.** Print what changed and what needs human confirmation, then stop.
-- **Keep `docs/architecture.md` current** after every phase — app map, models, URLs, roles.
-- The intent docs (`multi-project-architecture`, `design-system`, `seo`, `content-compliance`,
+- **Keep these current after every phase** — they are working docs, not intent docs:
+  `docs/architecture.md` (app map, models, URLs, roles), `docs/design-system.md` (whenever the
+  kiam-ui pin moves), this file's "What already exists" section, and `README.md`.
+- The intent docs (`multi-project-architecture`, `seo`, `content-compliance`,
   `verification-policy`, `roadmap`) are human-authored. **Propose changes, don't silently
   rewrite them.**
+- **Some source files are authored elsewhere and adopted verbatim** — `accounts/models.py`,
+  `accounts/access.py`, `directory/models.py`, `directory/taxonomy.py`,
+  `directory/services/verification.py`. Review, don't rewrite. Where one genuinely had to change
+  (two blockers in `directory/models.py`, one bug in `verification.py`) the reason is commented in
+  place, and `pyproject.toml` carries per-file lint ignores rather than editing them for style.
+  Additions go in a clearly marked block at the end of the file, not interleaved.
 - Migrations: one logical change per migration where practical, and always reviewable.
+- **Run the real thing before calling a phase done.** Three of the worst bugs in this repo passed
+  the suite and were only found by starting the server or building the image: a `.env` baked into
+  a Docker layer, `collectstatic` failing on the kiam-ui CSS source, and password sign-in
+  rejecting the correct password for a mixed-case address.
 
 ## Review subagents (run before closing a phase)
+
+Their definitions live in **`.claude/agents/`** (copied from `docs/` in Phase 2, where they had
+agent frontmatter but were not somewhere Claude Code looks). A newly added agent only registers at
+session start, so if one is missing, restart rather than reimplementing it inline.
 
 - **seo-reviewer** — title, meta, canonical, OG, JSON-LD, heading order, internal links,
   AEO answer-readiness, facet noindex rules, sitemap inclusion.
