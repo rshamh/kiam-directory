@@ -148,3 +148,135 @@ def home() -> SafeString:
 
 def static_page(*, path: str, name: str, description: str = "") -> SafeString:
     return render(graph(web_page(path=path, name=name, description=description)))
+
+
+# ===========================================================================
+# Phase 3 — the practitioner profile
+# ===========================================================================
+
+
+def breadcrumb_items(*trail: tuple[str, str]) -> list[dict]:
+    """The trail, as the kiam-ui breadcrumb partial wants it.
+
+    ``BreadcrumbList`` is not built here, and that is deliberate. kiam-ui's
+    ``components/navigation/breadcrumb.html`` emits the JSON-LD from the *same*
+    list it renders the visible trail from, so the markup and the crumbs a
+    visitor can see cannot drift apart. Building a second copy in this module
+    would put two ``BreadcrumbList`` nodes on the page that agree only as long
+    as somebody keeps them agreeing.
+
+    What this function owns is the one thing the partial cannot: the URLs are
+    absolute and on this subdomain, which is what the partial's own docstring
+    asks for and what keeps the graph valid.
+    """
+    return [{"label": label, "url": absolute(path)} for label, path in trail]
+
+
+def person(
+    *,
+    path: str,
+    name: str,
+    job_title: str = "",
+    description: str = "",
+    image_url: str = "",
+    languages: list[str] | None = None,
+    knows_about: list[str] | None = None,
+    work_locations: list[dict] | None = None,
+    honorific_prefix: str = "",
+    honorific_suffix: str = "",
+) -> dict:
+    """A listed practitioner.
+
+    ``Person`` is the type, and the only type. ``docs/seo.md`` rules out
+    ``Physician`` and ``MedicalBusiness`` because these practitioners are
+    independent professionals, not a Kiam clinic location — marking them up as
+    one asserts in machine-readable form the exact relationship the project
+    exists to deny. ``assert_no_ratings()`` enforces it rather than leaving it
+    to whoever edits this next.
+
+    Three things are deliberately absent:
+
+    * **No ``worksFor`` / ``affiliation`` / ``memberOf`` pointing at the Kiam
+      organisation node.** Same reason. Kiam publishes the listing; it does not
+      employ the person in it.
+    * **No ``email``, ``telephone`` or ``sameAs``.** Contact details are behind
+      the reveal, and JSON-LD is HTML — putting them here would hand a scraper
+      the address the reveal exists to protect, in a machine-readable envelope,
+      before anyone clicked anything.
+    * **No ``aggregateRating``.** There are no reviews and there never will be.
+    """
+    node = {
+        "@type": "Person",
+        "@id": absolute(path) + "#person",
+        "name": name,
+        "url": absolute(path),
+    }
+    if honorific_prefix:
+        node["honorificPrefix"] = honorific_prefix
+    if honorific_suffix:
+        node["honorificSuffix"] = honorific_suffix
+    if job_title:
+        node["jobTitle"] = job_title
+    if description:
+        node["description"] = description
+    if image_url:
+        node["image"] = image_url
+    if languages:
+        node["knowsLanguage"] = languages
+    if knows_about:
+        node["knowsAbout"] = knows_about
+    if work_locations:
+        node["workLocation"] = work_locations
+    return node
+
+
+def place(
+    *, name: str = "", street: str = "", locality: str = "", region: str = "", postcode: str = ""
+) -> dict:
+    """A practice address, for ``Person.workLocation``."""
+    address = {"@type": "PostalAddress", "addressCountry": "GB"}
+    if street:
+        address["streetAddress"] = street
+    if locality:
+        address["addressLocality"] = locality
+    if region:
+        address["addressRegion"] = region
+    if postcode:
+        address["postalCode"] = postcode
+
+    node = {"@type": "Place", "address": address}
+    if name:
+        node["name"] = name
+    return node
+
+
+def profile_page(*, path: str, name: str, description: str = "", modified=None) -> dict:
+    """The page *about* the person, distinct from the person.
+
+    ``ProfilePage`` + ``mainEntity`` is what tells a crawler this URL is one
+    person's page rather than an article that mentions them, which is what gets
+    the ``Person`` node attached to the right thing.
+    """
+    node = {
+        "@type": "ProfilePage",
+        "@id": absolute(path) + "#webpage",
+        "url": absolute(path),
+        "name": name,
+        "isPartOf": {"@id": absolute("/#website")},
+        "inLanguage": "en-GB",
+        "mainEntity": {"@id": absolute(path) + "#person"},
+    }
+    if description:
+        node["description"] = description
+    if modified is not None:
+        node["dateModified"] = modified.isoformat()
+    return node
+
+
+def practitioner_profile(*, person_node: dict, page_node: dict) -> SafeString:
+    """The profile's graph: ``Person`` + ``ProfilePage``.
+
+    ``BreadcrumbList`` is the third type ``docs/seo.md`` asks for on this page
+    and it arrives from the breadcrumb component — see ``breadcrumb_items``.
+    """
+    return render(graph(person_node, page_node))

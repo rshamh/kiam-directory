@@ -44,14 +44,19 @@ def _urls() -> dict[str, str]:
 def nav_items(request):
     """The primary navigation.
 
-    Thin at Phase 0 — Search, Browse and the static pages arrive with the phases
-    that build them. The cross-link back to the main site is here from the start
-    because it is how authority flows between the subdomains (docs/seo.md), and
-    because a visitor needs an obvious route to the clinic that is *not* implied
-    to be the same thing as the directory.
+    Still thin at Phase 3 — Search and Browse arrive with the phases that build
+    them. About and For practitioners are here because they are the two questions
+    a stranger arrives with: what is this, and how do I get on it.
+
+    The cross-link back to the main site has been here from the start because it
+    is how authority flows between the subdomains (docs/seo.md), and because a
+    visitor needs an obvious route to the clinic that is *not* implied to be the
+    same thing as the directory.
     """
     return [
         {"label": "Home", "url": reverse("pages:home")},
+        {"label": "About", "url": reverse("pages:about")},
+        {"label": "For practitioners", "url": reverse("pages:for_practitioners")},
         {
             "label": "Kiam Clinic",
             "url": _urls().get("main", "https://kiamclinic.com"),
@@ -62,7 +67,13 @@ def nav_items(request):
 
 
 def footer(request):
-    """The footer, including the mandatory crisis signposting."""
+    """The footer, including the mandatory crisis signposting.
+
+    Every URL here is reversed rather than written out. A footer link is on every
+    page of the site, so a path typed as a string is a 404 in the chrome of every
+    page the moment a URL moves — and ``pages/tests/test_chrome.py`` walks these
+    links and fetches each one for exactly that reason.
+    """
     return {
         "TAGLINE": INDEPENDENCE_TAGLINE,
         # kiam-ui renders NOTE as the second, smaller line under the tagline —
@@ -71,18 +82,33 @@ def footer(request):
         "NOTE": CRISIS_SIGNPOSTING,
         "COLUMNS": [
             {
+                "heading": "The directory",
+                "links": [
+                    {"label": "About this directory", "url": reverse("pages:about")},
+                    {
+                        "label": "How verification works",
+                        "url": reverse("pages:how_verification_works"),
+                    },
+                    {"label": "For practitioners", "url": reverse("pages:for_practitioners")},
+                    {"label": "Report a concern", "url": reverse("pages:report_concern")},
+                ],
+            },
+            {
                 "heading": "Kiam",
                 "links": [
                     {"label": "Kiam Clinic", "url": _urls().get("main", "https://kiamclinic.com")},
                     {"label": "Room rental", "url": _urls().get("rooms", "https://rooms.kiamclinic.com")},
                 ],
-            }
+            },
         ],
         "LEGAL_NAME": "KAZYS Ltd",
         # TODO(sign-off): solicitor — confirm the company number and the legal
         # entity named on this subdomain before launch.
         "COMPANY_NUMBER": "",
-        # Terms, privacy, cookies and accessibility are Phase 3. Listing them
-        # here before they exist would put 404s in the footer of every page.
-        "LEGAL_LINKS": [],
+        "LEGAL_LINKS": [
+            {"label": "Terms of use", "url": reverse("pages:terms")},
+            {"label": "Privacy", "url": reverse("pages:privacy")},
+            {"label": "Cookies", "url": reverse("pages:cookies")},
+            {"label": "Accessibility", "url": reverse("pages:accessibility")},
+        ],
     }

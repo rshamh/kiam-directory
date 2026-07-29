@@ -23,6 +23,48 @@ link-prefetcher and preview bot that ever touches this page.
   </p>
 </div>
 
+{% comment %}
+Grant the badge in one action.
+
+Verifier-only, matching the view's gate — the role that decides evidence is
+satisfactory has to be the role allowed to look at it.
+
+DBS is deliberately NOT in this action even for a practitioner who works with
+under-18s. It is not one of the badge's required checks, it is the safeguarding
+one, and it stays a separate deliberate act with its own expiry and its own
+audit trail. Use the DBS row below, or the provisional grant.
+{% endcomment %}
+{% if can_view_evidence %}
+  <section class="bo-check bo-verify-all">
+    <h2>Verify all required checks</h2>
+    {% if outstanding_required %}
+      <p>
+        Records a verification decision against every required check that is still
+        outstanding: <strong>{{ outstanding_required|join:", " }}</strong>.
+      </p>
+      <form method="post" action="{% url 'backoffice:verification_verify_all' practitioner.pk %}" class="bo-form">
+        {% csrf_token %}
+        <label for="verify-all-expiry">{{ verify_all_form.insurance_expires_at.label }}</label>
+        <input type="datetime-local" name="insurance_expires_at" id="verify-all-expiry" required>
+        <p class="bo-note">{{ verify_all_form.insurance_expires_at.help_text }}</p>
+
+        <label for="verify-all-notes">{{ verify_all_form.notes.label }}</label>
+        <textarea name="notes" id="verify-all-notes" rows="2"></textarea>
+
+        <label for="verify-all-confirm">
+          <input type="checkbox" name="confirm" id="verify-all-confirm" required>
+          {{ verify_all_form.confirm.label }}
+        </label>
+        <p class="bo-note">{{ verify_all_form.confirm.help_text }}</p>
+
+        <button type="submit" class="btn btn-primary">Verify all required checks</button>
+      </form>
+    {% else %}
+      <p class="bo-note">Every required check is already verified and in date.</p>
+    {% endif %}
+  </section>
+{% endif %}
+
 {% if can_grant_provisional %}
   <p class="bo-actions">
     <a href="{% url 'backoffice:provisional_grant' practitioner.pk %}" class="btn btn-ghost">Grant provisional DBS</a>

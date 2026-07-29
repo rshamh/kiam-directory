@@ -6,8 +6,9 @@ directly.
 
 Django · PostgreSQL/PostGIS · Redis · Tailwind + HTMX + Alpine · [`kiam-ui`](#kiam-ui)
 
-**Phases 0–2 are built.** Foundation, data model and taxonomy, and the admin back office.
-Phase 3 (public profile) is next. There are **no public pages yet** beyond a placeholder home.
+**Phases 0–3 are built.** Foundation, data model and taxonomy, the admin back office, and the
+public profile with its static pages. Phase 4 (search) is next — there is **no `/search/` yet**,
+and no home page beyond a placeholder.
 
 ## Start here
 
@@ -194,7 +195,7 @@ docker compose build --ssh default  # the image is where the .env leak surfaced
 
 ## Testing
 
-~400 tests. Two conventions worth knowing before adding more:
+~650 tests. Two conventions worth knowing before adding more:
 
 - **Factories never write a verification field.** `PractitionerFactory(verified=True)` creates
   dated checks and calls `recompute()`, exactly as production does. A factory that set
@@ -204,14 +205,31 @@ docker compose build --ssh default  # the image is where the .env leak surfaced
   skips. Call syntax is the same either way.
 
 ```bash
-pytest directory/tests/test_verification.py   # the service that decides what the public sees
-pytest backoffice/tests/test_flow.py          # invite -> draft -> submit -> verify -> publish
-pytest --create-db                            # after a migration, or the reused DB will lie
+pytest directory/tests/test_profile_minor_gate.py   # the Phase 3 gate: minor groups are not in the HTML
+pytest directory/tests/test_verification.py         # the service that decides what the public sees
+pytest backoffice/tests/test_flow.py                # invite -> draft -> submit -> verify -> publish
+pytest --create-db                                  # after a migration, or the reused DB will lie
 ```
 
 ---
 
 ## What's built
+
+### Public pages
+
+| Page | What it does |
+|---|---|
+| `/p/<slug>/` | A practitioner's profile. **PUBLISHED only** — a draft, a suspension and a slug nobody has used all return the same 404, so a suspension is invisible rather than announced. Old slugs 301 to the current one |
+| `/p/<slug>/contact/<channel>/` | Reveals one contact detail. POST only, rate limited, `noindex`. Works without JavaScript as a whole page, and with HTMX as an in-place swap |
+| `/about/` · `/how-verification-works/` · `/for-practitioners/` · `/accessibility/` | Written content. The verification page states plainly what the badge does **not** mean |
+| `/terms/` · `/privacy/` · `/cookies/` | Outlines only. `TODO(sign-off)` — solicitor |
+| `/report-a-concern/` | Writes a `ConcernReport`. Routes complaints about **care** to the practitioner's regulator, and names them, above the form |
+
+Two rules run through all of it. Client groups render through
+`Practitioner.visible_client_groups()`, so a `PROVISIONAL` practitioner's under-18 groups are
+absent from the HTML rather than hidden in it. And contact details are never in the profile's
+context at all — the reveal endpoint fetches them — so the page cannot leak one by accident, and
+neither can its JSON-LD.
 
 ### Back office — `/backoffice/` (staff only)
 
@@ -229,11 +247,28 @@ Everything to take a practitioner from invite to published. Every view carries a
 | `/backoffice/concerns/` | Triage listing concerns. Registration doubts sort first |
 | `/backoffice/audit/` | Read-only, filterable. No delete path anywhere |
 
-### Verification is computed, never set
+### Verification is computed, never set — but granting it is one click
 
 `directory.services.verification.recompute()` derives the badge and the under-18 gate from dated
 `VerificationCheck` rows. Nothing else writes those fields — a test walks the whole Django admin
 registry to enforce it. Insurance expiring lapses the badge overnight with no human action.
+
+Admins still decide who is verified; they just do it by recording a decision, not by flipping a
+switch. **"Verify all required checks"** in the workbench does the whole set in one action — one
+insurance expiry date, one confirmation, one button. The date is required and not prefilled,
+because it is the thing that makes the badge lapse on its own later.
+
+DBS is not in that action. It is the safeguarding check, not one of the badge's required checks,
+and it stays a separate deliberate act with its own expiry.
+
+### Editing a live listing withdraws the badge, not the listing
+
+Change a **safe** field — bio, fees, availability, photo — and it publishes immediately. Change a
+**controlled** one — name, profession, registrations, qualifications, client groups — and the page
+stays up while the badge comes off, because the checks that were made against the old details are
+reopened and `recompute()` notices. Approving the new wording does *not* give the badge back;
+re-verifying the evidence does. That distinction is the point: accepting a name change is not the
+same as confirming somebody's photo ID matches it.
 
 ### Evidence access
 
@@ -306,11 +341,22 @@ Every role check in the project lives in `accounts/access.py`. Views and templat
 ## Things that are easy to get wrong
 
 **The under-18 gate has two halves and only one is built.** `Practitioner.can_show_minor_groups`
-and `visible_client_groups()` cover the profile side. The **search-queryset half is Phase 4 and
-does not exist yet**: whenever a search filters on a client group with `is_minors=True`, the
-queryset must also filter `minor_work_status=CLEARED`. Without it, a `PROVISIONAL` practitioner —
-live for adult work with a DBS still pending — is returned to somebody looking for a child
-therapist. This is the highest-severity thing in the project and it needs its own test.
+and `visible_client_groups()` cover the profile side, and Phase 3 wired them up —
+`directory/tests/test_profile_minor_gate.py` asserts a `PROVISIONAL` practitioner's under-18 group
+name does not appear in the response body. The **search-queryset half is Phase 4 and does not
+exist yet**: whenever a search filters on a client group with `is_minors=True`, the queryset must
+also filter `minor_work_status=CLEARED`. Without it, a `PROVISIONAL` practitioner — live for adult
+work with a DBS still pending — is returned to somebody looking for a child therapist. This is the
+highest-severity thing in the project and it needs its own test.
+
+**A suspended profile is a 404, not a page.** Phase 3 chose the 404 of the two options CLAUDE.md
+allows, because a distinct "not currently listed" page is itself a signal: it says a listing was
+here. A draft, a suspension and a slug nobody has ever used now render byte-identical pages.
+
+**Contact details are not in the profile's context.** `profile.available_channels()` returns which
+channels exist, never their values. If you find yourself adding an email address to the profile
+view's context "just for the template", the reveal endpoint, the metric and the scraping
+protection all stop meaning anything at once.
 
 **Session cookies stay host-only.** Do not set `SESSION_COOKIE_DOMAIN`. Sharing the cookie
 across `.kiamclinic.com` requires a shared `SECRET_KEY`, a shared session store and a shared user

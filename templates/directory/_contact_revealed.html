@@ -1,0 +1,53 @@
+{% comment %}
+The revealed contact detail, and the interstitial that comes with it.
+
+Params: practitioner · display_name · channel · value · href · heading_level
+        (3 in the profile's Contact section, 2 on the standalone page).
+
+**The independence notice is above the detail, not beside it and not after it.**
+docs/content-compliance.md §5 requires it verbatim in the contact reveal, and DOM
+order is the only ordering a screen reader has: someone landing here with focus
+reads the relationship before they read the address. Rendered from the one shared
+partial — the sentence exists in exactly one place in this repo.
+
+`tabindex="-1"` and `role="group"` make this a focus destination with an
+accessible name. HTMX moves focus here after the swap (see _contact_panel.html),
+so the reveal announces itself without a live region shouting over it.
+
+The group is labelled by its heading AND its value, and that is the whole
+announcement mechanism. Focusing a container announces its accessible name and
+role — it does NOT read the descendants; the user has to arrow down for those. So
+`aria-labelledby="…-heading …-value"` makes the focus move itself say "Email
+address, jane@example.com, group": the fact and the content, once each, with
+nothing duplicated. Labelling it by the heading alone would announce "Email
+address, group" and leave the address unread until the user went looking.
+
+The website link carries rel="sponsored nofollow noopener": listings are a paid
+membership, and passing PageRank from a paid placement is a link scheme however
+well meant. `sponsored` is the token Google's current guidance asks for; `nofollow`
+stays for crawlers that predate it.
+{% endcomment %}
+<div class="dir-reveal"
+     role="group"
+     tabindex="-1"
+     data-reveal-focus
+     aria-labelledby="reveal-{{ channel.key }}-heading reveal-{{ channel.key }}-value">
+
+  {% if heading_level == 2 %}
+    <h2 class="dir-reveal__title" id="reveal-{{ channel.key }}-heading">{{ channel.label }} for {{ display_name }}</h2>
+  {% else %}
+    <h3 class="dir-reveal__title" id="reveal-{{ channel.key }}-heading">{{ channel.label }}</h3>
+  {% endif %}
+
+  <div class="dir-reveal__notice">
+    {% include "components/_independence_notice.html" %}
+  </div>
+
+  <p class="dir-reveal__value" id="reveal-{{ channel.key }}-value">
+    {% if channel.key == "website" %}
+      <a href="{{ href }}" rel="sponsored nofollow noopener">{{ value }}</a>
+    {% else %}
+      <a href="{{ href }}">{{ value }}</a>
+    {% endif %}
+  </p>
+</div>

@@ -155,13 +155,24 @@ def test_the_nav_cross_links_to_the_main_site(rf):
 
 
 def test_the_footer_has_no_links_to_pages_that_do_not_exist_yet(rf, client):
-    footer = nav.footer(rf.get("/"))
-    assert footer["LEGAL_LINKS"] == []
+    """Phase 3 filled in the legal links; the rule they were held back for stands.
 
-    for column in footer["COLUMNS"]:
-        for link in column["links"]:
-            if link["url"].startswith("/"):
-                assert client.get(link["url"]).status_code == 200
+    Until Phase 3 this asserted ``LEGAL_LINKS == []`` because terms, privacy,
+    cookies and accessibility had not been built and listing them would have put
+    four 404s in the footer of every page. The pages exist now, so the assertion
+    is the one it was always standing in for: every footer link resolves.
+    ``pages/tests/test_static_pages.py`` walks the same links against the full
+    static set.
+    """
+    footer = nav.footer(rf.get("/"))
+
+    links = [link for column in footer["COLUMNS"] for link in column["links"]]
+    links += footer["LEGAL_LINKS"]
+    assert links
+
+    for link in links:
+        if link["url"].startswith("/"):
+            assert client.get(link["url"]).status_code == 200, link["url"]
 
 
 def test_there_is_no_booking_cta(client, settings):

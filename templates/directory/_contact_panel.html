@@ -1,0 +1,69 @@
+{% comment %}
+ContactRevealPanel — the contact block on a profile.
+
+Contact details are NOT in this markup. Each channel renders a button that posts
+to /p/<slug>/contact/<channel>/, and the detail arrives in the response. That is
+the whole protection: a scraper pulling profile HTML finds no addresses, because
+there are none to find.
+
+Progressive enhancement, in this order:
+
+* Without JavaScript the form posts normally and the reveal is a whole page.
+  This is not a courtesy — it is the difference between "contactable" and "not"
+  for anyone whose script blocking, corporate proxy or flaky connection ate the
+  bundle.
+* With HTMX the response replaces the button in place, inside `.dir-contact__slot`.
+
+Focus, not a live region. `hx-on::after-swap` moves focus into the revealed panel,
+which is a labelled `role="group"` with `tabindex="-1"`. An `aria-live` region on
+the slot would work too, but combining the two makes a screen reader read the
+independence notice and the address twice over — on a site whose audience has a
+high rate of anxiety and neurodevelopmental conditions, redundant chatter is a
+cost, not a safety net. Moving focus to new content is the WCAG-recommended
+pattern and it also puts the keyboard where the visitor wants it: on the address.
+
+Focusing a group announces its NAME, not its contents, so the panel is labelled
+by its heading *and* its value — see _contact_revealed.html. That way the focus
+move itself says "Email address, jane@example.com" and the reveal announces the
+thing that was revealed, with nothing read twice.
+
+`hx-on::before-swap` is load-bearing, not defensive. htmx 2's default
+`responseHandling` does not swap 4xx at all, so the rate-limit refusal was being
+fetched, discarded, and never shown: the button just sat there and the click did
+nothing. Opting 429 in explicitly, here rather than by editing `htmx.config`
+globally, keeps the honest status code on the response.
+
+TODO(sign-off): CQC compliance lead — "You contact <name> directly. Kiam Clinic
+does not pass on messages, arrange appointments, or take payment." That sentence
+is the independence relationship stated at the moment somebody acts on it.
+
+`booking_url` is deliberately NOT rendered here. A "book an appointment" control
+on a Kiam-branded page asserts that Kiam manages the appointment, which is one of
+the three things in docs/content-compliance.md §9 that change Kiam's regulatory
+position. Raise it for legal review before adding it.
+{% endcomment %}
+<section class="dir-profile__section dir-contact-block" aria-labelledby="contact-heading">
+  <h2 id="contact-heading">Contact {{ display_name }}</h2>
+
+  <p class="dir-contact-block__intro">
+    You contact {{ display_name }} directly. Kiam Clinic does not pass on
+    messages, arrange appointments, or take payment.
+  </p>
+
+  {% if channels %}
+    <ul class="dir-contact">
+      {% for channel in channels %}
+        <li class="dir-contact__item">
+          <div class="dir-contact__slot"
+               id="contact-{{ channel.key }}"
+               hx-on::before-swap="if (event.detail.xhr.status === 429) { event.detail.shouldSwap = true; event.detail.isError = false; }"
+               hx-on::after-swap="this.querySelector('[data-reveal-focus]')?.focus()">
+            {% include "directory/_contact_button.html" with channel=channel %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="dir-empty">This listing does not publish contact details.</p>
+  {% endif %}
+</section>

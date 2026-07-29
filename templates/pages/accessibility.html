@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% comment %}
+Accessibility statement.
+
+Not boilerplate, and not a compliance ornament. Golden rule #3: this audience has
+a disproportionately high rate of neurodevelopmental and anxiety conditions, so
+what the site does for them is worth stating plainly, and so is the route to
+telling us when it fails.
+
+The formal conformance statement waits for the Phase 7 WCAG 2.2 AA audit. This
+page says what is true now and says that the audit is outstanding, rather than
+claiming a conformance level nobody has measured.
+{% endcomment %}
+
+{% block content %}
+<div class="container section dir-page">
+
+  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Accessibility" title=page.title description="How this site is built to be usable, and how to tell us when it is not." heading_level=1 %}
+
+  <div class="prose">
+    <h2>What we aim for</h2>
+    <p>
+      We build this site to meet the Web Content Accessibility Guidelines 2.2 at
+      level AA. A full independent audit is scheduled before the directory
+      launches, and this page will state the outcome when it is done. Until then,
+      treat this as a description of what the site does rather than as a
+      certified conformance claim.
+    </p>
+
+    <h2>Display and reading settings</h2>
+    <p>
+      Every page has an <strong>accessibility panel</strong> in the header. It
+      changes text size, turns on a higher-contrast palette, turns off motion and
+      switches to a typeface some people with dyslexia find easier. Your choice is
+      remembered and applied before the page is drawn, so nothing flashes at you
+      on the way in.
+    </p>
+
+    <h2>What we have deliberately not done</h2>
+    <ul>
+      <li>
+        <strong>No carousels and no auto-advancing content.</strong> Nothing on
+        this site moves unless you ask it to.
+      </li>
+      <li>
+        <strong>No time limits.</strong> No form expires while you are filling it
+        in, and no page pushes you along.
+      </li>
+      <li>
+        <strong>No CAPTCHAs.</strong> Puzzles at the door are a real barrier; we
+        use methods that ask nothing of you instead.
+      </li>
+      <li>
+        <strong>No scrolling banner at the top of every page.</strong> Persistent
+        moving text is exhausting, and this site has nothing urgent enough to
+        justify it.
+      </li>
+    </ul>
+
+    <h2>Keyboard and screen readers</h2>
+    <ul>
+      <li>Everything works with a keyboard alone. Focus is always visible.</li>
+      <li>A “skip to content” link is the first thing on every page.</li>
+      <li>
+        Headings run in order, form fields have real labels, and errors are
+        described in plain language next to the field they belong to.
+      </li>
+      <li>
+        When you reveal a contact detail on a listing, your keyboard focus moves
+        to it and the detail is announced.
+      </li>
+    </ul>
+
+    <h2>Motion</h2>
+    <p>
+      If your device is set to reduce motion, we respect it — animations and
+      transitions are switched off rather than shortened. You can also switch
+      them off from the accessibility panel regardless of your device settings.
+    </p>
+
+    <h2>Where we know we fall short</h2>
+    <ul>
+      <li>
+        The independent WCAG 2.2 AA audit has not yet been carried out, so this
+        page cannot yet claim a conformance level.
+      </li>
+      <li>
+        Practitioners write their own profile text. We check it for a number of
+        things, but we cannot guarantee every listing is written in plain
+        language.
+      </li>
+    </ul>
+
+    <h2>Telling us about a problem</h2>
+    <p>
+      If something on this site is hard or impossible to use, please email
+      <a href="mailto:{{ kiam_ui.CONTACT.email|default:'enquiries@kiamclinic.com' }}">{{ kiam_ui.CONTACT.email|default:'enquiries@kiamclinic.com' }}</a>
+      and say what you were trying to do. You do not need to know the technical
+      term for what went wrong. We would rather have a vague report than none.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

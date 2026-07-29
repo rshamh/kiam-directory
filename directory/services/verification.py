@@ -161,8 +161,12 @@ def nightly_sweep():
     # brings the whole bucket inside the queryset; the `days_left in REMINDER_DAYS`
     # test below still decides who is actually notified.
     horizon = now + timedelta(days=max(REMINDER_DAYS) + 1)
-    affected = Practitioner.objects.filter(status__in=["published", "approved"]).filter(
-        models_Q_expiring(horizon, now)
+    # `.distinct()`: the expired-DBS clause in models_Q_expiring() joins across
+    # `verifications`, which duplicates a row per matching check.
+    affected = (
+        Practitioner.objects.filter(status__in=["published", "approved"])
+        .filter(models_Q_expiring(horizon, now))
+        .distinct()
     )
 
     notifications = []
@@ -201,6 +205,28 @@ def models_Q_expiring(horizon, now):
         Q(verification_expires_at__lte=horizon)
         | Q(provisional_expires_at__lte=now)
         | Q(minor_work_status=MinorWorkStatus.PROVISIONAL)
+        # An expired DBS on a CLEARED listing. Added at the Phase 3 gate; the
+        # authored clauses above do not reach it, and the omission was invisible
+        # until Phase 3 gave minor_work_status a public effect.
+        #
+        # DBS is not in BASE_REQUIRED, so it never contributes to
+        # `verification_expires_at` and the first clause cannot see it. The
+        # second and third only cover PROVISIONAL. So a CLEARED practitioner
+        # whose enhanced DBS expired was selected only by coincidence — if their
+        # insurance renewal happened to fall inside the 61-day horizon. Step 1
+        # above dutifully marked the check EXPIRED, recompute() would have
+        # returned BLOCKED, and nothing called it: the row kept saying `cleared`
+        # and visible_client_groups() kept publishing under-18 groups, for up to
+        # a year.
+        #
+        # recompute() itself was always right (see
+        # test_an_expired_dbs_blocks_rather_than_downgrading_to_provisional).
+        # This is the selection queryset catching up with it.
+        | Q(
+            minor_work_status=MinorWorkStatus.CLEARED,
+            verifications__type=VerificationType.DBS,
+            verifications__expires_at__lte=now,
+        )
     )
 
 
@@ -322,3 +348,182 @@ def extend_provisional_dbs(
         },
     )
     return recompute(practitioner)
+
+
+# ===========================================================================
+# Phase 3b additions — granting a badge in one action, and withdrawing it when
+# the claim it was granted against changes.
+# ===========================================================================
+#
+# Both live here for the same reason everything else in this file does: they
+# change what the badge says, and nothing outside this module writes that.
+#
+# Neither is a toggle. `verify_all_required()` records the same dated, expiring,
+# audit-logged checks a verifier would record one at a time — it compresses the
+# clicks, not the evidence, so the badge still lapses on its own when the
+# insurance certificate does. `invalidate_for_changes()` is the opposite motion
+# and equally derived: when a practitioner changes the thing a check was made
+# against, that check stops being true and the badge falls out of recompute()
+# rather than being switched off.
+
+
+import logging  # noqa: E402 — additions belong at the end of this adopted file (CLAUDE.md)
+
+#: The logger the nightly sweep already writes under, so every badge change lands
+#: in one stream whatever caused it.
+logger = logging.getLogger("directory.verification")
+
+
+class NothingToVerify(ValueError):
+    """No required check is outstanding."""
+
+
+@transaction.atomic
+def verify_all_required(
+    practitioner: Practitioner, *, actor, expires_at: dict | None = None, notes: str = ""
+):
+    """Mark every check the badge requires as verified, in one action.
+
+    The admin decision is "I have seen this person's documents and I am
+    satisfied". This records that decision against each required check, so the
+    badge is still computed from dated evidence and still lapses without anyone
+    remembering to act.
+
+    ``expires_at`` maps a VerificationType to its expiry date, and one is
+    REQUIRED for every required type that expires — insurance, today. That date
+    is the whole reason a one-click grant is safe: it is what makes the badge
+    fall over on its own, so it cannot be defaulted or guessed. Copy it off the
+    certificate.
+
+    Each check goes through set_check_status(), which is deliberate rather than
+    lazy: one write path means the per-check audit row, the expiry rule and the
+    recompute all keep working. It recomputes once per check, four or five times
+    for one grant, which is a rounding error against a human clicking.
+    """
+    expires_at = expires_at or {}
+    required = required_types(practitioner)
+
+    missing = [t for t in required if t in EXPIRING_TYPES and expires_at.get(t) is None]
+    if missing:
+        labels = ", ".join(VerificationType(t).label for t in missing)
+        raise ExpiryRequired(
+            f"{labels} expires, so it needs an expiry date before it can be verified. "
+            "Without one the badge could never lapse."
+        )
+
+    existing = {c.type: c for c in practitioner.verifications.all()}
+    granted = []
+
+    for check_type in required:
+        check = existing.get(check_type)
+        if check is None:
+            check, _ = VerificationCheck.objects.get_or_create(practitioner=practitioner, type=check_type)
+        # Already verified and in date — leave its original checked_at alone.
+        # The badge shows the OLDEST required check, so silently re-dating a
+        # check nobody looked at again would make the badge claim to be fresher
+        # than the evidence behind it.
+        if check.status == VerificationStatus.VERIFIED and not (
+            check.expires_at and check.expires_at <= timezone.now()
+        ):
+            continue
+
+        set_check_status(
+            check,
+            status=VerificationStatus.VERIFIED,
+            actor=actor,
+            expires_at=expires_at.get(check_type),
+            notes=notes,
+        )
+        granted.append(check_type)
+
+    if not granted:
+        raise NothingToVerify("Every required check is already verified and in date.")
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="verification.verified_all_required",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={"types": granted, "notes": notes},
+    )
+    practitioner.refresh_from_db()
+    return practitioner
+
+
+#: Which checks a controlled-field change invalidates.
+#:
+#: The mapping is "what was this check made against?". A verifier who confirmed a
+#: GMC number confirmed *that number*; change it and the confirmation is about a
+#: number that is no longer on the listing. Same for a name checked against photo
+#: ID, and a qualification checked against a certificate.
+#:
+#: `client_groups` maps to nothing on purpose — recompute() already derives the
+#: under-18 requirement from them every time it runs, so adding a minor group
+#: moves minor_work_status without anything here doing so.
+CHECKS_INVALIDATED_BY = {
+    "full_name": (VerificationType.IDENTITY, VerificationType.REGISTRATION),
+    "display_title": (VerificationType.REGISTRATION,),
+    "post_nominals": (VerificationType.QUALIFICATION, VerificationType.REGISTRATION),
+    "profession": (VerificationType.REGISTRATION,),
+    "is_prescriber": (VerificationType.PRESCRIBER,),
+    "registrations": (VerificationType.REGISTRATION,),
+    "qualifications": (VerificationType.QUALIFICATION,),
+    "client_groups": (),
+}
+
+
+def checks_invalidated_by(changed_fields) -> list:
+    """The distinct checks a set of field changes puts back in doubt."""
+    affected = []
+    for field in changed_fields or ():
+        for check_type in CHECKS_INVALIDATED_BY.get(field, ()):
+            if check_type not in affected:
+                affected.append(check_type)
+    return affected
+
+
+@transaction.atomic
+def invalidate_for_changes(practitioner: Practitioner, changed_fields, *, actor=None) -> list:
+    """A controlled field changed, so the evidence behind it needs re-checking.
+
+    Returns the check types that were reopened.
+
+    This is how the badge is withdrawn without anyone being able to withdraw it:
+    the checks go back to SUBMITTED — seen, not yet confirmed — and recompute()
+    drops `is_verified` because a required check is no longer VERIFIED. The badge
+    comes back when a verifier confirms the new details, and not before.
+
+    Only checks that are currently VERIFIED are touched. Reopening one that was
+    already outstanding would reset its history for no reason.
+    """
+    affected = checks_invalidated_by(changed_fields)
+
+    reopened = []
+    for check in practitioner.verifications.filter(type__in=affected, status=VerificationStatus.VERIFIED):
+        check.status = VerificationStatus.SUBMITTED
+        check.checked_at = None
+        check.save(update_fields=["status", "checked_at"])
+        reopened.append(check.type)
+
+    if not reopened:
+        # Still recompute, and not as a formality. `client_groups` invalidates no
+        # check — it maps to () deliberately — but adding a minor group is
+        # exactly what makes an under-18 DBS newly required, and recompute() is
+        # the only thing that notices. Returning early here would leave a live
+        # listing showing under-18 groups it has no clearance for.
+        recompute(practitioner)
+        return []
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="verification.reopened_after_edit",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={"types": reopened, "changed_fields": sorted(set(changed_fields))},
+    )
+    logger.info(
+        "verification.reopened_after_edit",
+        extra={"practitioner_id": str(practitioner.pk), "types": reopened},
+    )
+    recompute(practitioner)
+    return reopened

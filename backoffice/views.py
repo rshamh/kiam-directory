@@ -161,11 +161,26 @@ def review_detail(request, pk):
     practitioner = review_request.practitioner
     form = forms.ReviewDecisionForm(request.POST or None)
 
+    # A live listing with a pending edit is a different decision from a listing
+    # waiting to go live: the page never came down, so approving it publishes
+    # nothing. See review.approve_update().
+    is_pending_update = practitioner.status == PublicationStatus.PUBLISHED
+
     if request.method == "POST" and form.is_valid():
         decision = form.cleaned_data["decision"]
         notes = form.cleaned_data["notes"]
         try:
-            if decision == forms.ReviewDecisionForm.APPROVE:
+            if decision == forms.ReviewDecisionForm.APPROVE and is_pending_update:
+                review.approve_update(review_request, actor=request.user, notes=notes)
+                if practitioner.is_verified:
+                    messages.success(request, f"Edit approved. {practitioner.full_name} keeps their badge.")
+                else:
+                    messages.warning(
+                        request,
+                        f"Edit approved, but {practitioner.full_name} has no badge: the checks "
+                        "behind what changed were reopened and still need verifying.",
+                    )
+            elif decision == forms.ReviewDecisionForm.APPROVE:
                 review.approve(review_request, actor=request.user, notes=notes)
                 messages.success(request, f"{practitioner.full_name} is now published.")
             elif decision == forms.ReviewDecisionForm.REQUEST_CHANGES:
@@ -196,6 +211,8 @@ def review_detail(request, pk):
             "lint_flags": review_request.lint_flags or {},
             "blocking_reasons": review.blocking_publication_reasons(practitioner),
             "form": form,
+            "is_pending_update": is_pending_update,
+            "reopened_checks": verification.checks_invalidated_by(review_request.changed_fields),
         },
     )
 
@@ -234,6 +251,12 @@ def verification_workbench(request, pk):
             }
         )
 
+    outstanding = [
+        row["type"]
+        for row in rows
+        if row["required"] and (row["check"] is None or row["check"].status != "verified")
+    ]
+
     return render(
         request,
         "backoffice/verification_workbench.html",
@@ -245,8 +268,63 @@ def verification_workbench(request, pk):
             "statuses": VerificationCheck._meta.get_field("status").choices,
             "extension_blocked": practitioner.provisional_extensions
             >= verification.MAX_SELF_SERVICE_EXTENSIONS,
+            "verify_all_form": forms.VerifyAllRequiredForm(),
+            "outstanding_required": outstanding,
         },
     )
+
+
+@never_cache
+@require(can_view_evidence)
+@require_http_methods(["POST"])
+def verification_verify_all(request, pk):
+    """Record a verification decision against every required check at once.
+
+    Gated on ``can_view_evidence``, not ``can_review_submissions``, for the same
+    reason ``verification_set_status`` is: this grants a badge, and the role that
+    decides evidence is satisfactory has to be the role permitted to look at it.
+    An `admin` who cannot open a passport scan cannot assert that they checked one.
+
+    Not a toggle. It writes the same dated, expiring, audit-logged checks a
+    verifier would write one at a time, and the badge is still computed from them
+    — so it still lapses on the insurance date entered here.
+    """
+    practitioner = get_object_or_404(Practitioner, pk=pk)
+    form = forms.VerifyAllRequiredForm(request.POST)
+
+    if not form.is_valid():
+        for field, errors in form.errors.items():
+            messages.error(request, f"{field}: {'; '.join(errors)}")
+        return redirect("backoffice:verification_workbench", pk=pk)
+
+    try:
+        verification.verify_all_required(
+            practitioner,
+            actor=request.user,
+            expires_at={VerificationType.INSURANCE: form.cleaned_data["insurance_expires_at"]},
+            notes=form.cleaned_data["notes"],
+        )
+    except verification.NothingToVerify as exc:
+        messages.info(request, str(exc))
+    except verification.ExpiryRequired as exc:
+        messages.error(request, str(exc))
+    else:
+        practitioner.refresh_from_db()
+        if practitioner.is_verified:
+            messages.success(
+                request,
+                f"{practitioner.full_name} is verified — credentials checked "
+                f"{practitioner.credentials_checked_at:%-d %B %Y}, lapsing "
+                f"{practitioner.verification_expires_at:%-d %B %Y}.",
+            )
+        else:
+            messages.warning(
+                request,
+                "Checks recorded, but the badge is still off — something required is "
+                "missing or out of date. The rows below show which.",
+            )
+
+    return redirect("backoffice:verification_workbench", pk=pk)
 
 
 @never_cache

@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% comment %}
+The public profile — /p/<slug>/.
+
+Only PUBLISHED listings reach this template; everything else 404s in the view.
+See directory/services/profile.py for why a suspension and a slug that never
+existed have to fail identically.
+
+Two things about the order of this page are compliance, not layout:
+
+1. **The independence notice sits directly under the header**, before the
+   practitioner's own words. docs/content-compliance.md §5 requires it verbatim
+   and prominent on every profile; putting it after the intro would let someone
+   read a whole bio believing they were reading about a Kiam clinician.
+
+2. **Client groups come from `client_groups` in the context, which the service
+   built from `visible_client_groups()`.** Never `practitioner.client_groups`.
+   A PROVISIONAL practitioner is live for adult work only and their under-18
+   groups must be ABSENT from this HTML — not hidden, not in an attribute.
+   `directory/tests/test_profile_minor_gate.py` asserts the string is not in the
+   response body.
+
+Contact details are not in this template at all. They are not in the context
+either — the reveal endpoint fetches them. That is what makes "not in the page
+until someone asks" true rather than aspirational.
+
+TODO(sign-off): CQC compliance lead — the payment and independence framing in
+"Fees and funding" ("Fees are set by the practitioner and paid to them directly.
+Kiam Clinic takes no payment and holds no booking on your behalf."). The §5
+notice itself is a separate partial with its own marker.
+{% endcomment %}
+{% load static %}
+
+{% block og_type %}profile{% endblock %}
+
+{% comment %}
+`og_image_url` is built by the view with `request.build_absolute_uri()`, not
+concatenated here. Under production's S3 backend `headshot.url` is already
+absolute, and prefixing the host produced
+"https://directory.kiamclinic.comhttps://bucket.s3…" on every profile with a
+photo — correct in dev and test, broken in production, and invisible to the
+suite because dev and test both use FileSystemStorage.
+{% endcomment %}
+{% block og_image %}
+  <meta property="og:image" content="{% if og_image_url %}{{ og_image_url }}{% else %}{{ request.scheme }}://{{ request.get_host }}{% static 'img/og-default.png' %}{% endif %}">
+{% endblock %}
+
+{% block content %}
+<div class="container section dir-profile">
+
+  {% include "kiam_ui/components/navigation/breadcrumb.html" with items=breadcrumbs %}
+
+  <header class="dir-profile__header">
+    {% if practitioner.headshot %}
+      <img class="dir-profile__headshot"
+           src="{{ practitioner.headshot.url }}"
+           alt="{{ display_name }}"
+           decoding="async">
+    {% endif %}
+
+    <div class="dir-profile__identity">
+      <h1 class="dir-profile__name">
+        {{ display_name }}{% if practitioner.post_nominals %} <span class="dir-profile__post-nominals">{{ practitioner.post_nominals }}</span>{% endif %}
+      </h1>
+
+      {% if practitioner.profession %}
+        <p class="dir-profile__profession">{{ practitioner.profession.name }}</p>
+      {% endif %}
+
+      {% if practitioner.pronouns %}
+        <p class="dir-profile__pronouns">Pronouns: {{ practitioner.pronouns }}</p>
+      {% endif %}
+
+      {% include "components/_verified_badge.html" with practitioner=practitioner %}
+    </div>
+  </header>
+
+  {% comment %}
+  The answer sentence. Generated from the structured fields rather than left to
+  free text, because this is the paragraph an answer engine extracts
+  (docs/seo.md, "AEO / AI search") and the word that has to survive being quoted
+  out of context is "independent".
+  {% endcomment %}
+  <p class="dir-profile__lede">{{ answer_sentence }}</p>
+
+  {% include "kiam_ui/components/feedback/disclaimer.html" with title="About the practitioners listed here" heading_level=2 body_template="components/_independence_notice.html" %}
+
+  {% if practitioner.intro %}
+    <section class="dir-profile__section" aria-labelledby="about-heading">
+      <h2 id="about-heading">About {{ display_name }}</h2>
+      <div class="prose">{{ practitioner.intro|linebreaks }}</div>
+    </section>
+  {% endif %}
+
+  {% if practitioner.services %}
+    <section class="dir-profile__section" aria-labelledby="services-heading">
+      <h2 id="services-heading">Services</h2>
+      <div class="prose">{{ practitioner.services|linebreaks }}</div>
+    </section>
+  {% endif %}
+
+  <section class="dir-profile__section" aria-labelledby="focus-heading">
+    <h2 id="focus-heading">Areas of practice</h2>
+    {% include "components/_tag_group.html" with title="Specialities" items=specialities heading_level=3 %}
+    {% include "components/_tag_group.html" with title="Approaches" items=approaches heading_level=3 %}
+    {# THE GATE — see the comment at the top of this file. #}
+    {% include "components/_tag_group.html" with title="Client groups" items=client_groups heading_level=3 %}
+    {% include "components/_tag_group.html" with title="Languages" items=languages heading_level=3 %}
+    {% if not specialities and not approaches and not client_groups and not languages %}
+      <p class="dir-empty">This listing does not name its areas of practice yet.</p>
+    {% endif %}
+  </section>
+
+  {% if qualifications or registrations %}
+    <section class="dir-profile__section" aria-labelledby="credentials-heading">
+      <h2 id="credentials-heading">Qualifications and registrations</h2>
+
+      {% if qualifications %}
+        <h3>Qualifications</h3>
+        <ul class="dir-credentials">
+          {% for qualification in qualifications %}
+            <li>
+              {{ qualification.title }}{% if qualification.institution %}, {{ qualification.institution }}{% endif %}{% if qualification.year %} ({{ qualification.year }}){% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if registrations %}
+        <h3>Professional registrations</h3>
+        <ul class="dir-credentials">
+          {% for registration in registrations %}
+            <li>
+              <span class="dir-credentials__body">{{ registration.body }}</span>
+              <span class="dir-credentials__number">{{ registration.registration_no }}</span>
+              {% if registration.verified %}
+                {% comment %}
+                A tick against ONE registration, not against the person. It says
+                Kiam checked this number on the register — the same narrow claim
+                the badge makes, at line-item scale. The visible text carries it;
+                the icon is decorative and must never be the only signal.
+                {% endcomment %}
+                <span class="dir-credentials__checked">
+                  {% include "kiam_ui/components/icon.html" with name="check" size=15 stroke_width="2.6" %}
+                  Checked on the register
+                </span>
+              {% endif %}
+              {% if registration.register_url %}
+                {% comment %}
+                `noopener` only, deliberately. A link to the GMC or HCPC public
+                register is an authoritative outbound citation — it is the
+                evidence behind the claim on this page — not paid placement, so
+                there is no link-scheme reason to withhold it. The practitioner's
+                own website is the one that carries `sponsored nofollow`.
+                {% endcomment %}
+                <a class="dir-credentials__link" href="{{ registration.register_url }}" rel="noopener">
+                  View the public register entry
+                </a>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="dir-profile__section" aria-labelledby="where-heading">
+    <h2 id="where-heading">Where they work</h2>
+
+    <p class="dir-profile__delivery">
+      Appointments {{ delivery_phrase|default:"by arrangement" }}.
+      {% if practitioner.offers_online and practitioner.online_coverage %}
+        Online sessions: {{ practitioner.online_coverage }}.
+      {% endif %}
+    </p>
+
+    {% if locations %}
+      <ul class="dir-locations">
+        {% for entry in locations %}
+          <li class="dir-locations__item">
+            <h3 class="dir-locations__name">{{ entry.location.label|default:entry.location.city }}</h3>
+            <p class="dir-locations__address">
+              {% if entry.location.address_line1 %}{{ entry.location.address_line1 }}<br>{% endif %}
+              {% if entry.location.address_line2 %}{{ entry.location.address_line2 }}<br>{% endif %}
+              {{ entry.location.city }}{% if entry.location.county %}, {{ entry.location.county }}{% endif %}
+              {% if entry.location.postcode %}<br>{{ entry.location.postcode }}{% endif %}
+            </p>
+            {% if entry.location.days_at_site %}
+              <p class="dir-locations__days">Usually here: {{ entry.location.days_at_site }}</p>
+            {% endif %}
+            {% if entry.access_features %}
+              <h4 class="dir-locations__access-title">Access at this address</h4>
+              <ul class="dir-locations__access">
+                {% for feature in entry.access_features %}<li>{{ feature }}</li>{% endfor %}
+              </ul>
+            {% else %}
+              <p class="dir-locations__access-none">
+                No access information has been provided for this address. Ask the
+                practitioner before booking if you need to know.
+              </p>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% elif not practitioner.offers_online %}
+      <p class="dir-empty">This listing does not publish a practice address.</p>
+    {% endif %}
+  </section>
+
+  <section class="dir-profile__section" aria-labelledby="fees-heading">
+    <h2 id="fees-heading">Fees and funding</h2>
+    <p class="dir-profile__fees">
+      {% if fee_range %}{{ fee_range }}.{% else %}Fees are not published on this listing — ask the practitioner.{% endif %}
+      {% if practitioner.free_initial_call %} A free initial call is offered.{% endif %}
+      {% if practitioner.offers_sliding_scale %} A sliding scale is offered for some clients.{% endif %}
+    </p>
+    <p class="dir-profile__fees-note">
+      Fees are set by the practitioner and paid to them directly. Kiam Clinic
+      takes no payment and holds no booking on your behalf.
+    </p>
+    {% include "components/_tag_group.html" with title="Funding accepted" items=funding_options heading_level=3 %}
+    {% include "components/_tag_group.html" with title="Session formats" items=session_formats heading_level=3 %}
+  </section>
+
+  <section class="dir-profile__section" aria-labelledby="availability-heading">
+    <h2 id="availability-heading">Availability</h2>
+    <p class="dir-profile__availability">
+      {% if practitioner.accepting_new_clients %}
+        Currently accepting new clients.
+      {% else %}
+        Not currently accepting new clients.
+      {% endif %}
+      {% if practitioner.typical_wait %} Typical wait: {{ practitioner.get_typical_wait_display|lower }}.{% endif %}
+      {% if practitioner.evening_appointments %} Evening appointments available.{% endif %}
+      {% if practitioner.weekend_appointments %} Weekend appointments available.{% endif %}
+    </p>
+    {% if practitioner.availability_note %}
+      <p class="dir-profile__availability-note">{{ practitioner.availability_note }}</p>
+    {% endif %}
+  </section>
+
+  {% include "directory/_contact_panel.html" %}
+
+  <footer class="dir-profile__meta">
+    <p class="dir-profile__updated">
+      This listing was last updated on
+      <time datetime="{{ practitioner.updated_at|date:'Y-m-d' }}">{{ practitioner.updated_at|date:"j F Y" }}</time>.
+    </p>
+    <p class="dir-profile__report">
+      <a href="{% url 'pages:report_concern' %}?listing={{ practitioner.slug }}">
+        Report a concern about this listing
+      </a>
+    </p>
+  </footer>
+
+</div>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% comment %}
+For practitioners.
+
+Written to set expectations before anyone applies, because the two things that
+cause trouble later are both here: evidence is required before a listing goes
+live, and a listing is a listing — not referrals, not bookings, not a
+relationship with Kiam.
+
+TODO(sign-off): solicitor — the Listing Agreement is the document this page
+summarises, and the summary must not outrun it. Anything about fees, notice
+periods or liability waits for it.
+{% endcomment %}
+
+{% block content %}
+<div class="container section dir-page">
+
+  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="For practitioners" title=page.title description="What a listing is, what it takes to get one, and what it does not include." heading_level=1 %}
+
+  <div class="prose">
+    <h2>What a listing is</h2>
+    <p>
+      A page of your own on a public directory, with your profession,
+      specialities, approaches, client groups, languages, locations, fees and
+      availability, and your own contact details behind a click. People find you
+      and contact you directly.
+    </p>
+
+    <h2>What a listing is not</h2>
+    <ul>
+      <li>
+        <strong>It is not a referral stream from Kiam Clinic.</strong> Kiam does
+        not match or triage clients to practitioners, and a listing does not put
+        you in a queue for anything.
+      </li>
+      <li>
+        <strong>It is not a booking system.</strong> Enquiries reach you directly.
+        Kiam relays no messages and holds no calendar.
+      </li>
+      <li>
+        <strong>It is not employment, association or supervision.</strong> You
+        remain independent — your practice, your indemnity, your regulator. Every
+        listing says so on the page.
+      </li>
+      <li>
+        <strong>Kiam takes no commission.</strong> Your fees are yours and are
+        paid to you directly by your clients.
+      </li>
+    </ul>
+
+    <h2>What you will need</h2>
+    <ul>
+      <li>Photo identification.</li>
+      <li>
+        Current registration with your regulator or professional body, with the
+        number and a link to your public register entry.
+      </li>
+      <li>Proof of your qualifications.</li>
+      <li>Current professional indemnity insurance.</li>
+      <li>Your ICO registration.</li>
+      <li>
+        An enhanced DBS certificate, if you want to be listed as working with
+        under-18s. Without it a listing can still go live, but for adult work
+        only — see <a href="{% url 'pages:how_verification_works' %}">how verification works</a>.
+      </li>
+    </ul>
+    <p>
+      Some professional titles are protected or constrained. Where yours is, the
+      listing cannot be published until a registration with the relevant body has
+      been verified — there is no route around that step.
+    </p>
+
+    <h2>How it works</h2>
+    <ol>
+      <li>You are invited, and set up an account. There is no open sign-up.</li>
+      <li>You complete your profile and upload your evidence.</li>
+      <li>
+        A member of Kiam staff reviews the profile copy, and a verifier checks
+        the documents. Evidence is stored separately from anything public, and
+        every time a member of staff opens one of your documents it is logged.
+      </li>
+      <li>The listing goes live once the required checks are verified.</li>
+      <li>
+        You can edit your listing, and take it down yourself at any time, without
+        asking anyone.
+      </li>
+    </ol>
+
+    <h2>Keeping a listing</h2>
+    <p>
+      Insurance and DBS certificates expire, and the verification badge expires
+      with them, automatically. You will be reminded before that happens.
+      Registrations are re-checked against the public registers quarterly.
+    </p>
+
+    <h2>Getting in touch</h2>
+    <p>
+      Listing is by invitation while the directory is being built. If you would
+      like to be considered, email
+      <a href="mailto:{{ kiam_ui.CONTACT.email|default:'enquiries@kiamclinic.com' }}">{{ kiam_ui.CONTACT.email|default:'enquiries@kiamclinic.com' }}</a>.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

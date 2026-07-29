@@ -68,12 +68,54 @@ only**: their minor client groups are hidden from the profile and excluded from 
 is applied in **two** places — `Practitioner.can_show_minor_groups` (profile) and the search
 queryset. Either alone leaks. Any change to one requires a matching change and test in the other.
 
-> **Only half of that gate exists today.** `Practitioner.can_show_minor_groups` and
-> `Practitioner.visible_client_groups()` are built and tested (Phase 1). **The search-queryset half
-> is Phase 4 and does not exist yet.** Building `/search/` without it is the single highest-severity
-> way to break this project: a `PROVISIONAL` practitioner would be returned to someone filtering for
-> a child therapist. The Phase 4 gate is `queryset.filter(minor_work_status=CLEARED)` whenever the
+**How an admin actually grants a badge.** The rule above is about who can *set* the field, not
+about how much clicking a verifier has to do. `verification.verify_all_required()` records a
+verification decision against every required check in one action — one insurance expiry date, one
+confirmation box, one button in the workbench. It is not a toggle and does not become one: it
+writes the same dated, expiring, per-check audit-logged rows a verifier would write one at a time,
+so the badge is still derived and still lapses by itself on the date entered. **The expiry date is
+required and deliberately not prefilled** — it is the thing that makes a one-click grant safe, so
+it has to be copied off the certificate rather than accepted unread.
+
+DBS is **not** in that bulk action even for a practitioner who works with under-18s. It is not one
+of the badge's required checks, it is the safeguarding one, and it stays a separate deliberate act.
+
+**A controlled edit to a live listing withdraws the badge, and the listing stays up.**
+`review.submit_update()` is the entry point (`PractitionerAdmin.save_related` calls it today; the
+Phase 6 dashboard will call the same function). Two things about it are the design rather than the
+implementation:
+
+* **The page is not taken down.** Pulling a live listing because somebody corrected their own
+  surname would punish keeping a listing accurate. What is at risk is the badge — the claim that
+  Kiam checked these details — so that is what goes.
+* **The badge is not switched off, because it cannot be.**
+  `verification.invalidate_for_changes()` reopens the checks that were made *against whatever
+  changed* (`CHECKS_INVALIDATED_BY`), and the badge falls out of `recompute()` because a required
+  check is no longer VERIFIED. A name checked against photo ID stops being a checked name the
+  moment the name changes.
+* **Approving the copy does not give the badge back.** `review.approve_update()` closes the review
+  and changes no publication state; the badge returns when a verifier re-verifies the reopened
+  checks. An admin accepting a name change must not thereby assert that somebody's photo ID
+  matches the new name. `test_approving_the_wording_does_not_restore_the_badge` is the line.
+
+`open_queue()` includes PUBLISHED for this reason — a listing whose badge has just been withdrawn
+must appear in a queue, or the practitioner waits for a re-check nobody can see they are owed.
+
+> **Only half of that gate exists today.** The profile half is done and live:
+> `Practitioner.can_show_minor_groups` and `Practitioner.visible_client_groups()` (Phase 1) are
+> now actually called, by `directory.services.profile.build()`, and
+> `directory/tests/test_profile_minor_gate.py` asserts a `PROVISIONAL` practitioner's under-18
+> group name is absent from the rendered HTML. **The search-queryset half is Phase 4 and does not
+> exist yet.** Building `/search/` without it is the single highest-severity way to break this
+> project: a `PROVISIONAL` practitioner would be returned to someone filtering for a child
+> therapist. The Phase 4 gate is `queryset.filter(minor_work_status=CLEARED)` whenever the
 > requested client groups include an `is_minors=True` term, and it needs its own test.
+>
+> **Open question, raised at the Phase 3 gate and not decided.** Only *client groups* are gated.
+> A speciality with `implies_minors=True` — "Child & adolescent ADHD assessment" — still renders
+> on a `PROVISIONAL` listing. Gating it on the profile without the matching search filter would
+> recreate the one-sided leak this rule exists to prevent, so nothing was changed unilaterally.
+> Decide it before Phase 4 and change both halves together.
 
 ---
 
@@ -139,6 +181,12 @@ change and bump the pin. A local override is a last resort and must be commented
 `FilterGroup`, `PractitionerCard`, `VerifiedBadge`, `TagGroup`, `ContactRevealPanel`,
 `CompletenessMeter`, `VerificationStatusPanel`.
 
+Built so far, in `templates/components/` and `templates/directory/`:
+`_independence_notice.html` (Phase 0), and from Phase 3 `_verified_badge.html`, `_tag_group.html`
+and the ContactRevealPanel set — `directory/_contact_panel.html`, `_contact_button.html`,
+`_contact_revealed.html`, `_contact_limited.html`. Their styles are the `Phase 3` block at the end
+of `static/src/app.css`, all `dir-*` and all referencing kiam-ui tokens.
+
 Build these as plain Django `{% include %}` partials in `templates/components/`, composed from
 `kiam-ui` primitives. Propose one upward to `kiam-ui` only if another project needs it.
 
@@ -159,7 +207,7 @@ is the curated landing pages, not the facet engine.
 
 ---
 
-## What already exists (Phases 0–2)
+## What already exists (Phases 0–3)
 
 Read this before starting a phase. Everything here is built, tested and load-bearing; the
 mistakes below are ones already made once in this repo.
@@ -176,7 +224,7 @@ mistakes below are ones already made once in this repo.
 ### Services — the work lives here, not in views
 
     accounts/services/    magic_link · passwords · two_factor · ratelimit
-    directory/services/   verification · lint · documents · search_index
+    directory/services/   verification · lint · documents · search_index · profile · metrics
     backoffice/services/  invites · review · publication · concerns
 
 **Only `directory/services/verification.py` may write the five computed fields.** Nothing else,
@@ -243,6 +291,104 @@ worse — silently skips it. Call syntax is identical.
 `verification_sweep` (03:00), `rebuild_search_index` (03:30), plus the `collectstatic` override.
 Schedule in `ops/crontab`. A missed sweep night is a reminder nobody receives: the thresholds are
 exact day buckets.
+
+### The public profile (Phase 3)
+
+`/p/<slug>/` → `directory.views.profile` → `directory/services/profile.py`. Six things about it
+are decisions, not implementation details:
+
+* **Everything that is not PUBLISHED is a 404**, and they are all the *same* 404. A suspension,
+  a draft and a slug nobody has ever used produce an identical page and an identical status
+  code. `test_a_suspended_profile_is_indistinguishable_from_one_that_never_existed` compares
+  the two `<main>` blocks byte for byte.
+* **Contact details never enter the profile's context.** `profile.available_channels()` returns
+  which channels exist; `profile.channel_value()` is a separate call the reveal view makes. The
+  template therefore *cannot* leak an address, and neither can the JSON-LD — `jsonld.person()`
+  omits `email`, `telephone` and `sameAs` deliberately, and a test asserts it.
+* **The reveal is POST-only.** A GET URL that returns an email address is a URL a crawler
+  follows and an address that is indexed within the week. Plus a per-IP limit
+  (`CONTACT_REVEAL_MAX_PER_IP`) and `X-Robots-Tag`.
+* **The reveal moves focus; it does not use `aria-live`.** Both would make a screen reader read
+  the independence notice and the address twice. `hx-on::after-swap` on the persistent
+  `.dir-contact__slot` focuses the revealed panel, which is a `role="group"` with
+  `tabindex="-1"` and its own heading as an accessible name.
+* **`booking_url` is not rendered.** A booking control on a Kiam-branded page asserts that Kiam
+  manages the appointment — one of the three things in `docs/content-compliance.md` §9 that need
+  legal review first. The field is populated; nothing displays it.
+* **`BreadcrumbList` JSON-LD comes from kiam-ui's breadcrumb partial**, not from `seo/jsonld.py`,
+  because the partial emits it from the same `items` list it renders the visible trail from.
+  `jsonld.breadcrumb_items()` builds that list with absolute URLs. Do not add a second
+  `BreadcrumbList` to the graph.
+
+**Slug redirects are two signals, and both are needed.** `capture_previous_slug` (pre_save) is
+the last moment the old slug is readable; `write_slug_redirect` (post_save) is the first moment
+the new one is known to have committed. Writing the row from pre_save leaves one behind for a
+save that then failed. The redirect is written only when `published_at` is set — a listing that
+was never live has no inbound links worth preserving — and a slug returning to use (A→B→A) has
+its stale row deleted so it cannot occupy the unique `old_slug`.
+
+**Static pages are a registry, not eight views.** `pages/content.py` holds URL, name, title, meta
+description, template and sitemap priority per page; `pages/urls.py` and `seo/sitemaps.py` both
+read it. That is why a page cannot be added without a meta description and cannot be added and
+forgotten by the sitemap. `/report-a-concern/` is the exception — it takes a POST — and is listed
+in `FORM_PAGES`.
+
+### What the Phase 3 gate reviews found, and what is still open
+
+Four defects the three review subagents caught, all now fixed and covered — recorded because
+each is a shape of mistake that will recur:
+
+* **An expired enhanced DBS left `minor_work_status` at `CLEARED`.** `recompute()` was always
+  right; `nightly_sweep()`'s *selection* queryset never reached the practitioner to call it. DBS
+  is not in `BASE_REQUIRED`, so it contributes nothing to `verification_expires_at`, and the other
+  clauses only covered `PROVISIONAL`. Dormant since Phase 1 — Phase 3 is what gave
+  `minor_work_status` a public effect and turned it into a listing offering under-18 work on an
+  out-of-date certificate. **A computed field is only as good as the thing that remembers to
+  recompute it.**
+* **The rate-limit refusal never reached the screen.** htmx 2 does not swap 4xx by default, so the
+  429 partial was fetched and discarded: the button just sat there. The test asserted the
+  *server* emitted `role="alert"` and passed. Server-side assertions prove nothing about the
+  browser — this is the third instance of CLAUDE.md's "run the real thing" rule.
+* **`og:image` concatenated `scheme://host` onto `headshot.url`.** Right under dev and test's
+  `FileSystemStorage`, broken under production's S3 where `.url` is already absolute. Use
+  `request.build_absolute_uri()`, which is correct under both.
+* **`.prose` was used on ten templates and defined nowhere.** kiam-ui references it but never
+  defines it; see `docs/design-system.md` §7 gap 10.
+
+**Still open, and both need their gate before Phase 4:**
+
+1. **`Speciality.implies_minors` triggers nothing.** `recompute()` derives `works_with_minors`
+   from client groups alone, so a listing that tags "Child & adolescent ADHD assessment" and
+   selects only adult client groups is `NOT_APPLICABLE`: **no DBS is ever required**, and it
+   renders with a full badge. The model's own help text says the field "contributes to the DBS
+   requirement"; nothing implements it. The fix is one line, and it is one line precisely because
+   it belongs in `recompute()` — the profile, the Phase 4 search filter and the DBS requirement
+   then all move together instead of forming another one-sided gate:
+
+       works_with_minors = (
+           practitioner.client_groups.filter(is_minors=True).exists()
+           or practitioner.specialities.filter(implies_minors=True).exists()
+       )
+
+   `/how-verification-works/` has been narrowed to claim only what is enforced, and carries a
+   `TODO(sign-off)` with this fix in it. **Dr. Abbass / CQC compliance lead.**
+2. **A restricted title is checked at the transition and never again.**
+   `blocking_publication_reasons()` runs at `approve()` and `lift_suspension()` only, and
+   `Registration.verified` is hand-editable. Flipping it to `False` on a live listing leaves the
+   protected title in the HTML and in `jobTitle`. That is exactly what the quarterly re-check is
+   designed to produce, so the assertion belongs with it — **Phase 7**, alongside the re-check job.
+
+Three smaller carry-forwards: free text on *related* models is still unlinted
+(`qualification.title`/`institution`, `PractitionerLocation.label`/`days_at_site`) because the
+lint reads fields off the Practitioner row; `CHILD_WORK_FLAGS` only run at submission, so a
+published bio is not re-held when a DBS lapses; and every published profile is currently an
+**orphan** — nothing links to one but `sitemap.xml`, because search is Phase 4 and browse is
+Phase 7.
+
+**For Phase 4 specifically:** `search_vector` already carries un-gated speciality text in band B
+(`search_index.py`), so a free-text query for "child adhd" will match a `PROVISIONAL` listing
+even with a correct facet filter. **The vector is not a second line of defence** — the
+`minor_work_status=CLEARED` filter has to do the work on its own.
 
 ### Still to build, and where the source is
 

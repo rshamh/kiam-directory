@@ -1,0 +1,21 @@
+{% comment %}
+One reveal button. Params: practitioner · channel (a dict from
+directory.services.profile.CHANNELS — key, label, button, icon).
+
+A real <form> with a real submit button, so it works with the keyboard, with a
+screen reader, and with JavaScript switched off. `hx-post` is the enhancement;
+`method="post"` and `action` are the thing itself.
+
+POST rather than GET is a security decision, not a REST one: a GET URL that
+returns an email address is a URL a crawler will follow, and the address would
+be in an index within the week.
+{% endcomment %}
+<form class="dir-contact__form"
+      method="post"
+      action="{% url 'directory:contact_reveal' practitioner.slug channel.key %}"
+      hx-post="{% url 'directory:contact_reveal' practitioner.slug channel.key %}"
+      hx-target="#contact-{{ channel.key }}"
+      hx-swap="innerHTML">
+  {% csrf_token %}
+  {% include "kiam_ui/components/core/button.html" with variant="ghost" type="submit" label=channel.button icon=channel.icon icon_position="left" %}
+</form>

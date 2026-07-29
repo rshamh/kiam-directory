@@ -313,3 +313,83 @@ def test_the_sweep_logs_what_it_sent(user_factory, caplog):
     messages = [r.getMessage() for r in caplog.records]
     assert "verification.notification" in messages
     assert "verification.sweep_complete" in messages
+
+
+# ---------------------------------------------------------------------------
+# The expired-DBS hole, found at the Phase 3 gate
+# ---------------------------------------------------------------------------
+#
+# recompute() always got this right. The sweep's SELECTION queryset did not
+# reach the practitioner to call it, so the correct answer was never written —
+# and from Phase 3 onwards that stale `cleared` is a public page offering
+# under-18 work behind an out-of-date enhanced DBS.
+#
+# The setup below is the point: base checks are renewed FAR outside the sweep's
+# 61-day horizon, so nothing else drags the row into the queryset. That is what
+# the old clauses relied on by accident.
+
+
+def _cleared_with_distant_renewals():
+    practitioner = PractitionerFactory(published=True, dbs_cleared=True)
+    now = timezone.now()
+    VerificationCheck.objects.filter(practitioner=practitioner).exclude(type=VerificationType.DBS).update(
+        expires_at=now + timedelta(days=300)
+    )
+    return practitioner
+
+
+@freeze_time(DAY_ONE)
+def test_the_sweep_blocks_minor_work_when_the_dbs_expires():
+    practitioner = _cleared_with_distant_renewals()
+    assert practitioner.minor_work_status == MinorWorkStatus.CLEARED
+
+    VerificationCheck.objects.filter(practitioner=practitioner, type=VerificationType.DBS).update(
+        expires_at=timezone.now() - timedelta(days=1)
+    )
+
+    verification.nightly_sweep()
+    practitioner.refresh_from_db()
+
+    assert practitioner.minor_work_status == MinorWorkStatus.BLOCKED
+
+
+@freeze_time(DAY_ONE)
+def test_an_expired_dbs_takes_the_minor_groups_off_the_public_profile(client):
+    """The whole reason the previous test matters."""
+    practitioner = _cleared_with_distant_renewals()
+    minor_group = practitioner.client_groups.get(is_minors=True)
+
+    assert minor_group.name in client.get(f"/p/{practitioner.slug}/").content.decode()
+
+    VerificationCheck.objects.filter(practitioner=practitioner, type=VerificationType.DBS).update(
+        expires_at=timezone.now() - timedelta(days=1)
+    )
+    verification.nightly_sweep()
+
+    assert minor_group.name not in client.get(f"/p/{practitioner.slug}/").content.decode()
+
+
+@freeze_time(DAY_ONE)
+def test_a_cleared_practitioner_with_an_in_date_dbs_is_left_alone():
+    """The new clause must not sweep up everybody who is simply fine."""
+    practitioner = _cleared_with_distant_renewals()
+
+    verification.nightly_sweep()
+    practitioner.refresh_from_db()
+
+    assert practitioner.minor_work_status == MinorWorkStatus.CLEARED
+
+
+@freeze_time(DAY_ONE)
+def test_the_sweep_returns_one_row_per_practitioner_not_one_per_check():
+    """The expired-DBS clause joins across `verifications`; without .distinct()
+    a practitioner with several expiring checks is recomputed several times and
+    could be notified several times."""
+    practitioner = _cleared_with_distant_renewals()
+    now = timezone.now()
+    VerificationCheck.objects.filter(practitioner=practitioner).update(expires_at=now - timedelta(days=1))
+
+    notifications = verification.nightly_sweep()
+    practitioners = [n["practitioner"].pk for n in notifications]
+
+    assert len(practitioners) == len(set(practitioners))

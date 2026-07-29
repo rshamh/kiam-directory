@@ -41,10 +41,22 @@ has been verified.
 This directory is not an emergency or crisis service. In the UK, contact your GP,
 call 111 for urgent advice, or call 999 in an emergency. Samaritans: 116 123.
 
+## Key pages
+
+- {{ base_url }}/about/ — what this directory is, and what Kiam Clinic does and
+  does not do
+- {{ base_url }}/how-verification-works/ — what "Credentials checked" asserts,
+  and what it does not
+- {{ base_url }}/for-practitioners/ — how practitioners are listed
+- {{ base_url }}/report-a-concern/ — reporting a problem with a listing.
+  Complaints about a practitioner's care go to their regulator, not to Kiam
+- {{ base_url }}/p/&lt;name&gt;/ — an individual practitioner's listing
+
 ## Status
 
-The directory is in development. Practitioner listings, search and the browse
-pages are not published yet.
+The directory is still being built. Search and the browse pages are not
+published yet; individual practitioner listings are published as practitioners
+join, and every published listing appears in {{ base_url }}/sitemap.xml.
 
 ## Canonical
 

@@ -1,0 +1,35 @@
+{% comment %}
+TagGroup — a titled list of taxonomy terms rendered as pills.
+
+  {% include "components/_tag_group.html" with title="Specialities" items=specialities heading_level=2 %}
+  {% include "components/_tag_group.html" with title="Delivery" items=formats tone="solid-secondary" %}
+
+Params:
+  title          group heading (required).
+  items          iterable of objects with a `.name`. Renders nothing when empty.
+  heading_level  2 (default) or 3. Set it so the page's heading order stays
+                 sequential — never for its size (docs/design-system.md §4).
+  tone           pill tone passed straight through to kiam-ui's pill component.
+                 `solid-secondary` (blue) is reserved for in-person/location
+                 context; green-teal means online.
+  describedby    optional id of explanatory text, wired to the list.
+
+A real <ul> rather than a run of spans: these are lists, and a screen reader
+announcing "list, 6 items" is how someone skips the ones they do not need.
+{% endcomment %}
+{% if items %}
+<div class="dir-tag-group">
+  {% if heading_level == 3 %}
+    <h3 class="dir-tag-group__title">{{ title }}</h3>
+  {% else %}
+    <h2 class="dir-tag-group__title">{{ title }}</h2>
+  {% endif %}
+  <ul class="dir-tag-group__list"{% if describedby %} aria-describedby="{{ describedby }}"{% endif %}>
+    {% for item in items %}
+      <li class="dir-tag-group__item">
+        {% include "kiam_ui/components/core/pill.html" with label=item.name tone=tone %}
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}

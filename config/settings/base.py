@@ -234,6 +234,18 @@ PASSWORD_LOGIN_MAX_PER_EMAIL = env.int("PASSWORD_LOGIN_MAX_PER_EMAIL", default=1
 PASSWORD_LOGIN_MAX_PER_IP = env.int("PASSWORD_LOGIN_MAX_PER_IP", default=30)
 PASSWORD_LOGIN_WINDOW_SECONDS = env.int("PASSWORD_LOGIN_WINDOW_SECONDS", default=900)
 
+# Contact-reveal limits. The reveal endpoint is POST-only and CSRF-protected, so
+# the address is not in the page until somebody asks for it — this is the second
+# layer, against something willing to POST. Generous rather than tight: a whole
+# office behind one NAT address browsing the directory must not be locked out,
+# and the thing being protected is a published business contact, not a secret.
+CONTACT_REVEAL_MAX_PER_IP = env.int("CONTACT_REVEAL_MAX_PER_IP", default=60)
+CONTACT_REVEAL_WINDOW_SECONDS = env.int("CONTACT_REVEAL_WINDOW_SECONDS", default=3600)
+
+# Concern reports. Tighter, because this one writes a row someone has to read.
+CONCERN_REPORT_MAX_PER_IP = env.int("CONCERN_REPORT_MAX_PER_IP", default=5)
+CONCERN_REPORT_WINDOW_SECONDS = env.int("CONCERN_REPORT_WINDOW_SECONDS", default=3600)
+
 #: Where the Django admin is mounted. Not `/admin/` — see config/urls.py.
 ADMIN_URL_PATH = env("ADMIN_URL_PATH", default="staff-console")
 

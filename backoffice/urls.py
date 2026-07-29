@@ -34,6 +34,13 @@ urlpatterns = [
         views.verification_workbench,
         name="verification_workbench",
     ),
+    # Before the <check_type> route: "verify-all" is an action on the whole
+    # practitioner, not a check type, and a bare <str:> would swallow it.
+    path(
+        "practitioners/<uuid:pk>/verification/verify-all/",
+        views.verification_verify_all,
+        name="verification_verify_all",
+    ),
     path(
         "practitioners/<uuid:pk>/verification/<str:check_type>/",
         views.verification_set_status,

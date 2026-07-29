@@ -16,10 +16,10 @@ queryset ``.update()``, which does not emit ``post_save``.
 
 from __future__ import annotations
 
-from django.db.models.signals import m2m_changed, post_save
+from django.db.models.signals import m2m_changed, post_save, pre_save
 from django.dispatch import receiver
 
-from .models import Practitioner
+from .models import Practitioner, SlugRedirect
 from .services import search_index
 
 
@@ -54,3 +54,56 @@ def rebuild_on_speciality_change(sender, instance, action, reverse, **kwargs):
     pks = kwargs.get("pk_set") or []
     for practitioner in Practitioner.objects.filter(pk__in=pks).prefetch_related("specialities"):
         search_index.rebuild(practitioner)
+
+
+# ===========================================================================
+# Phase 3 additions — slug redirects
+# ===========================================================================
+#
+# A published profile's URL is the one thing about a listing that other people
+# own copies of: a practitioner's own website links to it, a referral email
+# quotes it, a search engine has indexed it. So the slug is treated as immutable
+# once a listing has been live, and a change that happens anyway — a corrected
+# spelling, a name change after marriage — leaves a redirect behind instead of
+# breaking every one of those links.
+#
+# Two receivers rather than one, because neither half can do it alone. pre_save
+# is the last moment the old slug is still readable; post_save is the first
+# moment we know the new one actually committed. Writing the redirect row from
+# pre_save would leave one behind for a save that then failed.
+
+
+@receiver(pre_save, sender=Practitioner, dispatch_uid="directory.capture_previous_slug")
+def capture_previous_slug(sender, instance, **kwargs):
+    """Stash the slug currently in the database, if it differs."""
+    instance._previous_slug = None
+
+    if instance.pk is None:
+        return
+
+    previous = Practitioner.objects.filter(pk=instance.pk).values_list("slug", flat=True).first()
+    if previous and previous != instance.slug:
+        instance._previous_slug = previous
+
+
+@receiver(post_save, sender=Practitioner, dispatch_uid="directory.write_slug_redirect")
+def write_slug_redirect(sender, instance, **kwargs):
+    """Preserve the old URL, but only for a listing that has been public.
+
+    ``published_at`` rather than the current status: a suspended listing's old
+    URL is still out in the world, and a listing that has never been published
+    has no inbound links worth a redirect row.
+    """
+    previous = getattr(instance, "_previous_slug", None)
+    instance._previous_slug = None
+
+    if not previous or instance.published_at is None:
+        return
+
+    # A slug that comes back into use (A -> B -> A) must not leave a redirect row
+    # pointing at the address it now *is*. Live slugs win in
+    # profile.resolve(), so this cannot loop — but a stale row would occupy the
+    # unique old_slug and block a genuine redirect later.
+    SlugRedirect.objects.filter(old_slug=instance.slug).delete()
+
+    SlugRedirect.objects.update_or_create(old_slug=previous, defaults={"practitioner": instance})

@@ -1,0 +1,39 @@
+{% comment %}
+The concern form itself, in the FormCard slot.
+
+Non-field errors sit in a role="alert" so a rate-limit refusal is announced
+rather than only appearing (WCAG 4.1.3) — the same pattern as the sign-in form.
+
+`novalidate` hands validation to the server. Browser bubbles disappear on their
+own, are not reliably announced, and cannot say "we couldn't find that listing",
+which is the error people will actually hit here.
+
+The honeypot is .sr-only rather than display:none — a display:none field is
+skipped by some bots, which is exactly backwards.
+{% endcomment %}
+<form method="post" action="{% url 'pages:report_concern' %}" aria-labelledby="report-form-heading" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div role="alert" class="ds-field__desc ds-field__desc--error">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% include "kiam_ui/components/forms/field.html" with name="listing" label="Which listing is this about?" required=True full=True help="Paste the web address of their page, or type their name as it appears on it." error=form.listing.errors|first value=form.listing.value|default:"" %}
+
+  {% include "kiam_ui/components/forms/field.html" with name="category" label="What is the concern?" as="select" required=True full=True options=form.category_options error=form.category.errors|first value=form.category.value|default:"" %}
+
+  {% include "kiam_ui/components/forms/field.html" with name="detail" label="What have you noticed?" as="textarea" required=True full=True help="Please include what you saw and where. If your concern is about the care you received, contact the practitioner's regulator instead — they are listed above." error=form.detail.errors|first value=form.detail.value|default:"" %}
+
+  {% include "kiam_ui/components/forms/field.html" with name="reporter_email" label="Your email address (optional)" type="email" full=True autocomplete="email" help="Only so we can come back to you if we need to. Leave it blank to report anonymously — we will still look into it." error=form.reporter_email.errors|first value=form.reporter_email.value|default:"" %}
+
+  <div class="sr-only" aria-hidden="true">
+    <label for="website">Leave this field empty</label>
+    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+  </div>
+
+  <p>
+    {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Send this report" icon="send" %}
+  </p>
+</form>

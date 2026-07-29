@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% comment %}
+TODO(sign-off): Dr. Abbass — ALL clinical-facing copy on this page.
+
+docs/verification-policy.md is the source, and CLAUDE.md puts
+"verification-policy public copy" behind Dr. Abbass's gate. This page is written
+from the policy but it has not been signed off, and it must not be treated as
+approved copy until it has.
+
+The page exists because of one sentence in the policy: the badge asserts only
+that the required documents were checked and remain in date, and it is NOT a
+competence, quality or outcome claim. Every listing that carries the badge links
+here, so the limit of the claim is always one click from the claim.
+
+"What it does not mean" comes BEFORE the evidence table on purpose. A reader who
+stops halfway down this page should already have read the disclaimer, not just
+the reassuring part.
+{% endcomment %}
+
+{% block content %}
+<div class="container section dir-page">
+
+  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Verification" title=page.title description="What “Credentials checked” means on a listing — and what it does not." heading_level=1 %}
+
+  <div class="prose">
+    <h2>What the badge says</h2>
+    <p>
+      A listing showing <strong>“Credentials checked”</strong> and a date means
+      that, on that date, Kiam Clinic had seen and checked the documents listed
+      below, and that none of them had expired. The date shown is the
+      <strong>oldest</strong> of those checks, so the badge is only ever as fresh
+      as its weakest element.
+    </p>
+
+    <h2>What the badge does not say</h2>
+    <p>It is a documents check. It is not a judgement about anybody's practice.</p>
+    <ul>
+      <li>
+        <strong>It is not a quality, competence or outcome claim.</strong> Kiam
+        has not assessed how good a practitioner is, and could not — it neither
+        provides nor supervises their care.
+      </li>
+      <li>
+        <strong>It is not a recommendation or an endorsement.</strong> Nobody is
+        listed here because Kiam thinks they are the right person for you.
+      </li>
+      <li>
+        <strong>It does not mean Kiam is responsible for the care you receive.</strong>
+        Practitioners listed here are independent and are responsible for their
+        own practice and their own regulation.
+      </li>
+      <li>
+        <strong>It says nothing about anything Kiam has not been shown.</strong>
+        Checks are made against documents and public registers, not against a
+        practitioner's clinical records.
+      </li>
+    </ul>
+
+    <h2>What is checked</h2>
+    <table class="dir-table">
+      <caption class="sr-only">Documents checked before a listing is published</caption>
+      <thead>
+        <tr><th scope="col">Check</th><th scope="col">Who needs it</th><th scope="col">Expires</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Photo identification</td><td>Everyone</td><td>—</td></tr>
+        <tr><td>Registration with a regulator or professional body</td><td>Everyone</td><td>At each renewal of the register</td></tr>
+        <tr><td>Proof of qualification</td><td>Everyone</td><td>—</td></tr>
+        <tr><td>Professional indemnity insurance</td><td>Everyone</td><td>Annually</td></tr>
+        <tr><td>ICO registration</td><td>Everyone</td><td>Annually</td></tr>
+        <tr><td>Enhanced DBS certificate</td><td>Anyone listing work with under-18s</td><td>Every three years</td></tr>
+        <tr><td>Prescriber status</td><td>Anyone whose listing mentions prescribing</td><td>At each renewal of the register</td></tr>
+      </tbody>
+    </table>
+
+    <h2>The badge lapses on its own</h2>
+    <p>
+      Verification is worked out from the dates on those documents, every night.
+      Nobody at Kiam can switch a badge on, and nobody has to remember to switch
+      one off: if an insurance certificate expires, the badge goes on the day it
+      expires, without anyone doing anything.
+    </p>
+
+    {% comment %}
+    TODO(sign-off): Dr. Abbass / CQC compliance lead — the scope of this claim,
+    and the control behind it.
+
+    This paragraph used to say "A practitioner may only be listed as working with
+    children or young people once an enhanced DBS certificate has been verified."
+    That overstated what is enforced. The DBS requirement is triggered by a
+    practitioner's CLIENT GROUPS (directory/services/verification.py::recompute —
+    `client_groups.filter(is_minors=True)`), so a listing that selects only adult
+    client groups never requires a DBS, even where its specialities imply under-18
+    work. `Speciality.implies_minors` exists and its own help text says it
+    "contributes to the DBS requirement"; nothing implements that.
+
+    The recommended fix is one line in recompute(), so that the profile, the
+    Phase 4 search filter and the DBS requirement itself all move together:
+
+        works_with_minors = (
+            practitioner.client_groups.filter(is_minors=True).exists()
+            or practitioner.specialities.filter(implies_minors=True).exists()
+        )
+
+    It is a safeguarding decision, not a refactor, so it waits for its gate. The
+    wording below has been narrowed to what the code actually does in the
+    meantime — it must be widened again the moment that fix lands.
+    {% endcomment %}
+    <h2>Work with children and young people</h2>
+    <p>
+      A practitioner is only listed as seeing children or young people once an
+      enhanced DBS certificate has been verified. Where that check has not been
+      completed, the listing may still appear — but only for adult work. Its
+      under-18 client groups are hidden from the page and excluded from search
+      results until the certificate has been checked.
+    </p>
+    <p>
+      If you are looking for someone to see a child or a young person, check that
+      their listing names the age group you need. If it does not, ask them
+      directly before booking.
+    </p>
+
+    <h2>Registrations are re-checked</h2>
+    <p>
+      Regulators publish their registers, and Kiam re-checks the practitioners
+      listed here against them quarterly. A listing does not stay up on the
+      strength of a check made once, at the start.
+    </p>
+
+    <h2>If you think a listing is wrong</h2>
+    <p>
+      <a href="{% url 'pages:report_concern' %}">Report a concern about a listing</a>.
+      A concern about a practitioner's registration is the one we act on
+      fastest. A complaint about the care you received goes to their regulator
+      instead — that page names them.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

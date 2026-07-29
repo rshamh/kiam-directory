@@ -158,3 +158,40 @@ class ConcernFilterForm(forms.Form):
         required=False, choices=[("", "All categories"), *ConcernReport.Category.choices]
     )
     show_resolved = forms.BooleanField(required=False, label="Include resolved")
+
+
+class VerifyAllRequiredForm(forms.Form):
+    """Grant the badge in one action.
+
+    The admin decision is "I have seen this person's documents and I am
+    satisfied", and this is the shortest honest way to record it: one date, one
+    button, instead of four or five rows filled in one at a time.
+
+    The date is required and is not prefilled, and that is the whole reason a
+    one-click grant is safe to offer. It is what makes the badge lapse on its own
+    when the certificate does, so it has to come off the certificate — a
+    convenient default would be accepted unread, and a badge that outlives the
+    insurance behind it is the failure the computed design exists to prevent.
+    """
+
+    insurance_expires_at = forms.DateTimeField(
+        label="Insurance certificate expires",
+        widget=forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        help_text=(
+            "Copy this from the certificate. The badge lapses on this date without "
+            "anyone having to do anything."
+        ),
+    )
+    notes = forms.CharField(
+        label="Note (internal)",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 2}),
+        help_text="Recorded against every check this grants, and in the audit log.",
+    )
+    confirm = forms.BooleanField(
+        label="I have seen the documents behind each of these checks",
+        help_text=(
+            "This records a verification decision against every required check at once. "
+            "It is audit-logged against your account."
+        ),
+    )

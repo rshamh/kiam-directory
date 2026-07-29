@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% comment %}
+TODO(sign-off): solicitor — the whole body of this page.
+
+Placeholder, as CLAUDE.md requires: flagged, outlined, and unmistakably not the
+finished document. The Listing Agreement, the indemnity position and the
+retention periods are all solicitor questions and none of them is guessed at
+here.
+{% endcomment %}
+
+{% block content %}
+<div class="container section dir-page">
+
+  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Legal" title=page.title description="The terms on which this directory is published and used." heading_level=1 %}
+
+  {% include "kiam_ui/components/feedback/disclaimer.html" with title="In preparation" icon="file-text" heading_level=2 body_template="pages/_pending_legal.html" %}
+
+  <div class="prose">
+    <h2>What the finished terms will cover</h2>
+    <ul>
+      <li>Who publishes this directory, and on what basis.</li>
+      <li>
+        That practitioners listed here are independent professionals, not
+        employees or agents of Kiam Clinic, and that clients contract directly
+        with them — the relationship set out on
+        <a href="{% url 'pages:about' %}">the about page</a>.
+      </li>
+      <li>What a listing is and is not, and the limits of the verification checks.</li>
+      <li>Acceptable use of the directory, including bulk collection of listings.</li>
+      <li>Liability, and its limits, for both readers and listed practitioners.</li>
+      <li>The Listing Agreement between Kiam Clinic and each listed practitioner.</li>
+      <li>How to complain, and how to have a listing corrected or removed.</li>
+    </ul>
+
+    <h2>What is already true, and will not change</h2>
+    <p>
+      Kiam Clinic is the publisher of this directory and an introducer only. It
+      does not employ or supervise the practitioners listed here, does not
+      arrange appointments, and takes no payment from clients. See
+      <a href="{% url 'pages:about' %}">about this directory</a>.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

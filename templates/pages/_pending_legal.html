@@ -1,0 +1,26 @@
+{% comment %}
+The shared "not signed off yet" notice for the three legal pages.
+
+TODO(sign-off): solicitor.
+
+One partial rather than three copies, so when the real documents land there is
+one place that has to stop saying this. CLAUDE.md is explicit that unsigned legal
+copy is flagged and the phase continues — what it must never do is quietly read
+as though it had been approved.
+{% endcomment %}
+<p>
+  <strong>This document is still being prepared with our solicitors.</strong>
+  What follows is an outline of what it will cover, published so you can see what
+  is coming rather than nothing at all. It is not the finished document, and
+  nothing on this page should be relied on as a statement of your rights or ours.
+</p>
+{% comment %}
+This used to say "the directory is not open to the public while this is
+outstanding". It was rendered on three indexable pages while sitemap.xml listed
+every published profile — a contradiction a crawler could read off one host. The
+launch status is not this page's claim to make; the document's status is.
+{% endcomment %}
+<p>
+  If you need an answer before the document is published, email
+  <a href="mailto:{{ kiam_ui.CONTACT.email|default:'enquiries@kiamclinic.com' }}">{{ kiam_ui.CONTACT.email|default:'enquiries@kiamclinic.com' }}</a>.
+</p>

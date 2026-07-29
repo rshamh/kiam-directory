@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% comment %}
+Report a concern about a listing.
+
+The order of this page is the point. "This is not where clinical complaints go"
+and the list of regulators come BEFORE the form, because somebody arriving here
+angry about their care will fill in the first box they see, and a complaint about
+care sitting in Kiam's triage queue helps nobody — Kiam neither provided nor
+supervised that care and cannot investigate it.
+
+**On success the page becomes a confirmation, heading and title included.** The
+form posts normally — there is no swap — and a `role="status"` that is already in
+the DOM when the response loads is announced by nothing: live regions only fire on
+mutation after registration. So the confirmation is carried by the `<h1>` and the
+`<title>`, which every screen reader announces on navigation. Re-rendering the
+same heading with a status box several screens down would have left a
+screen-reader user with no signal that anything had happened at all.
+
+The regulator routing stays visible after submission, because "I have sent this
+and it turns out it should have gone to my regulator" is a likely realisation.
+
+TODO(sign-off): Dr. Abbass — the regulator list and the wording that routes
+people to it. Statutory regulators are linked; professional bodies are named
+without links rather than risk sending someone to a guessed address. Add the
+body URLs when the list is confirmed.
+{% endcomment %}
+
+{% block content %}
+<div class="container section dir-page">
+
+  {% if submitted %}
+
+    {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Concerns" title="Thank you — your report has been received" description="Kiam Clinic staff will look at the listing. If you left an email address and we need more from you, we'll be in touch." heading_level=1 %}
+
+    <div class="prose">
+      <h2>What happens next</h2>
+      <p>
+        We check the listing against the evidence we hold and against the
+        relevant public register. Concerns about whether someone is registered
+        are the ones we look at first.
+      </p>
+      <p>
+        <a href="{% url 'pages:home' %}">Back to the directory</a>
+      </p>
+    </div>
+
+  {% else %}
+
+    {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Concerns" title="Report a concern about a listing" description="Tell us if something in a listing is wrong, out of date or misleading." heading_level=1 %}
+
+  {% endif %}
+
+  {% include "kiam_ui/components/feedback/disclaimer.html" with title="If your concern is about someone's care, this is not the place" icon="alert" heading_level=2 body_template="pages/_concern_routing.html" %}
+
+  {% if not submitted %}
+    <div class="prose">
+      <h2>What this page is for</h2>
+      <p>
+        Use this form to tell us about the <strong>listing</strong> — what it says
+        and whether the person should be on the directory at all. For example:
+      </p>
+      <ul>
+        <li>Details are wrong or out of date — a name, a qualification, an address, a fee.</li>
+        <li>You have reason to doubt that someone is registered with the body their listing names.</li>
+        <li>The listing makes claims about results or outcomes that it should not.</li>
+      </ul>
+      <p>
+        {% comment %}
+        No promise about how fast, and no promise that a listing comes down
+        before we have decided. docs/verification-policy.md ("Suspension") puts
+        triggers, authorising role and response time behind sign-off before
+        go-live, so this page must not commit Kiam to any of them in public.
+        {% endcomment %}
+        Registration concerns are the ones we look at first, and a listing may be
+        taken down while we check it.
+      </p>
+
+      <h2>What happens next</h2>
+      <p>
+        Your report goes to Kiam Clinic staff. We check the listing against the
+        evidence we hold and against the relevant public register. We will reply if
+        you leave an email address; if you would rather not, leave it blank — the
+        report is read either way.
+      </p>
+    </div>
+
+    <div class="dir-page__form">
+      <h2 id="report-form-heading">Tell us about the listing</h2>
+      {% include "kiam_ui/components/forms/form_card.html" with body_template="pages/_concern_form.html" %}
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

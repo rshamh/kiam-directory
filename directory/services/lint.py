@@ -51,7 +51,18 @@ HOLD = "hold"
 
 #: The free-text fields a practitioner controls. Everything else on the profile
 #: is either a controlled vocabulary or a structured field.
-LINTED_FIELDS = ("intro", "services", "availability_note")
+#:
+#: ``online_coverage`` joined at Phase 3, which is the phase that first rendered
+#: it publicly (templates/directory/profile.html, "Where they work"). It is short
+#: but it is prose a practitioner writes — "UK-wide, and I can prescribe" is the
+#: shape of thing that belongs in a POM scan.
+#:
+#: Still NOT covered, and known: `qualification.title` / `institution`,
+#: `PractitionerLocation.label` / `days_at_site`, and `pronouns`. All are newly
+#: public as of Phase 3, and all live on related models — the lint reads fields
+#: off the Practitioner row, so covering them is a change to how run() gathers
+#: text rather than a line in this tuple. Raised at the Phase 3 gate.
+LINTED_FIELDS = ("intro", "services", "availability_note", "online_coverage")
 
 #: Additionally scanned for RESTRICTED TITLES only.
 #:
@@ -302,10 +313,20 @@ def _check_contact(practitioner) -> list[Finding]:
     Kiam is an introducer: the entire point of a listing is that a client can
     contact the practitioner directly. One with no contact route is not a
     listing, it is an advert.
+
+    ``booking_url`` used to count here and no longer does. Phase 3 decided not to
+    render it — a booking control on a Kiam-branded page asserts that Kiam
+    manages the appointment, which is docs/content-compliance.md §9 — so
+    accepting it here published listings whose only contact route was one the
+    profile page never shows. The page would say "This listing does not publish
+    contact details" about a listing that had passed the check whose entire job
+    is preventing exactly that. The two have to agree, and the rendered page is
+    the one that matters: this list must stay in step with
+    ``directory.services.profile.CHANNELS``.
     """
     has_contact = any(
         (getattr(practitioner, name, "") or "").strip()
-        for name in ("public_email", "public_phone", "public_website", "booking_url")
+        for name in ("public_email", "public_phone", "public_website")
     )
     if has_contact:
         return []
@@ -318,8 +339,9 @@ def _check_contact(practitioner) -> list[Finding]:
             matches=[],
             message=(
                 "Add at least one way for clients to contact you — an email address, a phone "
-                "number, a website or a booking link. Clients arrange appointments with you "
-                "directly, so a listing needs at least one of these."
+                "number or a website. Clients arrange appointments with you directly, so a "
+                "listing needs at least one of these. A booking link on its own is not enough: "
+                "it is not shown on your public listing."
             ),
         )
     ]
