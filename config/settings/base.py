@@ -191,11 +191,48 @@ CACHES = {
 
 AUTH_USER_MODEL = "accounts.User"
 
-#: There are no passwords: authentication is by magic link, and the only other
-#: credential is a TOTP second factor. The password field is unusable on every
-#: account (see accounts.models.UserManager), so a password hasher is never
-#: exercised and no validators are configured.
-AUTH_PASSWORD_VALIDATORS = []
+# normalize_email() lowercases only the DOMAIN, so a stored address can carry a
+# capital in its local part — and ModelBackend's lookup is an exact match, which
+# would reject the right password for "Nadia@example.com". See accounts/backends.py.
+AUTHENTICATION_BACKENDS = ["accounts.backends.CaseInsensitiveEmailBackend"]
+
+# Passwords are OPTIONAL and sit alongside the magic link — an account is still
+# created without one (accounts.models.UserManager calls set_unusable_password),
+# and only gets a password if its owner chooses to set one.
+#
+# The validators are Django's stock four. The minimum is 12 rather than the
+# default 8: these accounts reach practitioner identity documents and a review
+# queue, and 8 characters is a 2012 number.
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 12},
+    },
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# Argon2 first. Django's default PBKDF2 is acceptable, but this database holds
+# the credentials of every listed clinician and Argon2 is memory-hard — the
+# difference matters only in the case where the hashes have already leaked,
+# which is exactly the case worth planning for. Existing PBKDF2 hashes keep
+# working and are upgraded transparently on next login.
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.ScryptPasswordHasher",
+]
+
+# Password sign-in attempt limits. Separate from the magic-link limits because
+# the attack is different: a magic-link flood is a nuisance to one mailbox,
+# whereas password attempts are credential stuffing across many accounts at
+# once. The IP limit is what actually catches that, so it is the tighter of the
+# two relative to normal use.
+PASSWORD_LOGIN_MAX_PER_EMAIL = env.int("PASSWORD_LOGIN_MAX_PER_EMAIL", default=10)
+PASSWORD_LOGIN_MAX_PER_IP = env.int("PASSWORD_LOGIN_MAX_PER_IP", default=30)
+PASSWORD_LOGIN_WINDOW_SECONDS = env.int("PASSWORD_LOGIN_WINDOW_SECONDS", default=900)
 
 #: Where the Django admin is mounted. Not `/admin/` — see config/urls.py.
 ADMIN_URL_PATH = env("ADMIN_URL_PATH", default="staff-console")

@@ -12,7 +12,7 @@ success path is identical either way; see accounts/services/magic_link.py.
 
 {% block content %}
 <div class="container section">
-  {% include "kiam_ui/components/sections/section_head.html" with title="Sign in" description="Enter your email address and we'll send you a link that signs you in." heading_level=1 %}
+  {% include "kiam_ui/components/sections/section_head.html" with title="Sign in" description="Sign in with your password, or leave it blank and we'll email you a link." heading_level=1 %}
 
   {% include "kiam_ui/components/forms/form_card.html" with body_template="accounts/_login_form.html" %}
 </div>

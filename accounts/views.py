@@ -13,6 +13,7 @@ import io
 
 from django.contrib import messages
 from django.contrib.auth import logout
+from django.contrib.auth.views import redirect_to_login
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -20,8 +21,8 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
 from .access import requires_two_factor
-from .forms import MagicLinkRequestForm, TOTPCodeForm
-from .services import magic_link, ratelimit, two_factor
+from .forms import MagicLinkRequestForm, SetPasswordForm, TOTPCodeForm
+from .services import magic_link, passwords, ratelimit, two_factor
 
 
 def _post_login_redirect(user) -> str:
@@ -36,10 +37,17 @@ def _post_login_redirect(user) -> str:
 @never_cache
 @require_http_methods(["GET", "POST"])
 def login_view(request):
-    """Request a magic link.
+    """Sign in, by password or by emailed link.
 
-    The response is identical whether or not the address matched an account —
-    including when the honeypot fires. Anything else here is an account oracle.
+    One form, one button: fill the password box and it is a password sign-in,
+    leave it blank and we email a link. Somebody who has never set a password
+    does not have to know which flow applies to them.
+
+    Both routes reveal nothing about whether an address has an account. The
+    magic-link route always redirects to the same page; the password route uses
+    one message for wrong-password, unknown-address, deactivated-account and
+    no-password-set. Anything more specific is an account oracle, and this
+    directory lists named clinicians whose addresses are semi-public.
     """
     if request.user.is_authenticated:
         return redirect(_post_login_redirect(request.user))
@@ -47,21 +55,83 @@ def login_view(request):
     form = MagicLinkRequestForm(request.POST or None)
 
     if request.method == "POST" and form.is_valid():
-        if not form.is_bot:
+        if form.is_bot:
+            # Same redirect a human gets — a bot learns nothing.
+            return redirect("accounts:login_sent")
+
+        ip = ratelimit.client_ip(request)
+
+        # --- Password route -------------------------------------------------
+        if form.wants_password_login:
             try:
-                magic_link.request_link(form.cleaned_data["email"], ip=ratelimit.client_ip(request))
-            except magic_link.RateLimited:
-                # The one honest failure. It is about the requester's rate, not
-                # about whether the account exists, so it leaks nothing.
+                user = passwords.attempt(
+                    request, form.cleaned_data["email"], form.cleaned_data["password"], ip=ip
+                )
+            except passwords.RateLimited:
                 form.add_error(
                     None,
-                    "Too many sign-in requests. Please wait a little while before trying again.",
+                    "Too many sign-in attempts. Please wait a little while before trying again.",
                 )
                 return render(request, "accounts/login.html", {"form": form}, status=429)
+
+            if user is None:
+                form.add_error(
+                    None,
+                    "That email address and password didn't match. You can also sign in with "
+                    "an emailed link — leave the password box empty and try again.",
+                )
+                return render(request, "accounts/login.html", {"form": form}, status=401)
+
+            passwords.log_in(request, user)
+            return redirect(_post_login_redirect(user))
+
+        # --- Magic-link route -----------------------------------------------
+        try:
+            magic_link.request_link(form.cleaned_data["email"], ip=ip)
+        except magic_link.RateLimited:
+            # The one honest failure. It is about the requester's rate, not about
+            # whether the account exists, so it leaks nothing.
+            form.add_error(
+                None,
+                "Too many sign-in requests. Please wait a little while before trying again.",
+            )
+            return render(request, "accounts/login.html", {"form": form}, status=429)
 
         return redirect("accounts:login_sent")
 
     return render(request, "accounts/login.html", {"form": form})
+
+
+@never_cache
+@require_http_methods(["GET", "POST"])
+def set_password_view(request):
+    """Set, change or remove a password on your own account.
+
+    Requires a session, and that IS the recovery story: somebody who has
+    forgotten their password signs in with a magic link and lands here. One
+    recovery path, one set of rate limits, one expiry — rather than a second
+    reset-token flow that can drift out of step with the first.
+    """
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path())
+
+    if request.method == "POST" and request.POST.get("action") == "remove":
+        passwords.clear_password(request.user)
+        messages.success(request, "Password removed. You'll sign in with an emailed link from now on.")
+        return redirect("accounts:set_password")
+
+    form = SetPasswordForm(request.POST or None, user=request.user)
+
+    if request.method == "POST" and form.is_valid():
+        passwords.set_password(request.user, form.cleaned_data["new_password"], request=request)
+        messages.success(request, "Password saved. You can sign in with it from now on.")
+        return redirect("accounts:set_password")
+
+    return render(
+        request,
+        "accounts/set_password.html",
+        {"form": form, "has_password": passwords.has_password(request.user)},
+    )
 
 
 @never_cache

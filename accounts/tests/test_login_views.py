@@ -17,12 +17,20 @@ pytestmark = pytest.mark.django_db
 
 
 def test_login_page_renders(client):
+    """Both routes on one page.
+
+    The password field became optional when password sign-in was added alongside
+    the magic link. This test used to assert there was no password field
+    anywhere; that is now deliberately false. See
+    accounts/tests/test_password_login.py.
+    """
     response = client.get(reverse("accounts:login"))
 
     assert response.status_code == 200
     assert b'name="email"' in response.content
-    # No password field anywhere in the project.
-    assert b'type="password"' not in response.content
+    assert b'name="password"' in response.content
+    # Still no signup link — account creation is by admin invite only.
+    assert b"create an account" not in response.content.lower()
 
 
 def test_login_page_is_noindex(client):

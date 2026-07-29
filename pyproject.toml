@@ -23,6 +23,9 @@ dependencies = [
   # magic-link (see accounts/services/magic_link.py).
   "django-otp>=1.5",
   "qrcode>=8.0",
+  # Argon2 is first in PASSWORD_HASHERS, so this is required, not optional —
+  # without it Django raises on the first password hash.
+  "argon2-cffi>=23.1",
   # Shared UI package. PINNED — upgrade deliberately, never track a branch.
   "kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.0.1",
 ]

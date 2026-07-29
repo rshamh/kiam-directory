@@ -1,10 +1,16 @@
 {% comment %}
-The magic-link request form, rendered into kiam-ui's FormCard slot.
+Sign-in form. ONE form, one button, two routes: fill the password box and it is a
+password sign-in, leave it blank and we email a link.
 
-Non-field errors are rendered in a role="alert" so a rate-limit refusal is
-announced rather than only appearing (WCAG 4.1.3). The honeypot is visually
-hidden with .sr-only rather than display:none — a display:none field is skipped
-by some bots, which is exactly backwards.
+Two tabs would be worse. Someone who has never set a password would have to know
+that in order to pick the right tab, and someone who has would have to hunt for
+it — this way the page works without the visitor knowing which kind of account
+they have.
+
+Non-field errors are in a role="alert" so a failed attempt or a rate-limit
+refusal is announced rather than only appearing (WCAG 4.1.3). The honeypot is
+.sr-only rather than display:none — a display:none field is skipped by some
+bots, which is exactly backwards.
 {% endcomment %}
 <form method="post" action="{% url 'accounts:login' %}" novalidate>
   {% csrf_token %}
@@ -15,7 +21,9 @@ by some bots, which is exactly backwards.
     </div>
   {% endif %}
 
-  {% include "kiam_ui/components/forms/field.html" with name="email" label="Email address" type="email" required=True autocomplete="email" full=True help=form.email.help_text error=form.email.errors|first value=form.email.value|default:"" %}
+  {% include "kiam_ui/components/forms/field.html" with name="email" label="Email address" type="email" required=True autocomplete="email" full=True help="The address your listing is registered to." error=form.email.errors|first value=form.email.value|default:"" %}
+
+  {% include "kiam_ui/components/forms/field.html" with name="password" label="Password" type="password" autocomplete="current-password" full=True help="Leave this empty and we'll email you a link to sign in instead." error=form.password.errors|first %}
 
   <div class="sr-only" aria-hidden="true">
     <label for="website">Leave this field empty</label>
@@ -23,6 +31,11 @@ by some bots, which is exactly backwards.
   </div>
 
   <p>
-    {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Email me a sign-in link" icon="mail" icon_position="left" %}
+    {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Sign in" icon="arrow-right" %}
+  </p>
+
+  <p class="dir-login-note">
+    Forgotten your password? Leave the password box empty and sign in with an
+    emailed link — you can set a new one once you're in.
   </p>
 </form>
