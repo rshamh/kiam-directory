@@ -456,6 +456,15 @@ class ConcernReportAdmin(admin.ModelAdmin):
     list_select_related = ("practitioner", "handled_by")
     readonly_fields = ("practitioner", "category", "detail", "reporter_email", "created_at")
 
+    def has_delete_permission(self, request, obj=None):
+        """Concern reports are evidence that Kiam monitors its listings.
+
+        A deletable complaints queue is not a monitoring record — and the one
+        someone would reach for the delete button on is exactly the one that
+        matters.
+        """
+        return False
+
 
 @admin.register(TaxonomyRequest)
 class TaxonomyRequestAdmin(admin.ModelAdmin):
