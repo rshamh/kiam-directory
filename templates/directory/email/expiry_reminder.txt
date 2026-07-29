@@ -1,0 +1,20 @@
+{% comment %}
+Verification is approaching expiry. Sent at 60 / 30 / 7 / 0 days
+(docs/verification-policy.md).
+
+The badge lapses automatically on the date — no admin action, no grace period —
+so the email says so plainly rather than implying someone will chase it.
+{% endcomment %}Hello{% if practitioner.full_name %} {{ practitioner.full_name }}{% endif %},
+
+{% if days_left > 0 %}Your verification for {{ site_name }} expires in {{ days_left }} day{{ days_left|pluralize }}.{% else %}Your verification for {{ site_name }} expires today.{% endif %}
+
+When it does, the "Credentials checked" badge is removed from your listing
+automatically. Your listing stays published — only the badge is affected.
+
+The usual cause is professional indemnity insurance coming up for renewal. Send
+us the new certificate and the badge is restored as soon as it is verified.
+
+{{ site_url }}
+
+--
+{{ site_name }}

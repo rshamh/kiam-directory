@@ -20,21 +20,26 @@ See `docs/multi-project-architecture.md` for how this sits alongside the main si
 
 Business logic lives in `<app>/services/`, not in views or models. Views stay thin.
 
-### What exists as of Phase 0
+### What exists as of Phase 1
 
 The table above is the intent. This is the repo.
 
 | App | Built at Phase 0 | Empty until |
 |---|---|---|
 | `accounts` | `User`, `LoginToken`, `Invite`, `access.py`, `services/{magic_link,ratelimit,two_factor}.py`, `middleware.py`, views, admin | the invite *flow* — Phase 2 |
-| `directory` | `storages.py`, `services/documents.py`. **No models.** | Phase 1 |
+| `directory` | full model set, `taxonomy.py`, `services/{verification,documents,search_index}.py`, `signals.py`, `factories.py`, admin, `seed_taxonomy` / `verification_sweep` / `rebuild_search_index` | — |
 | `search` | app config only | Phase 4 |
 | `dashboard` | app config only | Phase 6 |
 | `backoffice` | app config only | Phase 2 |
 | `seo` | `jsonld.py`, `sitemaps.py`, `views.py` (robots, llms.txt, `/healthz`, 404/500 handlers) | — |
 | `pages` | `nav.py` (kiam-ui chrome config), placeholder home | static pages Phase 3, landing pages Phase 7 |
 
-**Models:** `accounts.User`, `accounts.LoginToken`, `accounts.Invite`. Nothing else.
+**Models:** `accounts.{User, LoginToken, Invite}` plus the full `directory` set — the four
+taxonomy axes (`Profession`, `SpecialityCategory`/`Speciality`, `Approach`, `ClientGroup`), the
+flat vocabularies (`Language`, `FundingOption`, `SessionFormat`), `Practitioner`,
+`PractitionerLocation`, `Qualification`, `Registration`, `VerificationCheck`, `Document`,
+`DocumentAccessLog`, `ConsentRecord`, `ReviewRequest`, `AuditLog`, `ConcernReport`,
+`SlugRedirect`, `TaxonomyRequest`, `DailyMetric`.
 
 `accounts/models.py` and `accounts/access.py` are **authored elsewhere and adopted verbatim** —
 `models.py` is byte-identical, and `access.py` has the Phase 0 two-factor helpers appended below
@@ -59,6 +64,15 @@ then. The `directory` models (also authored) land in Phase 1.
 | `/accounts/two-factor/set-up/qr.svg` | `accounts:two_factor_qr` | generated locally; the secret never leaves the host |
 | `/accounts/two-factor/` | `accounts:two_factor_verify` | |
 | `/<ADMIN_URL_PATH>/` | Django admin | default `staff-console/`, not `/admin/` |
+
+**Management commands:** `seed_taxonomy` (idempotent vocabulary load),
+`verification_sweep` (nightly, 03:00), `rebuild_search_index` (nightly, 03:30),
+`collectstatic` (overridden — see `seo/management/commands/`). Schedule in `ops/crontab`.
+
+**Migrations:** `directory.0001_extensions` creates `postgis` and `pg_trgm` and is kept separate
+so a restricted-role deployment can `--fake` just that one; `0002_initial` is the model set,
+including the GIN index on `Practitioner.search_vector` and the GiST index on
+`PractitionerLocation.geo`.
 
 **Roles:** all four exist as `accounts.models.User.Role`, and every predicate lives in
 `accounts/access.py`. Two things the matrix below does not spell out:

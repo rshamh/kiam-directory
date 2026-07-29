@@ -1,0 +1,27 @@
+{% comment %}
+A DBS window has run out. The practitioner's under-18 client groups are now
+hidden from their profile and excluded from search — they are live for adult
+work only.
+
+Plain, factual, and specific about what to do next. This is not a reprimand: the
+usual cause is a DBS still sitting with the disclosure service.
+{% endcomment %}Hello{% if practitioner.full_name %} {{ practitioner.full_name }}{% endif %},
+
+The provisional period for your enhanced DBS check has ended, so the under-18
+client groups on your {{ site_name }} listing have been paused.
+
+What this means:
+
+  * Your listing is still live for adult work.
+  * Your under-18 client groups are hidden from your profile and are not
+    returned in search.
+  * Nothing else about your listing has changed.
+
+To restore them, send us your enhanced DBS certificate and we will verify it.
+Once verified, the groups reappear automatically — there is nothing else for you
+to do.
+
+{{ site_url }}
+
+--
+{{ site_name }}
