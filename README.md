@@ -195,7 +195,7 @@ docker compose build --ssh default  # the image is where the .env leak surfaced
 
 ## Testing
 
-~600 tests. Two conventions worth knowing before adding more:
+~650 tests. Two conventions worth knowing before adding more:
 
 - **Factories never write a verification field.** `PractitionerFactory(verified=True)` creates
   dated checks and calls `recompute()`, exactly as production does. A factory that set
@@ -247,11 +247,28 @@ Everything to take a practitioner from invite to published. Every view carries a
 | `/backoffice/concerns/` | Triage listing concerns. Registration doubts sort first |
 | `/backoffice/audit/` | Read-only, filterable. No delete path anywhere |
 
-### Verification is computed, never set
+### Verification is computed, never set — but granting it is one click
 
 `directory.services.verification.recompute()` derives the badge and the under-18 gate from dated
 `VerificationCheck` rows. Nothing else writes those fields — a test walks the whole Django admin
 registry to enforce it. Insurance expiring lapses the badge overnight with no human action.
+
+Admins still decide who is verified; they just do it by recording a decision, not by flipping a
+switch. **"Verify all required checks"** in the workbench does the whole set in one action — one
+insurance expiry date, one confirmation, one button. The date is required and not prefilled,
+because it is the thing that makes the badge lapse on its own later.
+
+DBS is not in that action. It is the safeguarding check, not one of the badge's required checks,
+and it stays a separate deliberate act with its own expiry.
+
+### Editing a live listing withdraws the badge, not the listing
+
+Change a **safe** field — bio, fees, availability, photo — and it publishes immediately. Change a
+**controlled** one — name, profession, registrations, qualifications, client groups — and the page
+stays up while the badge comes off, because the checks that were made against the old details are
+reopened and `recompute()` notices. Approving the new wording does *not* give the badge back;
+re-verifying the evidence does. That distinction is the point: accepting a name change is not the
+same as confirming somebody's photo ID matches it.
 
 ### Evidence access
 

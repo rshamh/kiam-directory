@@ -43,20 +43,34 @@ from directory.models import (
     ReviewOutcome,
     ReviewRequest,
 )
-from directory.services import lint
+from directory.services import lint, verification
 
 logger = logging.getLogger("backoffice.review")
 
 #: Editing one of these on a published profile sends it back through review.
 #: Everything else — bio, availability, photo, fees — publishes immediately
 #: (docs/architecture.md, "Publication is a state machine").
+#:
+#: The three related-model names are here because a change to them is a change to
+#: what the listing claims, even though they are not columns on the row:
+#: `registrations` and `qualifications` are the credentials themselves, and
+#: `client_groups` decides whether a DBS is required at all.
 CONTROLLED_FIELDS = (
     "full_name",
     "display_title",
     "post_nominals",
     "profession",
     "is_prescriber",
+    "registrations",
+    "qualifications",
+    "client_groups",
 )
+
+
+def controlled_changes(changed_fields) -> list[str]:
+    """The subset of a set of edits that needs a human to look again."""
+    return sorted(set(changed_fields or ()) & set(CONTROLLED_FIELDS))
+
 
 #: Statuses a reviewer can act on.
 REVIEWABLE = (PublicationStatus.SUBMITTED, PublicationStatus.IN_REVIEW)
@@ -148,6 +162,110 @@ def submit(practitioner, *, actor=None) -> ReviewRequest:
         extra={"practitioner_id": str(practitioner.pk), "held": result.must_hold_for_review},
     )
     return request
+
+
+@transaction.atomic
+def submit_update(practitioner, *, changed_fields, actor=None) -> ReviewRequest | None:
+    """A published listing was edited. Decide whether that needs looking at.
+
+    Returns the ``ReviewRequest`` raised, or ``None`` when nothing controlled
+    changed and the edit simply publishes.
+
+    **The listing stays PUBLISHED.** Pulling a live page down because somebody
+    corrected the spelling of their own surname would be a punishment for keeping
+    a listing accurate, and it is not what is at risk: what is at risk is the
+    *badge*, which says Kiam checked these details. So the listing keeps serving
+    and the badge goes, until a verifier has confirmed the new details.
+
+    The badge is not switched off — it cannot be. ``invalidate_for_changes()``
+    reopens the checks that were made against whatever changed, and the badge
+    falls out of ``recompute()`` because a required check is no longer verified.
+    A name checked against photo ID stops being a checked name the moment the
+    name changes.
+    """
+    controlled = controlled_changes(changed_fields)
+    if not controlled:
+        return None
+
+    if practitioner.status != PublicationStatus.PUBLISHED:
+        # Not live, so there is no badge to protect and no page to keep up. The
+        # ordinary submit() path applies.
+        return None
+
+    reopened = verification.invalidate_for_changes(practitioner, controlled, actor=actor)
+
+    request = ReviewRequest.objects.create(
+        practitioner=practitioner,
+        snapshot=build_snapshot(practitioner),
+        changed_fields=controlled,
+        lint_flags=lint.run(practitioner).as_dict(),
+    )
+
+    AuditLog.objects.create(
+        actor=actor or practitioner.user,
+        action="practitioner.update_submitted",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={
+            "review_request": str(request.pk),
+            "changed_fields": controlled,
+            "checks_reopened": reopened,
+        },
+    )
+    logger.info(
+        "review.update_submitted",
+        extra={
+            "practitioner_id": str(practitioner.pk),
+            "changed_fields": controlled,
+            "checks_reopened": reopened,
+        },
+    )
+    return request
+
+
+@transaction.atomic
+def approve_update(request: ReviewRequest, *, actor, notes: str = ""):
+    """Accept an edit to a listing that stayed live while it was reviewed.
+
+    Separate from ``approve()`` rather than folded into it, because the two do
+    different things. ``approve()`` moves a profile into PUBLISHED; this one
+    changes no publication state at all — the listing never left. It closes the
+    copy review.
+
+    It does **not** restore the badge, and that is the point. Approving the words
+    is not the same as re-checking the documents: the badge comes back when a
+    verifier confirms the reopened checks in the workbench, and `recompute()`
+    notices. An admin approving a name change cannot thereby re-assert that
+    somebody's photo ID matches it.
+    """
+    _require_reviewer(actor)
+    practitioner = request.practitioner
+
+    if practitioner.status != PublicationStatus.PUBLISHED:
+        raise NotReviewable(
+            f"This profile is {practitioner.get_status_display().lower()}, not a live listing "
+            "with a pending edit."
+        )
+    if request.outcome:
+        raise NotReviewable("This review has already been closed.")
+
+    practitioner.last_review_at = timezone.now()
+    practitioner.save(update_fields=["last_review_at"])
+
+    _close(request, actor=actor, outcome=ReviewOutcome.APPROVED, notes=notes)
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="practitioner.update_approved",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={"changed_fields": request.changed_fields, "is_verified": practitioner.is_verified},
+    )
+    logger.info(
+        "review.update_approved",
+        extra={"practitioner_id": str(practitioner.pk), "badge_restored": practitioner.is_verified},
+    )
+    return practitioner
 
 
 @transaction.atomic
@@ -332,9 +450,17 @@ def _close(request: ReviewRequest, *, actor, outcome: str, notes: str) -> None:
 
 
 def open_queue():
-    """Submissions awaiting a decision, oldest first."""
+    """Submissions awaiting a decision, oldest first.
+
+    PUBLISHED is in the filter alongside the two REVIEWABLE statuses because an
+    edit to a live listing raises a review without taking the listing down (see
+    ``submit_update``). Leaving it out would mean a listing whose badge has just
+    been withdrawn sits in no queue at all, and the practitioner waits for a
+    re-check nobody can see they are owed.
+    """
     return (
-        ReviewRequest.objects.filter(outcome="", practitioner__status__in=REVIEWABLE)
+        ReviewRequest.objects.filter(outcome="")
+        .filter(practitioner__status__in=[*REVIEWABLE, PublicationStatus.PUBLISHED])
         .select_related("practitioner", "practitioner__profession")
         .order_by("submitted_at")
     )

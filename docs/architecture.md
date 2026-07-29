@@ -89,6 +89,7 @@ then. The `directory` models (also authored) land in Phase 1.
 | `/accounts/two-factor/set-up/qr.svg` | `accounts:two_factor_qr` | generated locally; the secret never leaves the host |
 | `/accounts/two-factor/` | `accounts:two_factor_verify` | |
 | `/backoffice/…` | `backoffice:*` | the whole Phase 2 staff area — invites, review queue, verification workbench, suspend, concerns, audit log. Every view carries an `accounts.access` predicate, the 2FA middleware gates the prefix, and `robots.txt` disallows it. See `backoffice/urls.py` |
+| `/backoffice/practitioners/<pk>/verification/verify-all/` | `backoffice:verification_verify_all` | POST. Records a verification decision against every required check at once. `can_view_evidence` only — the role that decides evidence is satisfactory must be the role allowed to look at it. Routed **before** the `<check_type>` route, which would otherwise swallow it |
 | `/<ADMIN_URL_PATH>/` | Django admin | default `staff-console/`, not `/admin/` |
 
 **Management commands:** `seed_taxonomy` (idempotent vocabulary load),
@@ -135,6 +136,12 @@ listings. Plus flat vocabularies: `Language`, `FundingOption`, `SessionFormat`.
    Edits to a published profile: safe fields (bio, availability, photo) publish immediately;
    **controlled fields** (name, credentials, profession, registration numbers, client groups)
    re-enter review.
+
+   Re-entering review does **not** move the listing out of PUBLISHED. The page stays up and the
+   *badge* is what is withheld — `backoffice.services.review.submit_update()` raises the review and
+   `directory.services.verification.invalidate_for_changes()` reopens the checks that were made
+   against whatever changed, so `recompute()` drops `is_verified` on its own. Approving the copy
+   (`approve_update()`) does not restore it; re-verifying the evidence does.
 
 ## Roles
 

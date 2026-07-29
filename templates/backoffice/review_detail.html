@@ -13,6 +13,36 @@ what was approved. That is the whole point of freezing it.
   <a href="{% url 'backoffice:verification_workbench' practitioner.pk %}">Verification</a>
 </p>
 
+{% if is_pending_update %}
+  {% comment %}
+  An edit to a listing that is still live. The distinction matters to the person
+  making the decision: approving this publishes nothing, and it does not give the
+  badge back either — that happens in the workbench when the reopened checks are
+  verified. Saying so here is the difference between a reviewer finishing the job
+  and a reviewer thinking they have.
+  {% endcomment %}
+  <section class="bo-computed" role="note">
+    <h2>This listing is live, and stayed live</h2>
+    <p>
+      {{ practitioner.full_name }} edited
+      <strong>{{ review_request.changed_fields|join:", "|default:"a controlled field" }}</strong>.
+      The page was not taken down — what was withdrawn is the verified badge.
+    </p>
+    {% if reopened_checks %}
+      <p>
+        Checks reopened by that edit: <strong>{{ reopened_checks|join:", " }}</strong>.
+        Approving the wording here does <em>not</em> restore the badge. Re-verify
+        those on the
+        <a href="{% url 'backoffice:verification_workbench' practitioner.pk %}">verification page</a>
+        once you have seen the new details, and the badge returns on its own.
+      </p>
+    {% endif %}
+    <p>
+      Badge now: <strong>{% if practitioner.is_verified %}verified{% else %}not verified{% endif %}</strong>.
+    </p>
+  </section>
+{% endif %}
+
 {% include "backoffice/_lint_flags.html" %}
 
 {% if blocking_reasons %}

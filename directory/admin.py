@@ -137,6 +137,15 @@ class LanguageAdmin(admin.ModelAdmin):
 # ---------------------------------------------------------------------------
 
 
+#: Inline model -> the controlled-field name a change to it counts as, so
+#: PractitionerAdmin.save_related() can report credential edits made through an
+#: inline. Locations are absent deliberately: an address is a safe field.
+_CONTROLLED_INLINE_FIELDS = {
+    Registration: "registrations",
+    Qualification: "qualifications",
+}
+
+
 class PractitionerLocationInline(admin.TabularInline):
     """A practitioner has MANY locations; search matches any of them."""
 
@@ -295,6 +304,44 @@ class PractitionerAdmin(admin.ModelAdmin):
     @admin.display(description="Badge", boolean=True, ordering="is_verified")
     def verified_badge(self, obj):
         return obj.is_verified
+
+    def save_related(self, request, form, formsets, change):
+        """Send a controlled edit to a LIVE listing back through review.
+
+        ``save_related`` rather than ``save_model``, because two of the three
+        related-model controlled fields — registrations and qualifications — are
+        edited through inlines, and those are not saved yet when ``save_model``
+        runs. Hooking the earlier one would miss exactly the credential changes
+        this exists to catch.
+
+        The listing is not taken down. What is withdrawn is the badge, and it is
+        withdrawn by reopening the checks that were made against whatever changed
+        — see backoffice.services.review.submit_update(). Nothing here sets a
+        verification field, and nothing here could.
+        """
+        super().save_related(request, form, formsets, change)
+
+        if not change:
+            return
+
+        changed = list(form.changed_data)
+        for formset in formsets:
+            if formset.has_changed():
+                changed.append(_CONTROLLED_INLINE_FIELDS.get(formset.model, ""))
+
+        # Imported here: backoffice imports directory.services, so a module-level
+        # import the other way round closes the loop at startup.
+        from backoffice.services.review import submit_update
+
+        request_raised = submit_update(form.instance, changed_fields=changed, actor=request.user)
+        if request_raised is not None:
+            self.message_user(
+                request,
+                f"That changed {', '.join(request_raised.changed_fields)} on a live listing, so "
+                "the verified badge has been withdrawn and the edit is in the review queue. "
+                "Re-verify the reopened checks to restore it.",
+                messages.WARNING,
+            )
 
     @admin.action(description="Recompute verification from evidence")
     def recompute_verification(self, request, queryset):

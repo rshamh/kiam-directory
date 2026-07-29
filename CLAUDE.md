@@ -68,6 +68,39 @@ only**: their minor client groups are hidden from the profile and excluded from 
 is applied in **two** places — `Practitioner.can_show_minor_groups` (profile) and the search
 queryset. Either alone leaks. Any change to one requires a matching change and test in the other.
 
+**How an admin actually grants a badge.** The rule above is about who can *set* the field, not
+about how much clicking a verifier has to do. `verification.verify_all_required()` records a
+verification decision against every required check in one action — one insurance expiry date, one
+confirmation box, one button in the workbench. It is not a toggle and does not become one: it
+writes the same dated, expiring, per-check audit-logged rows a verifier would write one at a time,
+so the badge is still derived and still lapses by itself on the date entered. **The expiry date is
+required and deliberately not prefilled** — it is the thing that makes a one-click grant safe, so
+it has to be copied off the certificate rather than accepted unread.
+
+DBS is **not** in that bulk action even for a practitioner who works with under-18s. It is not one
+of the badge's required checks, it is the safeguarding one, and it stays a separate deliberate act.
+
+**A controlled edit to a live listing withdraws the badge, and the listing stays up.**
+`review.submit_update()` is the entry point (`PractitionerAdmin.save_related` calls it today; the
+Phase 6 dashboard will call the same function). Two things about it are the design rather than the
+implementation:
+
+* **The page is not taken down.** Pulling a live listing because somebody corrected their own
+  surname would punish keeping a listing accurate. What is at risk is the badge — the claim that
+  Kiam checked these details — so that is what goes.
+* **The badge is not switched off, because it cannot be.**
+  `verification.invalidate_for_changes()` reopens the checks that were made *against whatever
+  changed* (`CHECKS_INVALIDATED_BY`), and the badge falls out of `recompute()` because a required
+  check is no longer VERIFIED. A name checked against photo ID stops being a checked name the
+  moment the name changes.
+* **Approving the copy does not give the badge back.** `review.approve_update()` closes the review
+  and changes no publication state; the badge returns when a verifier re-verifies the reopened
+  checks. An admin accepting a name change must not thereby assert that somebody's photo ID
+  matches the new name. `test_approving_the_wording_does_not_restore_the_badge` is the line.
+
+`open_queue()` includes PUBLISHED for this reason — a listing whose badge has just been withdrawn
+must appear in a queue, or the practitioner waits for a re-check nobody can see they are owed.
+
 > **Only half of that gate exists today.** The profile half is done and live:
 > `Practitioner.can_show_minor_groups` and `Practitioner.visible_client_groups()` (Phase 1) are
 > now actually called, by `directory.services.profile.build()`, and
