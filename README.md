@@ -200,14 +200,27 @@ tracker.
 
 ---
 
-## Auth, in one paragraph
+## Auth
 
-Email is the identifier; there are no usernames and no passwords. Sign-in is a magic link:
-32 random bytes, stored only as a SHA-256 hash, single-use, expiring after
-`MAGIC_LINK_TTL_MINUTES`, rate limited per email and per IP. The response is identical whether
-or not the address has an account. **There is no public signup route** — account creation is by
-admin invite (Phase 2). `admin`, `verifier` and `superadmin` must additionally carry a TOTP
-device; `accounts/middleware.py` keeps an unverified staff session on the challenge page and
+Email is the identifier; there are no usernames. **Two sign-in routes share one form** at
+`/accounts/login/`: type a password, or leave it blank and we email a link.
+
+- **Magic link** — 32 random bytes, stored only as a SHA-256 hash, single-use, expiring after
+  `MAGIC_LINK_TTL_MINUTES`. Always available, and it doubles as password recovery: sign in with a
+  link, then set a new password. There is deliberately no separate reset-token flow — one
+  recovery path, one expiry, one set of rate limits.
+- **Password** — optional. Accounts are created *without* one and only get one if their owner
+  sets it at `/accounts/password/`, where they can also remove it again. Argon2, 12-character
+  minimum, validated against Django's stock validators.
+
+Both routes are rate limited per email **and per IP** — the IP limit is what catches credential
+stuffing, which a per-email limit cannot see. Neither route reveals whether an address has an
+account: wrong password, unknown address, no password set and deactivated account all produce the
+same message and the same status.
+
+**There is no public signup route** — account creation is by admin invite. `admin`, `verifier`
+and `superadmin` must additionally carry a TOTP device *regardless of which route they signed in
+by*; `accounts/middleware.py` keeps an unverified staff session on the challenge page and
 `accounts/access.py` refuses every staff capability until it is answered.
 
 Every role check in the project lives in `accounts/access.py`. Views and templates never inspect

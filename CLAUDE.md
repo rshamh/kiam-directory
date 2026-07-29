@@ -76,8 +76,17 @@ queryset. Either alone leaks. Any change to one requires a matching change and t
 - Tailwind + **HTMX** + Alpine.js.
 - **`kiam-ui`** — the shared UI package, pinned:
   `kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.0.1`
-- Auth: email magic link, no usernames, thin custom `User`. All role checks in
-  `accounts/access.py` and nowhere else.
+- Auth: email identifier, no usernames, thin custom `User`. All role checks in
+  `accounts/access.py` and nowhere else. **Two sign-in routes, both live:**
+  a magic link (always available, and the password-recovery path) and an
+  **optional** password. Accounts are still created without a password —
+  `UserManager` calls `set_unusable_password()` — and only get one if their
+  owner sets it, so "no password" remains a valid permanent state.
+  Password sign-in must keep the magic link's two guarantees: no account
+  enumeration (one message for wrong-password / unknown-address / no-password /
+  deactivated) and rate limiting per email **and per IP**. TOTP still applies to
+  staff regardless of which route they came in by — a password is not a way
+  round the second factor.
 - Search: `django.contrib.postgres.search` + `pg_trgm`; geo via GeoDjango `PointField` + GiST.
   **Do not add Meilisearch/Typesense** until latency actually demands it.
 - Geocoding: `postcodes.io` for postcode → point; OS Open Names for place autocomplete. No Google
