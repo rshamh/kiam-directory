@@ -1,0 +1,178 @@
+# Prescription-only medicines — blocklist for the submission lint.
+#
+# UK ASA/CAP rules prohibit advertising prescription-only medicines to the
+# public, so none of these may appear in practitioner free text
+# (docs/content-compliance.md §1). A match BLOCKS submission.
+#
+# Substance and brand names from BNF chapter 4 (nervous system), which is the
+# chapter this directory's practitioners actually prescribe from. Not exhaustive
+# and not meant to be — it is maintained here, outside the code, so it can be
+# updated without a deploy (settings.POM_DICTIONARY_PATH).
+#
+# One term per line. Case-insensitive, matched on word boundaries, so "add"
+# would not match "additional" — but short ambiguous terms should still be
+# avoided. Lines starting with # are comments.
+#
+# The permitted alternatives are: "Medication management", "Prescribing",
+# "Titration and review", "Shared care".
+
+# --- ADHD: stimulants and non-stimulants ---
+methylphenidate
+dexamfetamine
+dextroamphetamine
+lisdexamfetamine
+atomoxetine
+guanfacine
+clonidine
+modafinil
+Concerta
+Equasym
+Medikinet
+Ritalin
+Xaggitin
+Delmosart
+Elvanse
+Vyvanse
+Adderall
+Strattera
+Intuniv
+Tentin
+Affenid
+
+# --- Antidepressants ---
+sertraline
+fluoxetine
+citalopram
+escitalopram
+paroxetine
+fluvoxamine
+venlafaxine
+duloxetine
+mirtazapine
+trazodone
+amitriptyline
+nortriptyline
+imipramine
+clomipramine
+lofepramine
+doxepin
+bupropion
+vortioxetine
+agomelatine
+reboxetine
+moclobemide
+phenelzine
+tranylcypromine
+Prozac
+Seroxat
+Cipralex
+Cipramil
+Lustral
+Efexor
+Cymbalta
+Zispin
+Edronax
+Valdoxan
+Brintellix
+Trintellix
+Wellbutrin
+Zyban
+
+# --- Antipsychotics ---
+quetiapine
+olanzapine
+risperidone
+aripiprazole
+amisulpride
+haloperidol
+chlorpromazine
+clozapine
+paliperidone
+lurasidone
+sulpiride
+flupentixol
+zuclopenthixol
+trifluoperazine
+cariprazine
+Seroquel
+Zyprexa
+Risperdal
+Abilify
+Clozaril
+Invega
+Latuda
+Solian
+Depixol
+Clopixol
+
+# --- Mood stabilisers and anticonvulsants used in psychiatry ---
+lithium
+lamotrigine
+valproate
+sodium valproate
+valproic acid
+carbamazepine
+topiramate
+pregabalin
+gabapentin
+Priadel
+Camcolit
+Lamictal
+Epilim
+Depakote
+Tegretol
+Topamax
+Lyrica
+Neurontin
+
+# --- Anxiolytics, hypnotics and sedatives ---
+diazepam
+lorazepam
+clonazepam
+alprazolam
+chlordiazepoxide
+temazepam
+nitrazepam
+zopiclone
+zolpidem
+zaleplon
+promethazine
+melatonin
+buspirone
+propranolol
+Valium
+Ativan
+Xanax
+Klonopin
+Rivotril
+Zimovane
+Stilnoct
+Circadin
+Slenyto
+
+# --- Dementia ---
+donepezil
+rivastigmine
+galantamine
+memantine
+Aricept
+Exelon
+Reminyl
+Ebixa
+
+# --- Substance misuse ---
+naltrexone
+acamprosate
+disulfiram
+buprenorphine
+methadone
+Antabuse
+Campral
+Subutex
+Suboxone
+
+# --- Other CNS ---
+ketamine
+esketamine
+psilocybin
+Spravato
