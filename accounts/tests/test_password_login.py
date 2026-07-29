@@ -71,6 +71,38 @@ def test_the_email_is_matched_case_insensitively(client, with_password):
     assert "_auth_user_id" in client.session
 
 
+def test_a_stored_address_with_a_capital_still_signs_in(client, user_factory):
+    """The bug live testing found, and unit tests had not.
+
+    normalize_email() lowercases only the domain, so "Demo@example.com" is stored
+    with its capital D. ModelBackend's lookup is exact, so the RIGHT password was
+    rejected with the same generic error a wrong one gives — the worst kind of
+    failure, because the person is certain they typed it correctly and they did.
+    """
+    user = user_factory("Nadia@Example.com")
+    assert user.email == "Nadia@example.com", "normalize_email lowercases the domain only"
+    passwords.set_password(user, GOOD)
+
+    response = client.post(LOGIN, {"email": "nadia@example.com", "password": GOOD})
+
+    assert response.status_code == 302
+    assert client.session["_auth_user_id"] == str(user.pk)
+
+
+def test_an_unknown_address_still_costs_a_hash(client):
+    """The dummy-hash path must survive the custom backend.
+
+    Without it an unknown address returns measurably faster than a wrong
+    password, which is account enumeration by stopwatch.
+    """
+    import inspect
+
+    from accounts.backends import CaseInsensitiveEmailBackend
+
+    source = inspect.getsource(CaseInsensitiveEmailBackend.authenticate)
+    assert "set_password(password)" in source
+
+
 # ---------------------------------------------------------------------------
 # Both routes still work
 # ---------------------------------------------------------------------------

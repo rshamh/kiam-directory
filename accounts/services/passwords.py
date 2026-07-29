@@ -109,7 +109,7 @@ def log_in(request, user) -> None:
     password proves knowledge of a secret, not control of the mailbox, and only
     redeeming a magic link demonstrates the latter.
     """
-    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+    login(request, user, backend="accounts.backends.CaseInsensitiveEmailBackend")
 
     user.last_login_at = timezone.now()
     user.save(update_fields=["last_login_at"])

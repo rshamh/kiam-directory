@@ -191,6 +191,11 @@ CACHES = {
 
 AUTH_USER_MODEL = "accounts.User"
 
+# normalize_email() lowercases only the DOMAIN, so a stored address can carry a
+# capital in its local part — and ModelBackend's lookup is an exact match, which
+# would reject the right password for "Nadia@example.com". See accounts/backends.py.
+AUTHENTICATION_BACKENDS = ["accounts.backends.CaseInsensitiveEmailBackend"]
+
 # Passwords are OPTIONAL and sit alongside the magic link — an account is still
 # created without one (accounts.models.UserManager calls set_unusable_password),
 # and only gets a password if its owner chooses to set one.

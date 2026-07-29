@@ -233,7 +233,7 @@ def log_in(request, user) -> None:
     Redeeming a link is also proof of control of the mailbox, so it is what sets
     ``email_verified_at``. Nothing else in the project sets it.
     """
-    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+    login(request, user, backend="accounts.backends.CaseInsensitiveEmailBackend")
 
     now = timezone.now()
     fields = ["last_login_at"]
