@@ -29,6 +29,9 @@ urlpatterns = [
         name="django.contrib.sitemaps.views.sitemap",
     ),
     path("accounts/", include("accounts.urls")),
+    # Staff only. Every view carries an accounts.access predicate and the 2FA
+    # middleware gates the whole prefix; also Disallow-ed in robots.txt.
+    path("backoffice/", include("backoffice.urls")),
     path(f"{ADMIN_PATH}/", admin.site.urls),
     # Last: `pages` owns the bare root path.
     path("", include("pages.urls")),

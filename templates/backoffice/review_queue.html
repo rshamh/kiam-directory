@@ -1,0 +1,28 @@
+{% extends "backoffice/base.html" %}
+{% block bo_title %}Review queue{% endblock %}
+
+{% block bo_content %}
+<h1>Review queue</h1>
+
+<table class="bo-table">
+  <thead><tr><th>Practitioner</th><th>Profession</th><th>Submitted</th><th>Flags</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    {% for req in requests %}
+      <tr>
+        <td>{{ req.practitioner.full_name|default:"(no name yet)" }}</td>
+        <td>{{ req.practitioner.profession.name|default:"—" }}</td>
+        <td>{{ req.submitted_at|date:"j M Y H:i" }}</td>
+        <td>
+          {% with n=req.lint_flags.findings|length %}
+            {% if n %}<strong class="bo-flag">{{ n }} flag{{ n|pluralize }}</strong>{% else %}—{% endif %}
+          {% endwith %}
+        </td>
+        <td>{{ req.practitioner.get_status_display }}</td>
+        <td><a href="{% url 'backoffice:review_detail' req.pk %}">Review</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6">Nothing awaiting review.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

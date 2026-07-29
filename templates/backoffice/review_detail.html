@@ -1,0 +1,49 @@
+{% extends "backoffice/base.html" %}
+{% comment %}
+The reviewer sees the SNAPSHOT — exactly what was submitted — not the live
+profile. If the practitioner edits after submitting, the approval still refers to
+what was approved. That is the whole point of freezing it.
+{% endcomment %}
+{% block bo_title %}Review: {{ practitioner.full_name }}{% endblock %}
+
+{% block bo_content %}
+<h1>{{ practitioner.full_name|default:"(no name yet)" }}</h1>
+<p>
+  <a href="{% url 'backoffice:practitioner_detail' practitioner.pk %}">Practitioner record</a> ·
+  <a href="{% url 'backoffice:verification_workbench' practitioner.pk %}">Verification</a>
+</p>
+
+{% include "backoffice/_lint_flags.html" %}
+
+{% if blocking_reasons %}
+  <section class="bo-blocking" role="alert">
+    <h2>Cannot be published yet</h2>
+    {% for reason in blocking_reasons %}<p>{{ reason }}</p>{% endfor %}
+    <p>Approving is refused until this is resolved (content-compliance §3).</p>
+  </section>
+{% endif %}
+
+<h2>Submitted content</h2>
+<p class="bo-note">Frozen at {{ snapshot.captured_at }}. Later edits are not shown here.</p>
+
+<dl class="bo-snapshot">
+  {% for key, value in snapshot.items %}
+    {% if key != "captured_at" %}
+      <dt>{{ key }}</dt>
+      <dd>{% if value %}{{ value }}{% else %}<span class="bo-empty">—</span>{% endif %}</dd>
+    {% endif %}
+  {% endfor %}
+</dl>
+
+{% if review_request.outcome %}
+  <p>Already decided: <strong>{{ review_request.get_outcome_display }}</strong> by
+     {{ review_request.reviewed_by.email }} on {{ review_request.reviewed_at|date:"j M Y" }}.</p>
+{% else %}
+  <h2>Decision</h2>
+  <form method="post" class="bo-form">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Record decision</button>
+  </form>
+{% endif %}
+{% endblock %}

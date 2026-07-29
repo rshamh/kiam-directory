@@ -1,0 +1,27 @@
+{% comment %}
+Lint findings, surfaced prominently — this is the first thing a reviewer should
+read, not a footnote. Blocks and holds are visually separated because they mean
+different things: a block should never have reached review at all, and a hold is
+the reviewer's decision to make.
+{% endcomment %}
+{% if lint_flags.findings %}
+<section class="bo-lint" aria-labelledby="lint-heading">
+  <h2 id="lint-heading">Lint findings</h2>
+
+  {% for finding in lint_flags.findings %}
+    <div class="bo-lint__finding bo-lint__finding--{{ finding.severity }}">
+      <p class="bo-lint__rule">
+        <strong>{{ finding.rule }}</strong>
+        <span class="bo-lint__severity">{% if finding.severity == "block" %}blocks submission{% else %}holds for review{% endif %}</span>
+        <span class="bo-lint__field">in {{ finding.field }}</span>
+      </p>
+      {% if finding.matches %}
+        <p class="bo-lint__matches">Matched: {% for m in finding.matches %}<code>{{ m }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+      {% endif %}
+      <p class="bo-lint__message">{{ finding.message }}</p>
+    </div>
+  {% endfor %}
+</section>
+{% else %}
+<p class="bo-lint__clean">No lint findings.</p>
+{% endif %}

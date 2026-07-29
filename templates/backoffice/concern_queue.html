@@ -1,0 +1,30 @@
+{% extends "backoffice/base.html" %}
+{% block bo_title %}Concerns{% endblock %}
+
+{% block bo_content %}
+<h1>Concern reports</h1>
+<p class="bo-note">
+  About <em>listings</em>, not about care. A complaint about someone's clinical care
+  goes to their regulator. Registration concerns are shown first.
+</p>
+
+<form method="get" class="bo-filters">{{ filter_form.as_p }}<button type="submit">Filter</button></form>
+
+<table class="bo-table">
+  <thead><tr><th>Practitioner</th><th>Category</th><th>Received</th><th>Assigned</th><th>Resolved</th><th></th></tr></thead>
+  <tbody>
+    {% for c in concerns %}
+      <tr>
+        <td>{{ c.practitioner.full_name }}</td>
+        <td>{{ c.get_category_display }}</td>
+        <td>{{ c.created_at|date:"j M Y" }}</td>
+        <td>{{ c.handled_by.email|default:"—" }}</td>
+        <td>{% if c.handled_at %}{{ c.handled_at|date:"j M Y" }}{% else %}—{% endif %}</td>
+        <td><a href="{% url 'backoffice:concern_detail' c.pk %}">Open</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6">Nothing open.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

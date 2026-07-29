@@ -202,3 +202,123 @@ def models_Q_expiring(horizon, now):
         | Q(provisional_expires_at__lte=now)
         | Q(minor_work_status=MinorWorkStatus.PROVISIONAL)
     )
+
+
+# ===========================================================================
+# Phase 2 additions
+# ===========================================================================
+# Everything above is the authored file. The two functions below were added for
+# the verification workbench, and both write verification state — so they live
+# here, next to recompute(), rather than in backoffice. Nothing outside this
+# module is permitted to write the computed fields.
+
+#: Types whose evidence carries an expiry date, per docs/verification-policy.md.
+#: Marking one of these VERIFIED without an expiry would create a badge element
+#: that can never lapse — which is the one thing the whole design is built to
+#: prevent.
+EXPIRING_TYPES = frozenset(
+    {
+        VerificationType.INSURANCE,
+        VerificationType.DBS,
+        VerificationType.ICO,
+    }
+)
+
+
+class ExpiryRequired(ValueError):
+    """A check of this type cannot be VERIFIED without an expiry date."""
+
+
+@transaction.atomic
+def set_check_status(check: VerificationCheck, *, status: str, actor, expires_at=None, notes: str = ""):
+    """Record a verifier's decision on one piece of evidence, then recompute.
+
+    The only supported way to move a check. It does NOT write is_verified or
+    minor_work_status — it writes the evidence and calls recompute(), which
+    derives them.
+    """
+    if status == VerificationStatus.VERIFIED and check.type in EXPIRING_TYPES and expires_at is None:
+        raise ExpiryRequired(
+            f"{check.get_type_display()} expires, so it needs an expiry date. "
+            "Without one the badge could never lapse."
+        )
+
+    before = {
+        "status": check.status,
+        "expires_at": check.expires_at.isoformat() if check.expires_at else None,
+    }
+
+    check.status = status
+    check.checked_by = actor
+    check.checked_at = timezone.now() if status == VerificationStatus.VERIFIED else None
+    if expires_at is not None:
+        check.expires_at = expires_at
+    if notes:
+        check.notes = notes
+    check.save(update_fields=["status", "checked_by", "checked_at", "expires_at", "notes"])
+
+    AuditLog.objects.create(
+        actor=actor,
+        action=f"verification.{check.type}.{status}",
+        entity_type="Practitioner",
+        entity_id=str(check.practitioner_id),
+        before=before,
+        after={"status": status, "expires_at": check.expires_at.isoformat() if check.expires_at else None},
+    )
+    return recompute(check.practitioner)
+
+
+#: A first extension is a judgement call a verifier can make. A second means the
+#: DBS has been outstanding for roughly six months, and that is a clinical risk
+#: decision, not an administrative one (docs/verification-policy.md).
+MAX_SELF_SERVICE_EXTENSIONS = 1
+
+
+class ExtensionRequiresSignOff(PermissionError):
+    """A second extension needs Dr. Abbass sign-off recorded on the practitioner."""
+
+
+@transaction.atomic
+def extend_provisional_dbs(
+    practitioner: Practitioner, actor, days: int = PROVISIONAL_WINDOW_DAYS, note: str = ""
+):
+    """Extend an open provisional window. Deliberate, counted, and capped.
+
+    grant_provisional_dbs() opens the first window; this extends it. Separate
+    functions on purpose — the window "does not self-renew", so extending has to
+    be a thing someone chose to do and can be counted.
+    """
+    if practitioner.provisional_extensions >= MAX_SELF_SERVICE_EXTENSIONS:
+        raise ExtensionRequiresSignOff(
+            "This listing has already been extended once. A second extension needs "
+            "Dr. Abbass to sign off on continuing to list for adult work while the "
+            "DBS is outstanding."
+        )
+
+    check = practitioner.verifications.filter(type=VerificationType.DBS).first()
+    if check is None or not check.provisional_until:
+        raise ValueError("There is no provisional DBS window to extend.")
+
+    until = timezone.now() + timedelta(days=days)
+    check.provisional_until = until
+    if note:
+        check.notes = note
+    check.save(update_fields=["provisional_until", "notes"])
+
+    Practitioner.objects.filter(pk=practitioner.pk).update(
+        provisional_extensions=practitioner.provisional_extensions + 1
+    )
+    practitioner.refresh_from_db(fields=["provisional_extensions"])
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="verification.dbs.provisional_extended",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={
+            "provisional_until": until.isoformat(),
+            "days": days,
+            "extension_number": practitioner.provisional_extensions,
+        },
+    )
+    return recompute(practitioner)

@@ -1,0 +1,35 @@
+{% extends "backoffice/base.html" %}
+{% block bo_title %}Practitioners{% endblock %}
+
+{% block bo_content %}
+<h1>Practitioners</h1>
+
+<form method="get" class="bo-filters">
+  <label for="status">Status</label>
+  <select name="status" id="status" onchange="this.form.submit()">
+    <option value="">All</option>
+    {% for value, label in statuses %}
+      <option value="{{ value }}" {% if value == selected_status %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <noscript><button type="submit">Filter</button></noscript>
+</form>
+
+<table class="bo-table">
+  <thead><tr><th>Name</th><th>Profession</th><th>Status</th><th>Badge</th><th>Under-18</th><th></th></tr></thead>
+  <tbody>
+    {% for p in practitioners %}
+      <tr>
+        <td>{{ p.full_name|default:"(no name yet)" }}</td>
+        <td>{{ p.profession.name|default:"—" }}</td>
+        <td>{{ p.get_status_display }}</td>
+        <td>{% if p.is_verified %}Verified{% else %}—{% endif %}</td>
+        <td>{{ p.get_minor_work_status_display }}</td>
+        <td><a href="{% url 'backoffice:practitioner_detail' p.pk %}">Open</a></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6">No practitioners.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

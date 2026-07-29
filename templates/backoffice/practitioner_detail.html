@@ -1,0 +1,68 @@
+{% extends "backoffice/base.html" %}
+{% block bo_title %}{{ practitioner.full_name }}{% endblock %}
+
+{% block bo_content %}
+<h1>{{ practitioner.full_name|default:"(no name yet)" }}</h1>
+
+<dl class="bo-facts">
+  <dt>Status</dt><dd>{{ practitioner.get_status_display }}</dd>
+  <dt>Account</dt><dd>{{ practitioner.user.email|default:"— (no account)" }}</dd>
+  <dt>Profession</dt><dd>{{ practitioner.profession.name|default:"—" }}</dd>
+  <dt>Badge</dt>
+  <dd>
+    {% if practitioner.is_verified %}
+      Verified — credentials checked {{ practitioner.credentials_checked_at|date:"j F Y" }}
+      {% if practitioner.verification_expires_at %}(expires {{ practitioner.verification_expires_at|date:"j F Y" }}){% endif %}
+    {% else %}Not verified{% endif %}
+  </dd>
+  <dt>Under-18 work</dt>
+  <dd>
+    {{ practitioner.get_minor_work_status_display }}
+    {% if practitioner.provisional_expires_at %} — window closes {{ practitioner.provisional_expires_at|date:"j F Y" }}{% endif %}
+  </dd>
+  {% if practitioner.suspended_at %}
+    <dt>Suspended</dt>
+    <dd>{{ practitioner.suspended_at|date:"j F Y" }} by {{ practitioner.suspended_by.email }} — {{ practitioner.suspend_reason }}</dd>
+  {% endif %}
+</dl>
+
+{% if blocking_reasons %}
+  <section class="bo-blocking" role="alert">
+    <h2>Cannot be published</h2>
+    {% for reason in blocking_reasons %}<p>{{ reason }}</p>{% endfor %}
+  </section>
+{% endif %}
+
+<p>
+  <a href="{% url 'backoffice:verification_workbench' practitioner.pk %}">Verification workbench</a>
+</p>
+
+{% if can_suspend %}
+  <h2>Listing</h2>
+  {% if practitioner.status == "suspended" %}
+    <form method="post" action="{% url 'backoffice:lift_suspension' practitioner.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost">Lift suspension</button>
+    </form>
+  {% else %}
+    <p><a href="{% url 'backoffice:suspend' practitioner.pk %}" class="btn btn-ghost">Suspend listing</a></p>
+  {% endif %}
+{% endif %}
+
+<h2>Review history</h2>
+<table class="bo-table">
+  <thead><tr><th>Submitted</th><th>Outcome</th><th>Reviewer</th><th>Notes</th></tr></thead>
+  <tbody>
+    {% for r in reviews %}
+      <tr>
+        <td><a href="{% url 'backoffice:review_detail' r.pk %}">{{ r.submitted_at|date:"j M Y H:i" }}</a></td>
+        <td>{{ r.get_outcome_display|default:"pending" }}</td>
+        <td>{{ r.reviewed_by.email|default:"—" }}</td>
+        <td>{{ r.reviewer_notes|default:"—" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4">Never submitted.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

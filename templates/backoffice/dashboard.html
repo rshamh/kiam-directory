@@ -1,0 +1,13 @@
+{% extends "backoffice/base.html" %}
+{% block bo_title %}Dashboard{% endblock %}
+
+{% block bo_content %}
+<h1>Back office</h1>
+
+<ul class="bo-tiles">
+  <li><a href="{% url 'backoffice:review_queue' %}"><strong>{{ review_count }}</strong> awaiting review</a></li>
+  <li><a href="{% url 'backoffice:concern_queue' %}"><strong>{{ concern_count }}</strong> open concerns</a></li>
+  <li><a href="{% url 'backoffice:practitioner_list' %}?status=published"><strong>{{ expiring_count }}</strong> published without a current badge</a></li>
+  <li><a href="{% url 'backoffice:invite_list' %}"><strong>{{ pending_invites }}</strong> invites not yet accepted</a></li>
+</ul>
+{% endblock %}

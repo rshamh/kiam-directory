@@ -1,0 +1,40 @@
+{% extends "backoffice/base.html" %}
+{% comment %}
+The second extension is blocked in the UI, not merely warned about. A verifier
+who has already extended once is being asked to keep somebody listed for roughly
+six months on an outstanding DBS, and docs/verification-policy.md makes that a
+clinical decision rather than an administrative one.
+{% endcomment %}
+{% block bo_title %}Extend provisional window{% endblock %}
+
+{% block bo_content %}
+<h1>Extend the provisional DBS window</h1>
+<p>{{ practitioner.full_name }} — extensions so far: {{ practitioner.provisional_extensions }}</p>
+
+{% if blocked %}
+  <section class="bo-blocking" role="alert">
+    <h2>This needs Dr. Abbass to sign off</h2>
+    <p>
+      This listing has already been extended once. A second extension means continuing
+      to list for adult work while the DBS has been outstanding for around six months,
+      and that is a clinical risk decision rather than an administrative one.
+    </p>
+    <p>Record the sign-off before extending again.</p>
+  </section>
+  <p><a href="{% url 'backoffice:verification_workbench' practitioner.pk %}">Back to verification</a></p>
+{% else %}
+  <section class="bo-warning" role="note">
+    <p><strong>The listing stays live for adult work only. Under-18 client groups
+    remain hidden until the DBS is verified.</strong></p>
+    <p>This extends the window by a further {{ window_days }} days. Only one extension
+    can be made without Dr. Abbass sign-off.</p>
+  </section>
+
+  <form method="post" class="bo-form">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Extend window</button>
+    <a href="{% url 'backoffice:verification_workbench' practitioner.pk %}">Cancel</a>
+  </form>
+{% endif %}
+{% endblock %}

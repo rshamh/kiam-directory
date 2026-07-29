@@ -1,0 +1,35 @@
+{% extends "backoffice/base.html" %}
+{% block bo_title %}Concern{% endblock %}
+
+{% block bo_content %}
+<h1>{{ concern.get_category_display }}</h1>
+<p>About <a href="{% url 'backoffice:practitioner_detail' concern.practitioner.pk %}">{{ concern.practitioner.full_name }}</a>,
+   received {{ concern.created_at|date:"j F Y" }}.</p>
+
+<blockquote class="bo-quote">{{ concern.detail|linebreaks }}</blockquote>
+
+{% if concern.reporter_email %}<p>Reporter: {{ concern.reporter_email }}</p>{% endif %}
+
+{% if concern.handled_at %}
+  <h2>Resolved</h2>
+  <p>{{ concern.handled_at|date:"j F Y" }} by {{ concern.handled_by.email }}</p>
+  <blockquote class="bo-quote">{{ concern.outcome|linebreaks }}</blockquote>
+{% else %}
+  {% if not concern.handled_by %}
+    <form method="post" class="bo-inline-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="assign">
+      <button type="submit" class="btn btn-ghost">Assign to me</button>
+    </form>
+  {% else %}
+    <p>Assigned to {{ concern.handled_by.email }}.</p>
+  {% endif %}
+
+  <h2>Resolve</h2>
+  <form method="post" class="bo-form">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Record outcome and close</button>
+  </form>
+{% endif %}
+{% endblock %}

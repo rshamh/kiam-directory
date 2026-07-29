@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% comment %}
+Back-office shell. Staff-only, so it is dense and assumes domain knowledge —
+the opposite of the public side's plain-language rules.
+
+Everything under /backoffice/ is noindex regardless of robots.txt. Defence in
+depth: a misconfigured robots.txt should not be the only thing between a review
+queue full of practitioners' personal data and a search index.
+{% endcomment %}
+
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block title %}{% block bo_title %}Back office{% endblock %} · Staff{% endblock %}
+
+{% block content %}
+<div class="container section bo">
+  <nav class="bo-nav" aria-label="Back office">
+    <a href="{% url 'backoffice:dashboard' %}">Dashboard</a>
+    <a href="{% url 'backoffice:review_queue' %}">Review</a>
+    <a href="{% url 'backoffice:practitioner_list' %}">Practitioners</a>
+    <a href="{% url 'backoffice:invite_list' %}">Invites</a>
+    <a href="{% url 'backoffice:concern_queue' %}">Concerns</a>
+    <a href="{% url 'backoffice:audit_log' %}">Audit log</a>
+  </nav>
+
+  {% if messages %}
+    <div class="bo-messages" role="status">
+      {% for message in messages %}<p class="bo-message bo-message--{{ message.tags }}">{{ message }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% block bo_content %}{% endblock %}
+</div>
+{% endblock %}

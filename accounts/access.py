@@ -136,3 +136,37 @@ def two_factor_satisfied(user) -> bool:
     if not (user and user.is_authenticated):
         return False
     return not requires_two_factor(user) or has_verified_two_factor(user)
+
+
+# ===========================================================================
+# Phase 2 additions — back-office capabilities
+# ===========================================================================
+# Named predicates for the two back-office actions the authored file did not
+# have one for. Both currently resolve to the same role set as
+# can_review_submissions, and that is deliberate rather than lazy:
+#
+#   * the authored can_review_submissions docstring already scopes it as
+#     "Approve, request changes, publish, suspend" — so suspension is not a new
+#     capability, it just had no name;
+#   * docs/architecture.md's roles matrix lists "Invite" alongside review for
+#     `admin`.
+#
+# They exist as separate names so a view reads as what it does, and so the two
+# can diverge later (restricting suspension to verifier+, say) by editing one
+# function rather than grepping for call sites — which is the entire reason
+# CLAUDE.md puts every role check in this file.
+
+
+def can_invite_users(user) -> bool:
+    """Issue an invitation. Account creation is invite-only; this is the gate."""
+    return can_review_submissions(user)
+
+
+def can_suspend_listing(user) -> bool:
+    """Pull a published listing, or restore one.
+
+    Kept distinct from can_review_submissions despite resolving the same today:
+    suspension is an enforcement action against a named professional, and if it
+    is ever narrowed it should be narrowed here.
+    """
+    return can_review_submissions(user)

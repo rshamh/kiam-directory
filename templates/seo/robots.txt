@@ -10,6 +10,7 @@ stop the crawler ever seeing either, and Google would keep the URLs in the index
 with no idea what they are. That rule lands with the search view in Phase 4.
 {% endcomment %}User-agent: *
 Disallow: /accounts/
+Disallow: /backoffice/
 Disallow: /staff-console/
 Disallow: /healthz
 
