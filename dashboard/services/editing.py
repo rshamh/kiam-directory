@@ -44,7 +44,8 @@ from dataclasses import dataclass, field
 
 from django.db import transaction
 
-from backoffice.services import review
+from backoffice.services import publication, review
+from directory.models import PublicationStatus
 from directory.services import completeness
 
 logger = logging.getLogger("dashboard.editing")
@@ -90,6 +91,8 @@ class Outcome:
 
     changed: list[str] = field(default_factory=list)
     controlled: list[str] = field(default_factory=list)
+    #: Fields whose wording tripped a HOLD rule — published, but queued for a human.
+    held: list[str] = field(default_factory=list)
     review_request = None
     #: True when this edit actually took a live badge off. Distinct from
     #: ``controlled`` being non-empty: a listing that had no badge loses nothing,
@@ -120,8 +123,20 @@ def controlled_labels(form, names) -> list[str]:
     return labels
 
 
+class PublicationBlocked(Exception):
+    """The edit would leave a LIVE listing in a state that may not be published.
+
+    Carries ``reasons`` — ``review.blocking_publication_reasons()``'s own strings,
+    written for a human. Raised inside the transaction, so nothing is saved.
+    """
+
+    def __init__(self, reasons: list[str]):
+        self.reasons = reasons
+        super().__init__(" ".join(reasons))
+
+
 @transaction.atomic
-def save(form, *, practitioner, actor, related_changed=()) -> Outcome:
+def save(form, *, practitioner, actor, related_changed=(), formsets=()) -> Outcome:
     """Persist an editor form and route the consequence.
 
     Args:
@@ -132,9 +147,15 @@ def save(form, *, practitioner, actor, related_changed=()) -> Outcome:
         related_changed: names from ``CONTROLLED_FIELDS`` whose *formsets* changed
             (``registrations``, ``qualifications``). The caller must pass these;
             see the module docstring on why they are not inferred.
+        formsets: the formsets themselves, saved **inside this transaction**. They
+            used to be saved by the view before this function ran, which meant a
+            credential change committed even if the rest of the edit failed —
+            precisely the state ``submit_update()`` exists to prevent.
 
-    Returns an ``Outcome``. Raises nothing on a no-op edit — pressing Save without
-    typing anything is a normal thing to do and gets an honest "nothing to change".
+    Returns an ``Outcome``. Raises ``PublicationBlocked`` when the edit would leave
+    a live listing publishing something it may not; nothing is saved in that case.
+    Raises nothing on a no-op edit — pressing Save without typing anything is a
+    normal thing to do and gets an honest "nothing to change".
     """
     changed = sorted(set(form.changed_data) | set(related_changed))
     controlled = review.controlled_changes(changed)
@@ -142,21 +163,73 @@ def save(form, *, practitioner, actor, related_changed=()) -> Outcome:
     had_badge = practitioner.is_verified
 
     form.save()
+    for formset in formsets:
+        formset.save()
     # M2M and formsets have their own signals, but Qualification and Registration
     # rows are different models entirely and signal nothing about the practitioner.
     # Recomputing here covers every editor with one call.
     practitioner.refresh_from_db()
     completeness.recompute(practitioner)
 
+    # THE PUBLICATION GATE, and it had no call site on this path until the Phase 6
+    # compliance review found two ways through it.
+    #
+    # docs/content-compliance.md §3: a restricted title "cannot publish without a
+    # verified Registration... enforced at review, not just in the UI". Until now
+    # `blocking_publication_reasons()` ran only at `approve()` and
+    # `lift_suspension()` — both staff transitions — so a practitioner could reach
+    # the forbidden state from their own dashboard by two different doors:
+    #
+    #   * change `profession` to a restricted title they hold nothing for, or
+    #   * delete the verified `Registration` the title they already hold rests on.
+    #
+    # Both kept the listing PUBLISHED (`submit_update()` is right to do that for a
+    # surname) and left a protected title rendering on a public page and in the
+    # JSON-LD `jobTitle`.
+    #
+    # Checked AFTER the write and inside the transaction, deliberately: that way it
+    # asks the authoritative function about the actual end state rather than
+    # re-deriving what the end state would be, so a third route to the same place
+    # cannot slip past a predicate that only knew about two.
+    if practitioner.status == PublicationStatus.PUBLISHED:
+        reasons = review.blocking_publication_reasons(practitioner)
+        if reasons:
+            logger.warning(
+                "dashboard.edit_blocked",
+                extra={"practitioner_id": str(practitioner.pk), "reasons": reasons},
+            )
+            raise PublicationBlocked(reasons)
+
     outcome = Outcome(changed=changed, controlled=controlled)
 
-    if controlled:
+    # A HOLD finding has to raise a review, or it holds nothing.
+    #
+    # docs/content-compliance.md §2 and §4 both say flagged copy "holds in review
+    # rather than auto-publishing". That was true of `review.submit()` and false
+    # here: `intro` and `services` are SAFE fields, so an efficacy claim or a
+    # description of child work went live immediately and the practitioner was
+    # shown a message saying a reviewer would check it — which nobody would have.
+    # Raising the review does not take the page down; it puts the wording in
+    # `open_queue()` in front of a human, which is what the copy already promised.
+    held = [f.field for f in getattr(form, "held_findings", [])]
+    outcome.held = sorted(set(held))
+
+    if controlled or held:
         # Only meaningful on a live listing. On a draft there is no badge to
         # withdraw and no page to protect, and `submit_update` returns None —
         # the ordinary submit path applies when they are ready.
-        outcome.review_request = review.submit_update(practitioner, changed_fields=controlled, actor=actor)
+        outcome.review_request = review.submit_update(
+            practitioner, changed_fields=controlled, actor=actor, held_fields=outcome.held
+        )
         practitioner.refresh_from_db()
         outcome.badge_withdrawn = had_badge and not practitioner.is_verified
+
+    # A dashboard edit changes what the home page and the facet counts are made
+    # of, and until the Phase 6 SEO review nothing on this path busted them.
+    # `bust_cache` was only ever reached from staff transitions, which was
+    # sufficient when staff were the only people who could change a live listing.
+    if changed:
+        publication.bust_cache(practitioner)
 
     logger.info(
         "dashboard.saved",

@@ -21,6 +21,18 @@ their listing down.
 <form method="post" class="dir-dash__form" novalidate>
   {% csrf_token %}
 
+  {% comment %}
+  Non-field errors are where the publication gate speaks. Without this the edit is
+  correctly refused and rolled back, and the practitioner is shown the form again
+  with no indication why — which is worse than either outcome on its own.
+  {% endcomment %}
+  {% if form.non_field_errors %}
+    <div class="dir-field__error" role="status">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+
   <fieldset class="dir-dash__fieldset">
     <legend>How you see clients</legend>
     {% include "dashboard/_field.html" with field=form.delivery_mode %}

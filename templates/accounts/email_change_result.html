@@ -10,9 +10,48 @@ address has to confirm too.
 
 {% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
 
+{% comment %}
+The canonical is overridden to a token-free URL. `templates/base.html` builds it
+from `request.path`, which on this page IS the token — writing a single-use
+credential into a `<link rel="canonical">` puts it in the DOM a second time and
+into the `Referer` header of every same-origin link on the page.
+{% endcomment %}
+{% block canonical %}{{ request.scheme }}://{{ request.get_host }}{% url 'accounts:login' %}{% endblock %}
+
 {% block content %}
 <div class="container section dir-page">
-  {% if state == "done" %}
+  {% if state == "confirm" %}
+    {% comment %}
+    A button, not an automatic confirmation.
+
+    This page used to record the confirmation on the GET. Corporate mail gateways
+    fetch every link in a message to scan it, so that recorded a confirmation with
+    no human involved — and with both mailboxes behind such a gateway the account's
+    sign-in address moved with nobody having clicked anything. The button is what
+    makes confirming an act rather than a fetch.
+    {% endcomment %}
+    {% include "kiam_ui/components/sections/section_head.html" with title="Confirm your new email address" description="Nothing has changed yet." heading_level=1 %}
+    <div class="prose">
+      <p>
+        This would change the address you sign in with from
+        <strong>{{ current_email }}</strong> to <strong>{{ new_email }}</strong>.
+      </p>
+      <p>
+        We ask both addresses to confirm, so this is one of two. The change happens
+        once the other one confirms too.
+      </p>
+      <form method="post">
+        {% csrf_token %}
+        {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Yes, confirm this change" %}
+      </form>
+      <p>
+        If you did not ask for this, close this page — nothing will change without
+        both confirmations. It would be worth signing in and checking the devices
+        listed on your security page.
+      </p>
+    </div>
+
+  {% elif state == "done" %}
     {% include "kiam_ui/components/sections/section_head.html" with title="Your email address has been changed" description="Both addresses confirmed, so the change is done." heading_level=1 %}
     <div class="prose">
       <p>You now sign in with <strong>{{ new_email }}</strong>.</p>

@@ -269,6 +269,15 @@ OTP_TOTP_ISSUER = "Kiam Clinic Directory"
 # `.kiamclinic.com` would share the session across all three subdomains, which
 # requires a shared user table and defeats project isolation
 # (docs/multi-project-architecture.md §3 Option C, §4). Do not add it.
+# Messages go in the SESSION, not in a cookie.
+#
+# Django's default FallbackStorage writes them to a client-side cookie when they
+# fit. The dashboard puts an uploaded evidence filename ("DBS-certificate.pdf")
+# and email addresses into messages, and a signed-but-not-encrypted cookie is not
+# where somebody's document names belong — it is readable by anyone with the
+# device and travels on every request. Sessions are server-side here.
+MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
+
 SESSION_COOKIE_NAME = "kiamdir_sessionid"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"

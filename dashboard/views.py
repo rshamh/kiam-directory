@@ -40,6 +40,7 @@ from accounts.services import email_change, ratelimit, two_factor
 from accounts.services import sessions as sessions_service
 from backoffice.services import publication, review
 from directory.models import (
+    AuditLog,
     Document,
     PractitionerLocation,
     PublicationStatus,
@@ -164,14 +165,20 @@ def _editor(request, practitioner, *, form_class, template, redirect_to):
     form = form_class(request.POST or None, request.FILES or None, instance=practitioner)
 
     if request.method == "POST" and form.is_valid():
-        outcome = editing.save(form, practitioner=practitioner, actor=request.user)
-        level, text = editing.message_for(outcome, form)
-        getattr(messages, level)(request, text)
+        try:
+            outcome = editing.save(form, practitioner=practitioner, actor=request.user)
+        except editing.PublicationBlocked as blocked:
+            # Nothing was saved — the gate raises inside the transaction.
+            for reason in blocked.reasons:
+                form.add_error(None, reason)
+        else:
+            level, text = editing.message_for(outcome, form)
+            getattr(messages, level)(request, text)
 
-        for finding in getattr(form, "held_findings", []):
-            messages.warning(request, finding.message)
+            for finding in getattr(form, "held_findings", []):
+                messages.warning(request, finding.message)
 
-        return redirect(redirect_to)
+            return redirect(redirect_to)
 
     return render(
         request,
@@ -216,7 +223,20 @@ def taxonomy(request, practitioner):
     form = forms.TaxonomyForm(request.POST or None, instance=practitioner)
 
     if request.method == "POST" and form.is_valid():
-        outcome = editing.save(form, practitioner=practitioner, actor=request.user)
+        try:
+            outcome = editing.save(form, practitioner=practitioner, actor=request.user)
+        except editing.PublicationBlocked as blocked:
+            for reason in blocked.reasons:
+                form.add_error(None, reason)
+            return render(
+                request,
+                "dashboard/taxonomy.html",
+                _context(
+                    practitioner,
+                    form=form,
+                    pending_requests=practitioner.taxonomy_requests.filter(resolved_at__isnull=True),
+                ),
+            )
 
         requested = form.taxonomy_requests()
         for axis, term in requested:
@@ -281,18 +301,25 @@ def credentials(request, practitioner):
         if registrations.has_changed():
             related_changed.append("registrations")
 
-        qualifications.save()
-        registrations.save()
-
-        outcome = editing.save(
-            form,
-            practitioner=practitioner,
-            actor=request.user,
-            related_changed=related_changed,
-        )
-        level, text = editing.message_for(outcome, form)
-        getattr(messages, level)(request, text)
-        return redirect("dashboard:credentials")
+        try:
+            # The formsets are saved INSIDE `editing.save()`'s transaction. They
+            # used to be saved here first, which meant a deleted registration
+            # committed even when the rest of the edit failed — and it is the
+            # deletion that can strand a restricted title with nothing behind it.
+            outcome = editing.save(
+                form,
+                practitioner=practitioner,
+                actor=request.user,
+                related_changed=related_changed,
+                formsets=(qualifications, registrations),
+            )
+        except editing.PublicationBlocked as blocked:
+            for reason in blocked.reasons:
+                form.add_error(None, reason)
+        else:
+            level, text = editing.message_for(outcome, form)
+            getattr(messages, level)(request, text)
+            return redirect("dashboard:credentials")
 
     return render(
         request,
@@ -332,6 +359,7 @@ def location_edit(request, practitioner, pk=None):
         location.practitioner = practitioner
         location.save()
         completeness.recompute(practitioner)
+        publication.bust_cache(practitioner)
 
         messages.success(
             request,
@@ -354,6 +382,7 @@ def location_delete(request, practitioner, pk):
     location = get_object_or_404(PractitionerLocation, pk=pk, practitioner=practitioner)
     location.delete()
     completeness.recompute(practitioner)
+    publication.bust_cache(practitioner)
     messages.success(request, "That address has been removed from your listing.")
     return redirect("dashboard:locations")
 
@@ -376,7 +405,17 @@ def documents(request, practitioner):
     ``directory/storages.py`` exists to make impossible. They can see that a file
     is there, what it is, and what state it is in.
     """
-    form = forms.EvidenceUploadForm(request.POST or None, request.FILES or None)
+    # The choices come from the practitioner's OWN checklist, not from a fixed
+    # list. The fixed list omitted DBS, which is the one the overview's
+    # provisional countdown tells them to upload and links them here to do —
+    # so a PROVISIONAL practitioner watching a 56-day window could not do the
+    # thing the window demands, and it would lapse to BLOCKED. Found at the
+    # Phase 6 compliance review.
+    form = forms.EvidenceUploadForm(
+        request.POST or None,
+        request.FILES or None,
+        choices=_upload_choices(practitioner),
+    )
 
     if request.method == "POST" and form.is_valid():
         if _upload_rate_limited(request):
@@ -435,10 +474,40 @@ def document_delete(request, practitioner, pk):
         )
         return redirect("dashboard:documents")
 
+    AuditLog.objects.create(
+        actor=request.user,
+        action="evidence.deleted",
+        entity_type="Document",
+        entity_id=str(document.pk),
+        before={
+            "practitioner_id": str(practitioner.pk),
+            "type": document.type,
+            "filename": document.original_filename,
+            "sha256": document.sha256,
+        },
+    )
     document.file.delete(save=False)
     document.delete()
     messages.success(request, "That document has been deleted.")
     return redirect("dashboard:documents")
+
+
+def _upload_choices(practitioner):
+    """Every check this listing needs, in the order the overview lists them.
+
+    Derived from `overview.checks()` so the upload form and the "what we still
+    need" panel cannot disagree about what is outstanding, intersected with
+    `documents.UPLOADABLE_TYPES` so it can never offer something the service will
+    refuse.
+    """
+    labels = dict(VerificationType.choices)
+    wanted = [c.type for c in overview.checks(practitioner) if c.type in evidence.UPLOADABLE_TYPES]
+    # Plus anything they may legitimately send that is not currently outstanding —
+    # a replacement for an in-date certificate, say.
+    for check_type in evidence.UPLOADABLE_TYPES:
+        if check_type not in wanted:
+            wanted.append(check_type)
+    return [(value, labels[value]) for value in wanted]
 
 
 def _upload_rate_limited(request) -> bool:
@@ -578,7 +647,7 @@ def unpublish(request, practitioner):
     without the other would leave the record saying somebody still consents to a
     listing that is gone, or a live listing with no consent behind it.
     """
-    form = forms.ConfirmActionForm(request.POST or None)
+    form = forms.ConfirmActionForm(request.POST or None, word="TAKE DOWN")
 
     if request.method == "POST" and form.is_valid():
         publication.withdraw_consent(
@@ -611,7 +680,7 @@ def remove(request, practitioner):
     Collapsing them would mean either that somebody taking a break for a month
     loses their evidence, or that somebody who wants to be gone stays on file.
     """
-    form = forms.ConfirmActionForm(request.POST or None)
+    form = forms.ConfirmActionForm(request.POST or None, word="REMOVE")
 
     if request.method == "POST" and form.is_valid():
         publication.request_removal(

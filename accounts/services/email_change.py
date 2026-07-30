@@ -119,6 +119,23 @@ def start(user, new_email: str, *, ip: str | None = None) -> EmailChangeRequest:
     return request
 
 
+def peek(raw_token: str) -> EmailChangeRequest | None:
+    """The request a token belongs to, **without recording anything**.
+
+    What the confirmation page renders its button from. Deliberately side-effect
+    free: a mail gateway that fetches the link must be able to do so without
+    moving the account anywhere, which is the whole reason the confirmation is a
+    POST. Returns ``None`` for anything not usable, and the caller must not be
+    able to tell an expired request from a cancelled one from a bad token.
+    """
+    token_hash = hash_token(raw_token or "")
+    request = (
+        EmailChangeRequest.objects.filter(current_token_hash=token_hash).first()
+        or EmailChangeRequest.objects.filter(new_token_hash=token_hash).first()
+    )
+    return request if (request is not None and request.is_open) else None
+
+
 def confirm(raw_token: str) -> EmailChangeRequest | None:
     """Record one confirmation. Applies the change when it is the second.
 

@@ -69,7 +69,15 @@ order of magnitude above contacts, and that relationship IS the diagnosis.
 
   <section class="dir-dash__panel">
     <h2>Day by day</h2>
-    <table class="dir-table dir-table--scroll">
+    {% comment %}
+    `tabindex="0"` and `role="region"` are what make this scrollable without a
+    mouse. Chromium happens to make scroll containers focusable on its own; Firefox
+    and WebKit do not, and at 320px five of the six columns are off-screen, which
+    is the normal state on a phone.
+    {% endcomment %}
+    <div class="dir-scroller" tabindex="0" role="region"
+         aria-label="Daily counts, scrollable">
+    <table class="dir-table">
       <caption class="sr-only">Daily counts for the last {{ report.window_days }} days</caption>
       <thead>
         <tr>
@@ -94,6 +102,7 @@ order of magnitude above contacts, and that relationship IS the diagnosis.
         {% endfor %}
       </tbody>
     </table>
+    </div>
   </section>
 
 {% endif %}

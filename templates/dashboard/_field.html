@@ -9,47 +9,50 @@ recorded as gaps 12 and 13 in docs/design-system.md: the packaged partial render
 `aria-describedby` target, so the hint disappears at the moment the reader is
 stuck and re-reading it — and its select renders a Python dict as the value of any
 falsy option. Both are raised upstream. Here, help text and errors are separate
-elements and both are in `aria-describedby`.
+elements and the `described` filter points the control at both.
+
+**A grouped widget gets a `<fieldset>`/`<legend>`, not a `<label>`.** A radio group
+or a checkbox list has no single input for a label to point at — Django says so by
+returning `""` from `id_for_label` — so `<label for="">` named nothing at all. The
+delivery-mode radios had no programmatic group label until the Phase 6
+accessibility review found it. `BoundField.use_fieldset` is Django's own answer to
+"does this widget need a group wrapper", so it is the thing to branch on.
 
 The controlled marker is the point of this partial. The brief: "the practitioner
 should know before saving which kind of change they're making." A badge after the
-label, and the consequence spelled out in the help text, so it is answered at the
-field rather than in a paragraph at the top nobody reads twice.
+label, and the consequence spelled out beside it, so it is answered at the field
+rather than in a paragraph at the top nobody reads twice.
 {% endcomment %}
 {% load dashboard %}
 <div class="dir-field{% if field.errors %} dir-field--error{% endif %}{% if wide %} dir-field--wide{% endif %}">
-  <label for="{{ field.id_for_label }}">
+  {% if field.use_fieldset %}<fieldset class="dir-field__group"><legend>{% else %}<label for="{{ field.id_for_label }}">{% endif %}
     {{ field.label }}
     {% if field.field.required %}<span class="dir-field__required">(required)</span>{% endif %}
     {% if field|is_controlled %}
       <span class="dir-field__controlled">We check this</span>
     {% endif %}
-  </label>
+  {% if field.use_fieldset %}</legend>{% else %}</label>{% endif %}
 
-  {% comment %}
-  The SHORT consequence here, the full one once per page in the legend. The first
-  draft repeated the long version on every marked field, which on this editor meant
-  a screen reader read the identical two-line sentence between four inputs.
-  {% endcomment %}
   {% if field|is_controlled %}
-    <p class="dir-field__consequence" id="{{ field.id_for_label }}-controlled">{{ controlled_consequence_short }}</p>
+    <p class="dir-field__consequence" id="{{ field.auto_id }}-controlled">{{ controlled_consequence }}</p>
   {% endif %}
 
   {% if field.help_text %}
-    <p class="dir-field__help" id="{{ field.id_for_label }}-help">{{ field.help_text }}</p>
+    <p class="dir-field__help" id="{{ field.auto_id }}-help">{{ field.help_text }}</p>
   {% endif %}
 
   {% comment %}
-  Errors BEFORE the control and help AFTER it, both referenced by
-  aria-describedby. A screen reader reaching the input hears the problem, then the
-  guidance that resolves it, then the control — which is the order somebody
-  actually needs them in.
+  Errors BEFORE the control and help AFTER the label, both referenced by
+  aria-describedby via the `described` filter. A screen reader reaching the input
+  hears the problem, then the guidance that resolves it — which is the order
+  somebody actually needs them in — and browse-mode order matches.
   {% endcomment %}
   {% if field.errors %}
-    <p class="dir-field__error" id="{{ field.id_for_label }}-error">
+    <p class="dir-field__error" id="{{ field.auto_id }}-error">
       {% for error in field.errors %}{{ error }}{% if not forloop.last %} {% endif %}{% endfor %}
     </p>
   {% endif %}
 
-  {{ field }}
+  {{ field|described }}
+  {% if field.use_fieldset %}</fieldset>{% endif %}
 </div>

@@ -35,7 +35,12 @@ data, so withdrawing it has to be at least as easy as giving it.
             <form method="post" action="{% url 'dashboard:revoke_session' %}">
               {% csrf_token %}
               <input type="hidden" name="session_key" value="{{ session.session_key }}">
-              <button type="submit" class="dir-linkbutton">Sign this one out<span class="sr-only"> — {{ session.device }}</span></button>
+              {% comment %}
+              The device string alone does not disambiguate — three "Unknown
+              device" rows produced three identically named buttons. The timestamp
+              is already on screen and is what tells them apart.
+              {% endcomment %}
+              <button type="submit" class="dir-linkbutton">Sign this one out<span class="sr-only"> — {{ session.device }}, last used {{ session.last_seen_at|date:"j F Y, H:i" }}</span></button>
             </form>
           {% endif %}
         </li>

@@ -195,7 +195,7 @@ def test_one_click_unpublish_removes_the_listing_from_public_view(client, listed
     be at least as easy as giving it — one action, a confirmation, immediate."""
     response = client.post(
         reverse("dashboard:unpublish"),
-        {"confirm": "REMOVE", "reason": "Taking a break."},
+        {"confirm": "TAKE DOWN", "reason": "Taking a break."},
         follow=True,
     )
     assert response.status_code == 200
@@ -211,7 +211,7 @@ def test_one_click_unpublish_removes_the_listing_from_public_view(client, listed
 def test_one_click_unpublish_removes_the_listing_from_search(client, listed):
     assert listed.full_name in client.get("/search/").content.decode()
 
-    client.post(reverse("dashboard:unpublish"), {"confirm": "REMOVE"}, follow=True)
+    client.post(reverse("dashboard:unpublish"), {"confirm": "TAKE DOWN"}, follow=True)
 
     assert listed.full_name not in client.get("/search/").content.decode()
 
@@ -222,7 +222,7 @@ def test_one_click_unpublish_removes_the_listing_from_the_home_page(client, list
     are re-read with `status=PUBLISHED` on the way out."""
     assert listed.full_name in client.get("/").content.decode()
 
-    client.post(reverse("dashboard:unpublish"), {"confirm": "REMOVE"}, follow=True)
+    client.post(reverse("dashboard:unpublish"), {"confirm": "TAKE DOWN"}, follow=True)
 
     assert listed.full_name not in client.get("/").content.decode()
 
@@ -242,7 +242,7 @@ def test_unpublishing_writes_the_consent_withdrawal(client, listed):
     )
     assert consent.withdrawn_at is None
 
-    client.post(reverse("dashboard:unpublish"), {"confirm": "REMOVE"}, follow=True)
+    client.post(reverse("dashboard:unpublish"), {"confirm": "TAKE DOWN"}, follow=True)
 
     consent.refresh_from_db()
     assert consent.withdrawn_at is not None
@@ -253,7 +253,7 @@ def test_the_withdrawal_is_recorded_as_the_practitioner_s_act_not_an_enforcement
     withdrew consent must not read later as somebody Kiam took action against."""
     from directory.models import AuditLog
 
-    client.post(reverse("dashboard:unpublish"), {"confirm": "REMOVE"}, follow=True)
+    client.post(reverse("dashboard:unpublish"), {"confirm": "TAKE DOWN"}, follow=True)
 
     actions = set(AuditLog.objects.filter(entity_id=str(listed.pk)).values_list("action", flat=True))
     assert "consent.withdrawn" in actions

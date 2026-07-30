@@ -11,10 +11,10 @@ The raw token appears here and nowhere else.
 {% if which == "current" %}Someone has asked to change the email address on your Kiam Clinic Directory
 account from {{ current_email }} to {{ new_email }}.
 
-If that was you, confirm it here:{% else %}Someone has asked to use this address for a Kiam Clinic Directory account that
+If that was you, open this and press the confirm button:{% else %}Someone has asked to use this address for a Kiam Clinic Directory account that
 currently signs in as {{ current_email }}.
 
-If that was you, confirm it here:{% endif %}
+If that was you, open this and press the confirm button:{% endif %}
 
 {{ url }}
 

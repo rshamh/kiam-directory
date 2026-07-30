@@ -265,26 +265,56 @@ def two_factor_qr_view(request):
 
 
 @never_cache
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 def email_change_confirm_view(request, token: str):
-    """Record one half of an email change.
+    """Record one half of an email change. **The GET shows a button; the POST acts.**
 
     **Takes no session, deliberately.** The link sent to the NEW address goes to
     somebody who may not be signed in anywhere — that is rather the point of
     confirming there — and requiring a login would make the new-address half
     unusable for the exact case it protects against.
 
-    A GET that changes state, which is normally wrong. The alternative is a page
-    with a button, and every mail client that prefetches links would then show the
-    user a form instead of a confirmation. The token is single-use and
-    unguessable, so the risk a POST would mitigate — a third party causing the
-    action from a page the user visits — needs the token anyway. `never_cache`
-    keeps it out of a shared proxy.
+    **It was a GET that confirmed, and that was wrong.** The argument for it was
+    that a page with a button is what a prefetching mail client would show instead
+    of a confirmation — which is exactly backwards: that is the desired outcome.
+    Corporate mail gateways fetch every URL in a message to scan it (Defender
+    SafeLinks, Proofpoint URL Defense, Mimecast), so a confirming GET recorded the
+    confirmation with no human involved. With both mailboxes behind such a gateway
+    the sign-in credential moved with **zero human action**, which defeats the
+    control this module exists for — see its docstring on the unattended session.
+
+    Note the asymmetry with `magic_link_consume_view`, which is also a
+    token-consuming GET: a prefetch there fails SAFE (the token burns, nobody is
+    signed in, the user asks for another). This one failed OPEN. Same shape, and
+    only one of them could be left alone.
+
+    The token still travels in the path rather than a query string, so it stays out
+    of `document.referrer`, and the POST target is the same URL.
     """
+    if request.method == "GET":
+        pending = email_change.peek(token)
+        if pending is None:
+            return render(request, "accounts/email_change_result.html", {"state": "invalid"}, status=400)
+        return render(
+            request,
+            "accounts/email_change_result.html",
+            {
+                "state": "confirm",
+                "new_email": pending.new_email,
+                "current_email": pending.user.email,
+                "meta_title": "Confirm your new email address",
+            },
+        )
+
     result = email_change.confirm(token)
 
     if result is None:
-        return render(request, "accounts/email_change_result.html", {"state": "invalid"}, status=400)
+        return render(
+            request,
+            "accounts/email_change_result.html",
+            {"state": "invalid", "meta_title": "That link is no longer valid"},
+            status=400,
+        )
 
     if result.is_fully_confirmed and result.completed_at:
         state = "done"
@@ -297,5 +327,13 @@ def email_change_confirm_view(request, token: str):
     return render(
         request,
         "accounts/email_change_result.html",
-        {"state": state, "new_email": result.new_email},
+        {
+            "state": state,
+            "new_email": result.new_email,
+            "meta_title": {
+                "done": "Your email address has been changed",
+                "half": "Thank you — one more to go",
+                "taken": "We could not make that change",
+            }[state],
+        },
     )

@@ -10,6 +10,12 @@ on them for, and the insights snapshot is not.
 {% block dash_title %}Overview{% endblock %}
 
 {% block dash_content %}
+{% comment %}
+Every other dashboard page has an <h1>; this one opened straight into <h2>, so the
+overview's heading run started at level 2. `noindex` excuses the crawler, not the
+screen-reader user, and golden rule #3 is written for this audience.
+{% endcomment %}
+<h1 class="sr-only">Overview of your listing</h1>
 
   {% if open_review and latest_review.reviewer_notes and status.waiting_on == "you" %}
     <section class="dir-dash__panel dir-dash__panel--warning">
@@ -58,15 +64,32 @@ on them for, and the insights snapshot is not.
 
     <section class="dir-dash__panel">
       <h2>What we have checked</h2>
+      {% comment %}
+      This sentence was wrong in BOTH directions before the Phase 6 gate review.
+      It said the badge depends on "every one of these", above a list that includes
+      DBS and ICO — neither of which is in `verification.BASE_REQUIRED`. So it
+      implied an expired DBS lapses the badge (it does not: DBS gates the SCOPE of
+      a listing, not the badge) and that uploading one restores it (it does not).
+      Measured: a listing showing the badge with ICO not submitted and DBS blocked,
+      directly under that claim.
+
+      The two things are now separated, because they are separate controls.
+      {% endcomment %}
       <p class="dir-dash__lede">
-        Your listing shows a “Credentials checked” badge only while every one of
-        these is verified and in date. <a href="{% url 'pages:how_verification_works' %}">What that means</a>.
+        The <strong>“Credentials checked”</strong> badge on your listing depends on
+        your identity, your registration, your qualifications and your insurance —
+        it comes off if any of those lapses. Your enhanced DBS check is separate: it
+        decides whether your under-18 client groups can show, not whether you have
+        the badge. <a href="{% url 'pages:how_verification_works' %}">What the badge means</a>.
       </p>
 
       <ul class="dir-checks" role="list">
         {% for check in checks %}
           <li class="dir-checks__item dir-checks__item--{{ check.state }}">
-            <span class="dir-checks__label">{{ check.label }}</span>
+            <span class="dir-checks__label">
+              {{ check.label }}
+              {% if not check.affects_badge %}<span class="dir-checks__note">does not affect the badge</span>{% endif %}
+            </span>
             <span class="dir-checks__state">{{ check.state_label }}</span>
 
             {% if check.expires_at %}

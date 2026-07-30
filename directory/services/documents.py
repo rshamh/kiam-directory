@@ -402,6 +402,19 @@ def can_delete(document) -> bool:
 
     An unverified document is theirs — an upload of the wrong file, or of a
     document they then decided not to submit — and they can take it back.
+
+    **Gated on "was ever checked", not "is checked right now".** Reading the
+    current status let any transition off VERIFIED unlock the delete: a routine
+    surname change reopens the identity check through
+    `verification.invalidate_for_changes()`, and the nightly sweep moves an expired
+    check to EXPIRED. Either one made the photo-ID scan the badge had been granted
+    against deletable by the person it was granted to. `checked_at` is set by
+    `verification.set_status()` when a verifier confirms it and is not cleared by
+    expiry, so it is the honest record of "Kiam has looked at this".
     """
     check = document.verification_check
-    return not (check and check.status == VerificationStatus.VERIFIED)
+    if check is None:
+        return True
+    if check.status == VerificationStatus.VERIFIED:
+        return False
+    return check.checked_at is None

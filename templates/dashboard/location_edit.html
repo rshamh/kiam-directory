@@ -6,7 +6,7 @@
 
 <form method="post" class="dir-dash__form" novalidate>
   {% csrf_token %}
-  {% if form.non_field_errors %}<div class="dir-field__error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+  {% if form.non_field_errors %}<div class="dir-field__error" role="status">{{ form.non_field_errors }}</div>{% endif %}
 
   <fieldset class="dir-dash__fieldset">
     <legend>The address</legend>

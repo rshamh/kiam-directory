@@ -26,7 +26,9 @@ field they came to change.
   {% csrf_token %}
 
   {% if form.non_field_errors %}
-    <div class="dir-field__error" role="alert">{{ form.non_field_errors }}</div>
+    <div class="dir-field__error" role="status">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
   {% endif %}
 
   <fieldset class="dir-dash__fieldset">

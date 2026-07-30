@@ -714,6 +714,64 @@ question, not the first. A consequence worth knowing: a session that has not pas
 cannot turn the challenge off, which is what stops an unattended half-authenticated session
 disabling it.
 
+### What the Phase 6 gate found
+
+**Eleven blockers across three reviewers, and none was visible to a green suite of
+1037 tests.** Two of them reopened doors that earlier phases had closed.
+
+**Compliance — three:**
+
+* **A practitioner could put a restricted title on their own live listing.**
+  `blocking_publication_reasons()` ran only at `approve()` and `lift_suspension()`,
+  both staff transitions, so the dashboard reached the forbidden state two ways:
+  change `profession` to a title with no verified registration, or delete the
+  verified `Registration` the title already rests on. Both kept the listing
+  PUBLISHED — right for a surname, wrong for a protected title — and left it in the
+  HTML and in `jobTitle`. `editing.save()` now calls the authoritative function
+  **after** the write and inside the transaction, so a third route to the same
+  place cannot slip past a predicate that only knew about two.
+* **POM names reached a live profile through free text the lint never read.**
+  `LINTED_FIELDS` reads attributes off the `Practitioner` row, so
+  `PractitionerLocation.label` / `days_at_site` and `Qualification.title` were never
+  scanned — the Phase 3 carry-forward, made exploitable by self-service editing.
+  `lint.related_texts()` closes it for `review.submit()`, and `LocationForm` lints
+  its own fields because a location edit publishes before `lint.run()` could see it.
+* **HOLD findings held nothing.** §2 and §4 both say flagged copy "holds in review
+  rather than auto-publishing". `intro` is a SAFE field, so an efficacy claim went
+  live immediately — under a message promising a reviewer would look at it.
+  `submit_update()` now takes `held_fields`.
+
+**SEO — two:**
+
+* **A taxonomy edit could republish ungated child work for 24 hours.** Phase 5
+  filtered `implies_minors` specialities when the twelve were *selected*; the grid
+  caches ids. Before Phase 6 only staff could change a live listing's specialities,
+  so selection-time filtering was sufficient. Now `_hydrate()` re-applies the
+  exclusion — the same fail-safe reasoning as the `PUBLISHED` re-check — and every
+  dashboard save busts the cache.
+* **The email-confirmation GET failed OPEN under mail-gateway prefetching.**
+  Defender SafeLinks and friends fetch every URL in a message; the GET recorded the
+  confirmation, so with both mailboxes behind a scanner the sign-in credential moved
+  with no human action. It is a POST behind a button now. Note the asymmetry that
+  made this obvious in hindsight: `magic_link_consume_view` is also a
+  token-consuming GET, and a prefetch there fails *safe*.
+
+**Accessibility — six, four of them one root cause.** Setting `aria-describedby` in
+a form's `__init__` meant Django would never add the error id
+(`BoundField.aria_describedby` gives up when the attribute exists), and
+`id_for_label` is `""` for grouped widgets — so every `client_groups` checkbox
+carried the literal `aria-describedby="-controlled"` and the delivery-mode radios
+had `<label for="">`. The wiring is built at render time now, from `auto_id`, with
+`use_fieldset` deciding label vs legend. Plus reflow at 320px on five pages (file
+inputs, long `.btn` labels, an unwrapped email address, two wide tables) and a
+scroll container whose comment claimed keyboard reachability the markup did not
+implement. Gaps 22–23.
+
+**Not fixed, and flagged:** nothing writes `ConsentRecord` anywhere in this project
+— the lawful basis for publishing is recorded nowhere, which is a Phase 2 gap too
+large for this phase. `blocking_publication_reasons()` now refuses a listing whose
+consent was *withdrawn*, which is the half Phase 6 opened.
+
 ### Still to build
 
 Phase 7: insights rollups, landing pages and launch prep. See `docs/roadmap.md`.

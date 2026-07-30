@@ -50,36 +50,9 @@ from directory.models import (
 )
 from directory.services import lint
 
-from .services import editing
-
 # ---------------------------------------------------------------------------
 # Shared pieces
 # ---------------------------------------------------------------------------
-
-
-def describe_fields(form) -> None:
-    """Wire `aria-describedby` from every control to its own help and consequence.
-
-    Django 5 adds `aria-describedby` for help text automatically **only** when the
-    form is rendered through its own `div.html` template. These templates render
-    `{{ field }}` inside their own markup — because kiam-ui's field partial drops
-    help text on error (docs/design-system.md gap 12) — so the attribute has to be
-    set here or the "we check this" consequence and the help text are visible to a
-    sighted user and invisible to a screen reader.
-
-    Ids match what `_field.html` emits. Errors are not included: Django sets
-    `aria-invalid` itself, and the error `<p>` is rendered before the control, so
-    it is read on the way past.
-    """
-    for name, field in form.fields.items():
-        auto_id = form[name].id_for_label
-        described = []
-        if editing.is_controlled(name):
-            described.append(f"{auto_id}-controlled")
-        if field.help_text:
-            described.append(f"{auto_id}-help")
-        if described:
-            field.widget.attrs["aria-describedby"] = " ".join(described)
 
 
 class PoundsField(forms.DecimalField):
@@ -231,7 +204,6 @@ class ProfileForm(LintedPractitionerForm):
         self.fields["profession"].empty_label = "Choose your profession"
         for name in ("pronouns", "gender", "years_experience", "qualified_since", "post_nominals"):
             self.fields[name].required = False
-        describe_fields(self)
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +272,32 @@ class LocationForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for name in ("label", "address_line2", "county", "days_at_site"):
             self.fields[name].required = False
-        describe_fields(self)
+
+    #: Free text on this form that renders on the public profile.
+    LINTED = ("label", "days_at_site")
+
+    def _lint_free_text(self) -> None:
+        """Scan this form's own free text before it is saved.
+
+        `lint.run()` reads the SAVED rows through `lint.related_texts()`, which is
+        what covers `review.submit()` — but it cannot see a value that is still in
+        a form, and a location edit publishes immediately. So the same patterns are
+        applied here, at the point of entry.
+
+        Only the BLOCK rule (prescription-only medicines) refuses. An efficacy
+        phrase in a place name is not something to stop somebody saving an address
+        over; `lint.run()` will hold it at the next submission.
+        """
+        pattern = lint._pattern(lint.pom_terms())  # noqa: SLF001 — same package, one definition
+        for name in self.LINTED:
+            matches = lint._find(self.cleaned_data.get(name) or "", pattern)  # noqa: SLF001
+            if matches:
+                self.add_error(
+                    name,
+                    "This names a prescription-only medicine, which UK advertising rules do "
+                    "not allow on a public page — and this text is shown on your listing. "
+                    "Please describe the service instead.",
+                )
 
     def clean(self):
         """Place the address, or refuse it.
@@ -310,6 +307,7 @@ class LocationForm(forms.ModelForm):
         so than to store a location that silently does nothing.
         """
         cleaned = super().clean()
+        self._lint_free_text()
         postcode = (cleaned.get("postcode") or "").strip()
 
         if not postcode:
@@ -411,8 +409,6 @@ class TaxonomyForm(forms.ModelForm):
                 ),
             )
 
-        describe_fields(self)
-
     def taxonomy_requests(self) -> list[tuple[str, str]]:
         """``(axis, term)`` for each "other" box that was filled in."""
         return [
@@ -443,7 +439,6 @@ class CredentialsForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        describe_fields(self)
 
 
 QualificationFormSet = inlineformset_factory(
@@ -455,15 +450,48 @@ QualificationFormSet = inlineformset_factory(
     can_delete=True,
 )
 
+
+class RegistrationForm(forms.ModelForm):
+    """One registration, and it stops being verified when its identity changes.
+
+    `Registration.verified` is a hand-set flag that `blocking_publication_reasons()`
+    and `lint._check_restricted_title()` both trust — it is what lets a protected
+    title publish. Editing `registration_no` from 1234567 to 7654321 used to leave
+    it `True`, so the listing kept asserting that Kiam had checked a number nobody
+    had ever seen.
+
+    `verification.invalidate_for_changes()` reopens the *VerificationCheck* on a
+    controlled edit, which is the badge; this is the row underneath it, and the two
+    are separate records. Changing where the registration points therefore clears
+    the flag here. `register_url` deliberately does not: it is a convenience link
+    for the quarterly re-check, not the identity of the registration.
+    """
+
+    class Meta:
+        model = Registration
+        fields = ("body", "registration_no", "register_url")
+        labels = {
+            "body": "Regulator or professional body",
+            "registration_no": "Registration number",
+            "register_url": "Link to your entry on their public register",
+        }
+
+    IDENTITY_FIELDS = ("body", "registration_no")
+
+    def save(self, commit=True):
+        registration = super().save(commit=False)
+        if registration.verified and any(f in self.changed_data for f in self.IDENTITY_FIELDS):
+            registration.verified = False
+            registration.verified_at = None
+        if commit:
+            registration.save()
+        return registration
+
+
 RegistrationFormSet = inlineformset_factory(
     Practitioner,
     Registration,
-    fields=("body", "registration_no", "register_url"),
-    labels={
-        "body": "Regulator or professional body",
-        "registration_no": "Registration number",
-        "register_url": "Link to your entry on their public register",
-    },
+    form=RegistrationForm,
     extra=1,
     can_delete=True,
 )
@@ -477,8 +505,19 @@ RegistrationFormSet = inlineformset_factory(
 class AvailabilityForm(LintedPractitionerForm):
     """Everything on this page publishes immediately. Nothing here is controlled."""
 
-    fee_min = PoundsField(label="Fee from (£)", required=False)
-    fee_max = PoundsField(label="Fee up to (£)", required=False)
+    # Declared at class level, so `Meta.help_texts` does not reach them — Django
+    # only applies those to fields it generates. Both help strings existed and
+    # rendered on no page at all until the Phase 6 accessibility review.
+    fee_min = PoundsField(
+        label="Fee from (£)",
+        required=False,
+        help_text="Your usual fee, or the lower end if it varies. One of the two filters people use most.",
+    )
+    fee_max = PoundsField(
+        label="Fee up to (£)",
+        required=False,
+        help_text="Leave blank if you have a single rate.",
+    )
 
     class Meta:
         model = Practitioner
@@ -529,7 +568,6 @@ class AvailabilityForm(LintedPractitionerForm):
         self.fields["typical_wait"].required = False
         self.fields["online_coverage"].required = False
         self.fields["availability_note"].required = False
-        describe_fields(self)
 
     def clean(self):
         cleaned = super().clean()
@@ -584,18 +622,22 @@ class EmailChangeForm(forms.Form):
 
 
 class ConfirmActionForm(forms.Form):
-    """A typed confirmation for the two irreversible-feeling actions.
+    """A typed confirmation. The word names the action being taken.
 
-    Not a checkbox. Taking a listing down is the thing a practitioner is most
-    likely to do by accident from a keyboard, and the thing they will be most
-    upset about — and full removal schedules their evidence for deletion. Typing
-    the word is a beat of deliberation, and it is the pattern people already know
-    from other services.
+    Not a checkbox: taking a listing down is the thing a practitioner is most
+    likely to do by accident from a keyboard, and typing a word is a beat of
+    deliberation people already know from other services.
+
+    **The word differs between the two actions**, and that is the point.
+    Unpublishing is reversible and deletes nothing; removal schedules evidence for
+    deletion. Making somebody type REMOVE to do the reversible one — on the page
+    whose entire message is "nothing is deleted" — contradicts the page and trains
+    them to type it without reading.
     """
 
     WORD = "REMOVE"
 
-    confirm = forms.CharField(label="Type REMOVE to confirm", strip=True)
+    confirm = forms.CharField(strip=True)
     reason = forms.CharField(
         label="Anything you want to tell us? (optional)",
         required=False,
@@ -603,8 +645,13 @@ class ConfirmActionForm(forms.Form):
         help_text="Not required, and it does not delay anything. It helps us improve the directory.",
     )
 
+    def __init__(self, *args, word: str = "", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.word = (word or self.WORD).upper()
+        self.fields["confirm"].label = f"Type {self.word} to confirm"
+
     def clean_confirm(self):
         value = (self.cleaned_data.get("confirm") or "").strip().upper()
-        if value != self.WORD:
-            raise forms.ValidationError(f"Type {self.WORD} exactly, in capitals, to confirm.")
+        if value != self.word:
+            raise forms.ValidationError(f"Type {self.word} exactly, in capitals, to confirm.")
         return value

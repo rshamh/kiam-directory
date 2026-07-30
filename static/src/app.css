@@ -1952,3 +1952,98 @@ html[data-contrast="high"] .site-footer :focus {
 }
 
 .dir-dash__locked { color: var(--text-secondary); font-size: var(--text-body-sm); }
+
+
+/* ============================================================
+   Phase 6 gate — fixes from the accessibility review.
+   ============================================================ */
+
+/* WCAG 1.4.10, four pages. The control-sizing rule above lists text, email, url,
+   tel, number, password, select and textarea — and not `file`. An unstyled file
+   input measures ~342px and does not shrink, so /dashboard/profile/ and
+   /dashboard/documents/ scrolled sideways at 320px. Nothing automated reports it:
+   axe does not test reflow. */
+.dir-field input[type="file"] {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  box-sizing: border-box;
+}
+
+/* The same page's "Currently: <a>" link is a raw storage path, which cannot wrap
+   at a sensible point on its own. */
+.dir-field a {
+  overflow-wrap: anywhere;
+}
+
+/* kiam-ui's `.btn` is `white-space: nowrap` with 28px of horizontal padding, which
+   is right for "Book" and wrong for "Sign out everywhere except this device" —
+   365px against a 320px viewport. Phase 6 is the first surface with button labels
+   this long, so it is an unrecorded gap rather than a regression. Scoped to the
+   dashboard; the fix belongs upstream. */
+.dir-dash .btn {
+  white-space: normal;
+  max-inline-size: 100%;
+}
+
+/* A wide table has to scroll INSIDE its own box, and the scroller has to be
+   reachable without a mouse.
+   `tabindex="0"` and the role/label are on the wrapper in the template — this is
+   the half that makes it a scroll container at all. The previous comment claimed
+   keyboard reachability that the markup did not implement: current Chromium makes
+   scroll containers focusable by default, which is not the behaviour in Firefox or
+   WebKit, and not something to rely on. */
+.dir-scroller {
+  overflow-x: auto;
+  max-inline-size: 100%;
+}
+
+.dir-scroller:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* `.dir-field:has(input[type="checkbox"])` matched the PHOTO field, because
+   Django's ClearableFileInput renders a `headshot-clear` checkbox inside it. The
+   whole field flipped to `row-reverse`, which put "Clear" to the left of its own
+   checkbox — visual order reversed against DOM order, WCAG 1.3.2 — and turned the
+   file input into an unconstrained flex item. Excluding the file field is narrower
+   than rewriting the `:has()` rule and does not disturb the real checkboxes. */
+.dir-field:has(input[type="file"]) {
+  display: block;
+}
+
+/* Declared and never defined, so three template classes were no-ops. */
+.dir-field--wide .dir-field__help,
+.dir-field--wide .dir-field__consequence {
+  max-inline-size: 68ch;
+}
+
+.dir-dash__fieldset--choices {
+  border: 0;
+  padding: 0;
+}
+
+.dir-stats__change--down {
+  color: var(--amber-text);
+}
+
+/* The inline delete checkbox in the credential formsets: label and control on one
+   line, with the row identity in an sr-only suffix. */
+.dir-field--inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+  cursor: pointer;
+}
+
+/* An email address is one unbreakable token, and it is the practitioner's own, so
+   it can be any length. "demo.practitioner@example.com" measured 282px inside a
+   320px viewport and pushed /dashboard/security/ to 338. Anything on the dashboard
+   that prints a user-supplied identifier has to be allowed to break. */
+.dir-dash__lede,
+.dir-dash__panel p,
+.dir-sessions__meta,
+.dir-places__address {
+  overflow-wrap: anywhere;
+}

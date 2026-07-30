@@ -17,6 +17,13 @@ badge with it while photo ID sits verified forever. A practitioner told only
 is listed with its own state and its own expiry, and the reminder thresholds from
 ``docs/verification-policy.md`` (60/30/7/0 days) are applied per check.
 
+TODO(sign-off): Dr. Abbass — everything in ``STATUS_COPY``, ``minor_work()`` and
+the check panel is public copy derived from ``docs/verification-policy.md``, which
+§8 of ``docs/content-compliance.md`` puts behind a clinical gate. Being behind a
+login narrows who reads it, not what it asserts: this is the copy that determines
+whether a practitioner understands the under-18 gate and the DBS window, which is
+a higher-consequence audience than an anonymous browser, not a lower one.
+
 **The provisional-DBS countdown is worded from the brief, verbatim.** It is the one
 piece of copy on this page that a practitioner may act on wrongly if it is vague:
 they are live, they are earning, and the thing that is missing is a safeguarding
@@ -146,6 +153,11 @@ class Check:
     #: Whether the practitioner needs to do something about this one.
     needs_action: bool
     action: str = ""
+    #: Whether this check is one the BADGE depends on. DBS and ICO are not:
+    #: DBS gates the scope of a listing (under-18 groups) and ICO is required by
+    #: policy but is not in `verification.BASE_REQUIRED`. Showing them in one
+    #: undifferentiated list is what made the panel's own copy wrong.
+    affects_badge: bool = True
 
     @property
     def is_expiring_soon(self) -> bool:
@@ -225,6 +237,7 @@ def checks(practitioner) -> list[Check]:
                 days_left=days_left,
                 needs_action=bool(action),
                 action=action,
+                affects_badge=check_type in verification.required_types(practitioner),
             )
         )
     return out

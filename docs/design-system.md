@@ -538,6 +538,27 @@ component**; each is either configured around or built locally in `templates/com
     own title from this repo would be a fourth local override of `ds-*` in one phase. **Raise as a
     kiam-ui issue.**
 
+22. **`.btn` is `white-space: nowrap` with 28px of horizontal padding.** Right for "Book",
+    wrong for "Sign out everywhere except this device" — measured 365px against a 320px
+    viewport, a WCAG 1.4.10 failure. Phase 6 is the first surface in this repo with button
+    labels that long, so it is an unrecorded gap rather than a regression.
+    *Worked around locally:* `.dir-dash .btn { white-space: normal; max-inline-size: 100% }`.
+    **Raise as a kiam-ui issue.**
+
+23. **Django's `BoundField.aria_describedby` gives up if the widget already has one.**
+    Not a kiam-ui gap — recorded because it cost real time and will recur. Setting
+    `aria-describedby` in a form's `__init__` (for help text, say) means Django will never
+    add the **error** id, so an invalid field announces its label and `aria-invalid` and no
+    reason. Two further traps in the same family: `BoundField.id_for_label` is `""` for
+    `CheckboxSelectMultiple` and `RadioSelect`, so interpolating it produces literal
+    `aria-describedby="-controlled"` on every sub-input and `<label for="">`; and Django's
+    own generated ids use `{auto_id}_helptext` where a hand-written template is likely to
+    emit `{auto_id}-help`.
+    *Fix:* build the whole attribute at render time from `auto_id`, where the errors are
+    known — `dashboard/templatetags/dashboard.py::described` — and branch the label/legend
+    on `BoundField.use_fieldset`, which is Django's own answer to "does this widget need a
+    group wrapper".
+
 > §5's row *"Footer link text on `--green-900` uses `--mint-100`"* does not match the shipped
 > v1.0.1 footer, which is `--surface-inverse` with `#cdd6d6` links. Both pass AA; the documented
 > pairing is simply not the one in the package. Re-check on the next pin bump.

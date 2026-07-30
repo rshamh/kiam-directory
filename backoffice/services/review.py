@@ -165,11 +165,19 @@ def submit(practitioner, *, actor=None) -> ReviewRequest:
 
 
 @transaction.atomic
-def submit_update(practitioner, *, changed_fields, actor=None) -> ReviewRequest | None:
+def submit_update(practitioner, *, changed_fields, actor=None, held_fields=()) -> ReviewRequest | None:
     """A published listing was edited. Decide whether that needs looking at.
 
     Returns the ``ReviewRequest`` raised, or ``None`` when nothing controlled
-    changed and the edit simply publishes.
+    changed, nothing was held, and the edit simply publishes.
+
+    ``held_fields`` arrived at Phase 6. A HOLD finding — an efficacy claim, a
+    description of child work — is not a controlled *field* and withdraws no
+    badge, but docs/content-compliance.md §2 and §4 both say flagged copy "holds
+    in review rather than auto-publishing". Before the dashboard that was true by
+    construction, because the only route to those fields was `submit()`. A
+    practitioner editing a live listing's `intro` reaches them directly, so the
+    hold has to be raised here or it holds nothing at all.
 
     **The listing stays PUBLISHED.** Pulling a live page down because somebody
     corrected the spelling of their own surname would be a punishment for keeping
@@ -184,7 +192,9 @@ def submit_update(practitioner, *, changed_fields, actor=None) -> ReviewRequest 
     name changes.
     """
     controlled = controlled_changes(changed_fields)
-    if not controlled:
+    held = sorted(set(held_fields or ()))
+
+    if not controlled and not held:
         return None
 
     if practitioner.status != PublicationStatus.PUBLISHED:
@@ -192,12 +202,17 @@ def submit_update(practitioner, *, changed_fields, actor=None) -> ReviewRequest 
         # ordinary submit() path applies.
         return None
 
-    reopened = verification.invalidate_for_changes(practitioner, controlled, actor=actor)
+    # Only a CONTROLLED change reopens a check. A held phrase is a wording
+    # question for a reviewer, not evidence going stale — withdrawing the badge
+    # over it would punish the wrong thing.
+    reopened = (
+        verification.invalidate_for_changes(practitioner, controlled, actor=actor) if controlled else []
+    )
 
     request = ReviewRequest.objects.create(
         practitioner=practitioner,
         snapshot=build_snapshot(practitioner),
-        changed_fields=controlled,
+        changed_fields=controlled or held,
         lint_flags=lint.run(practitioner).as_dict(),
     )
 
@@ -296,6 +311,37 @@ def blocking_publication_reasons(practitioner) -> list[str]:
     on verification, which happens after review.
     """
     reasons = []
+
+    # Consent is the lawful basis for publishing this data, so a listing whose
+    # owner has withdrawn it may not go back up until they give it again.
+    #
+    # `withdraw_consent()` closes every open ConsentRecord — correct — but until
+    # Phase 6's compliance review nothing checked for one on the way back, and
+    # there is no re-listing flow that captures a new one. So whatever staff
+    # improvised to put somebody back would have republished personal data with
+    # every consent row on the account carrying `withdrawn_at`. This makes that
+    # impossible rather than merely unlikely.
+    #
+    # TODO(sign-off): solicitor — re-listing needs a real path that captures a
+    # fresh ConsentRecord against the current terms_version. Until it exists this
+    # refuses, which is the safe direction.
+    # Scoped to WITHDRAWN, not to "has no record". Nothing in this project writes a
+    # ConsentRecord yet — the invite flow does not create one and neither does
+    # review — so refusing every listing without one would block the entire publish
+    # path, which is a Phase 2 gap and a much larger change than this. Recorded at
+    # the Phase 6 gate as its own finding: the lawful basis for publishing is
+    # currently written down nowhere.
+    #
+    # What IS in scope is the hole Phase 6 opened: a practitioner can now withdraw
+    # consent themselves, and nothing stopped a reviewer putting the listing back.
+    if (
+        practitioner.consents.exists()
+        and not practitioner.consents.filter(withdrawn_at__isnull=True).exists()
+    ):
+        reasons.append(
+            "This practitioner has withdrawn their consent to be listed. They have to give "
+            "it again before the listing can be published."
+        )
 
     profession = practitioner.profession
     if profession and profession.restricted:

@@ -418,7 +418,11 @@ def test_the_page_does_not_offer_to_match_or_recommend_anybody(client, listings)
 def test_the_grid_is_described_as_a_sample_not_a_ranking(client, listings):
     body = flat(client.get(URL).content.decode())
 
-    assert "Which twelve changes every day" in body
+    # The count comes from the grid rather than from a constant: Phase 5 could
+    # never have seen "Twelve" be wrong, because `completeness` had no writer and
+    # the grid was empty in production.
+    assert "12 listings from the directory" in body
+    assert "changes every day" in body
     assert "not a shortlist and it is not a recommendation" in body
 
 

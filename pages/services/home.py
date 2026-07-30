@@ -170,19 +170,35 @@ def _build_grid_payload(size: int) -> dict:
 def _hydrate(ids: list[str], srcsets: dict[str, str]) -> list[Practitioner]:
     """Re-read the chosen rows, in the chosen order, from the live table.
 
-    ``status=PUBLISHED`` is re-applied here deliberately — see the module
-    docstring. The ordering comes from ``ids`` rather than from the database,
-    because ``__in`` does not preserve it and the order is the whole point of the
-    daily shuffle.
+    **Both safety filters are re-applied here, not only the selection-time ones**,
+    and the second was added at the Phase 6 SEO review.
+
+    ``status=PUBLISHED`` covers a suspension that outran ``bust_cache()``.
+
+    The under-18 exclusion covers something Phase 5 could not have needed: back
+    then, only staff could add an ``implies_minors`` speciality to a live listing,
+    so filtering at selection time was enough. The dashboard's taxonomy editor made
+    that self-service and immediate — and ``specialities`` is a SAFE field, so it
+    publishes on Save. A practitioner already inside the cached twelve who ticked
+    "Child & adolescent ADHD assessment" had the pill rendered on the home page,
+    under Kiam's own editorial selection, until the entry expired. Reproduced
+    before it was fixed.
+
+    ``bust_cache()`` on the edit path is the primary mechanism and is now called.
+    This is the fail-safe that makes it non-load-bearing — the same reasoning as
+    the ``PUBLISHED`` re-check, which the module docstring already sets out.
+
+    The ordering comes from ``ids`` rather than from the database, because ``__in``
+    does not preserve it and the order is the whole point of the daily shuffle.
     """
     if not ids:
         return []
 
     rows = {
         str(p.pk): p
-        for p in Practitioner.objects.filter(pk__in=ids, status=PublicationStatus.PUBLISHED).select_related(
-            "profession"
-        )
+        for p in Practitioner.objects.filter(pk__in=ids, status=PublicationStatus.PUBLISHED)
+        .exclude(pk__in=search_service._ungated_minor_work_ids())
+        .select_related("profession")
     }
     items = [rows[pk] for pk in ids if pk in rows]
 

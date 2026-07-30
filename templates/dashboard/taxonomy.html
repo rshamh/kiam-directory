@@ -10,6 +10,7 @@ types something and never sees it appear will type it again.
 "Who you work with" is the controlled one, and it is the one that decides whether
 an enhanced DBS is required at all.
 {% endcomment %}
+{% load dashboard %}
 {% block dash_title %}What you do{% endblock %}
 
 {% block dash_content %}
@@ -36,17 +37,38 @@ an enhanced DBS is required at all.
 <form method="post" class="dir-dash__form" novalidate>
   {% csrf_token %}
 
+  {% comment %}
+  Non-field errors are where the publication gate speaks. Without this the edit is
+  correctly refused and rolled back, and the practitioner is shown the form again
+  with no indication why — which is worse than either outcome on its own.
+  {% endcomment %}
+  {% if form.non_field_errors %}
+    <div class="dir-field__error" role="status">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+
   {% for group in form.visible_fields %}
     {% if group.name|slice:":6" != "other_" %}
       <fieldset class="dir-dash__fieldset dir-dash__fieldset--choices">
         <legend>
           {{ group.label }}
-          {% load dashboard %}
           {% if group|is_controlled %}<span class="dir-field__controlled">We check this</span>{% endif %}
         </legend>
-        {% if group|is_controlled %}<p class="dir-field__consequence">{{ controlled_consequence_short }}</p>{% endif %}
-        {% if group.errors %}<p class="dir-field__error">{{ group.errors }}</p>{% endif %}
-        <div class="dir-choices">{{ group }}</div>
+        {% comment %}
+        The consequence paragraph needs an `id`, or the `described` filter points at
+        nothing. This is the field that decides whether an enhanced DBS is required
+        at all, so its "changing this withdraws your badge" warning is the one that
+        must not be sighted-only — and it was, on all ten checkboxes, until the
+        Phase 6 accessibility review.
+
+        Errors go in a <div>: Django renders an <ul class="errorlist">, which is
+        invalid inside <p> and gets auto-closed by the parser.
+        {% endcomment %}
+        {% if group|is_controlled %}<p class="dir-field__consequence" id="{{ group.auto_id }}-controlled">{{ controlled_consequence_short }}</p>{% endif %}
+        {% if group.errors %}<div class="dir-field__error" id="{{ group.auto_id }}-error">{{ group.errors }}</div>{% endif %}
+        <div class="dir-choices">{{ group|described }}</div>
       </fieldset>
     {% endif %}
   {% endfor %}
