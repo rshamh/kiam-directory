@@ -451,3 +451,529 @@ html[data-contrast="high"] .dir-reveal:focus {
 .dir-reveal-page__back {
   margin-block-start: var(--space-8);
 }
+
+/* ============================================================
+   Phase 4 — /search/: the filter sidebar, the result cards, pagination.
+
+   Same rules as the Phase 3 block: semantic token aliases only, no raw swatches,
+   no hex, and no transitions or animations anywhere.
+
+   The one layout decision worth stating: the sidebar and the results are a CSS
+   grid inside ONE form, so the markup order is the reading order and nothing
+   depends on script to keep the filter state together. Below the breakpoint the
+   grid collapses to a single column and the sidebar comes FIRST, because on a
+   phone "change what I searched for" is the thing people reach for.
+   ============================================================ */
+
+.dir-search__form {
+  margin-block-start: var(--space-8);
+}
+
+.dir-search__layout {
+  margin-block-start: var(--space-8);
+  display: grid;
+  gap: var(--space-8);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 60rem) {
+  .dir-search__layout {
+    grid-template-columns: 18rem 1fr;
+    align-items: start;
+  }
+}
+
+/* ---------- the search bar ---------- */
+
+.dir-searchbar {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+
+@media (min-width: 48rem) {
+  .dir-searchbar {
+    grid-template-columns: 2fr 2fr 1fr auto;
+    align-items: start;
+  }
+}
+
+.dir-searchbar__field label,
+.dir-filter-group__legend {
+  display: block;
+  margin-block-end: var(--space-2);
+  color: var(--text-heading);
+  font-weight: var(--weight-semibold);
+}
+
+.dir-searchbar__help {
+  margin-block-start: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+
+.dir-searchbar__submit {
+  align-self: end;
+}
+
+/* ---------- the sidebar ---------- */
+
+.dir-search__sidebar {
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+}
+
+.dir-search__sidebar-title {
+  margin-block-end: var(--space-4);
+}
+
+.dir-filter-block {
+  border-block-start: 1px solid var(--border-default);
+  padding-block: var(--space-3);
+}
+
+.dir-filter-block > summary {
+  cursor: pointer;
+  padding-block: var(--space-2);
+  color: var(--text-heading);
+  font-weight: var(--weight-semibold);
+}
+
+/* A <summary> is focusable and must show it. The default marker is kept — it is
+   the only affordance saying the section opens. */
+.dir-filter-block > summary:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.dir-filter-group {
+  border: 0;
+  padding: 0;
+  margin-block: var(--space-4);
+}
+
+.dir-filter-group__help {
+  margin-block-end: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+
+.dir-filter-group__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Generous hit area: the whole label is the target, and 44px of height clears
+   WCAG 2.2 §2.5.8 with room to spare on a phone. */
+.dir-filter-group__label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+  padding-block: var(--space-2);
+  font-weight: var(--weight-regular);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.dir-filter-group__label input {
+  margin-block-start: 0.2em;
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  flex: 0 0 auto;
+  accent-color: var(--brand-primary);
+}
+
+.dir-filter-group__item--parent .dir-filter-group__label {
+  font-weight: var(--weight-medium);
+}
+
+.dir-filter-group--tree .dir-filter-group__list {
+  padding-inline-start: var(--space-3);
+}
+
+.dir-search__sidebar-actions {
+  margin-block-start: var(--space-6);
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--border-default);
+  display: grid;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+/* ---------- status, chips ---------- */
+
+.dir-search__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.dir-search__count {
+  color: var(--text-heading);
+  font-weight: var(--weight-semibold);
+}
+
+/* The loading state. htmx-indicator is hidden until a request is in flight; no
+   spinner and no animation — it is a word, which is calmer and needs no
+   reduced-motion escape hatch. */
+.dir-search__busy {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+
+.htmx-indicator {
+  display: none;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  display: inline;
+}
+
+.dir-search__chips {
+  margin-block-start: var(--space-4);
+}
+
+.dir-chips {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dir-chips__remove {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 2rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  text-decoration: none;
+  font-size: var(--text-body-sm);
+}
+
+.dir-search__clear {
+  font-size: var(--text-body-sm);
+}
+
+.dir-search__notice {
+  margin-block-start: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-primary);
+}
+
+/* ---------- results ---------- */
+
+.dir-results {
+  list-style: none;
+  padding: 0;
+  margin-block-start: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+}
+
+.dir-practitioner {
+  padding: var(--space-5);
+}
+
+.dir-practitioner__featured {
+  margin-block-end: var(--space-3);
+}
+
+.dir-practitioner__body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.dir-practitioner__headshot {
+  inline-size: 5rem;
+  block-size: 5rem;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  flex: 0 0 auto;
+}
+
+.dir-practitioner__headshot--empty {
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+
+.dir-practitioner__detail {
+  flex: 1 1 16rem;
+}
+
+.dir-practitioner__name {
+  margin-block-end: var(--space-1);
+}
+
+.dir-practitioner__name a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.dir-practitioner__post-nominals {
+  color: var(--text-secondary);
+  font-weight: var(--weight-regular);
+  font-size: var(--text-body-sm);
+}
+
+.dir-practitioner__profession {
+  color: var(--text-secondary);
+}
+
+.dir-practitioner__meta {
+  margin-block-start: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--text-body-sm);
+}
+
+.dir-practitioner__verified,
+.dir-practitioner__distance {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.dir-practitioner__specialities {
+  list-style: none;
+  padding: 0;
+  margin-block-start: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dir-practitioner__availability {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-body-sm);
+}
+
+.dir-practitioner__accepting {
+  color: var(--text-heading);
+  font-weight: var(--weight-medium);
+}
+
+.dir-practitioner__closed {
+  color: var(--text-secondary);
+}
+
+/* ---------- pagination and empty state ---------- */
+
+.dir-pagination {
+  margin-block-start: var(--space-8);
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--border-default);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dir-pagination__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 2.75rem;
+  padding-inline: var(--space-3);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.dir-pagination__status {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+
+.dir-empty-state {
+  margin-block-start: var(--space-6);
+  padding: var(--space-6);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  max-width: 60ch;
+}
+
+.dir-empty-state__title {
+  margin-block-end: var(--space-3);
+}
+
+.dir-empty-state__actions {
+  margin-block: var(--space-4);
+  padding-inline-start: var(--space-6);
+  display: grid;
+  gap: var(--space-2);
+  list-style: disc;
+}
+
+.dir-empty-state__actions a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.dir-empty-state__note {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+
+/* ============================================================
+   Phase 4 gate — fixes from the accessibility review.
+
+   The first block is the one that matters most: it is a local override of a
+   kiam-ui rule, which docs/design-system.md §8 calls a last resort. The comment
+   is the justification the rule requires.
+   ============================================================ */
+
+/* kiam-ui's `.ds-control:focus-visible` does `outline: none` and replaces it with
+   a 4px rgba(47,140,127,0.18) ring, which composites to #DAEAE8 — 1.24:1 on white
+   and 1.22:1 on the sidebar's mint. The border change is 1.60:1. That is not a
+   visible focus indicator, and its specificity (0,2,0) beats kiam-ui's own global
+   `:focus-visible { outline: 3px solid }`, so the package overrides itself.
+   `html[data-contrast="high"]` only widens `outline-width`, which does nothing to
+   an outline of `none` — so high-contrast users got nothing either.
+
+   Recorded as Gap 14 in docs/design-system.md at Phase 3 and left upstream. Phase 4
+   put six of these controls on the most important page on the site, including both
+   text inputs the whole search depends on, so it is worked around locally now and
+   the local override goes when the pin moves.
+
+   Scoped to the search page rather than global: this is a Phase 4 fix, and a
+   site-wide override of a packaged component belongs in the kiam-ui change. */
+.dir-search .ds-control:focus-visible,
+.dir-search .ds-control:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+html[data-contrast="high"] .dir-search .ds-control:focus-visible,
+html[data-contrast="high"] .dir-search .ds-control:focus {
+  outline-width: 4px;
+}
+
+/* The sidebar sits on `--surface-card`, not `--surface-sunken`.
+   `--control-border` is documented at ~3.2:1 "on mint/white" — that is mint-50 and
+   white. Phase 4 was the first place a control was put on mint-100, where the same
+   border measures 2.85:1 and fails WCAG 1.4.11 for a control boundary. */
+.dir-search__sidebar {
+  background: var(--surface-card);
+}
+
+/* `--border-default` on the old sunken sidebar was 1.04:1 — the group dividers the
+   sidebar is structured around did not render at all. */
+.dir-filter-block,
+.dir-search__sidebar-actions {
+  border-color: var(--border-hover);
+}
+
+/* Tailwind's preflight sets `h1..h6 { font-size: inherit; font-weight: inherit }`
+   and kiam-ui sizes only `.ds-section-head__title`, so every heading in this
+   phase's components rendered at body size — including the practitioner's name,
+   which is the primary scanning cue on a twenty-result page and the main link on
+   every card. */
+.dir-practitioner__name {
+  font-size: var(--text-title-sm);
+  line-height: var(--line-height-heading);
+}
+
+.dir-search__sidebar-title,
+.dir-empty-state__title {
+  font-size: var(--text-title-sm);
+  line-height: var(--line-height-heading);
+  font-weight: var(--weight-semibold);
+}
+
+/* Links inside the sidebar's help text were distinguished by colour alone:
+   `--text-link` against `--text-secondary` is 1.21:1, a WCAG 1.4.1 Level A
+   failure. docs/design-system.md Gap 11 says the `dir-*` classes underline their
+   links; this one did not. */
+.dir-filter-group__help a,
+.dir-searchbar__help a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* "Skip to results" — visible on focus, out of the way otherwise. Not `.sr-only`:
+   a sighted keyboard user needs to see it, and it is the only bypass past ~196
+   filter controls. */
+.dir-search__skip {
+  margin-block-end: var(--space-3);
+}
+
+.dir-search__skip a {
+  display: inline-block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.dir-search__skip a:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  background: var(--surface-sunken);
+}
+
+/* "N selected" on a collapsed group, so an applied filter is visible from outside
+   the <details> that hides it. */
+.dir-filter-block__count {
+  margin-inline-start: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--brand-accent-soft);
+  color: var(--text-heading);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+}
+
+/* Featured listings get a visible frame as well as the "Paid placement" pill, so
+   the disclosure is not carried by one small element (content-compliance §6). */
+.dir-practitioner--featured {
+  border-color: var(--brand-secondary);
+  box-shadow: var(--shadow-soft);
+}
+
+/* A CLOSED <details> must actually collapse.
+
+   It did not, and the reason is subtle enough to be worth writing down: this
+   file sets `display: grid` on `.dir-filter-group__list` and `display: block`
+   elsewhere inside these groups, and an author `display` declaration on the
+   content of a closed <details> defeats the collapse. So every group rendered
+   open regardless of the attribute — measured in Chrome: `details.open === false`
+   while the speciality checkbox inside it reported `offsetWidth: 18` and
+   `getClientRects().length: 1`.
+
+   The consequence was the whole point of collapsing them: 317 tabbable controls
+   in the sidebar instead of ~30, all of them in the accessibility tree, with the
+   results below the lot. Closing the big group in the template had no effect at
+   all, and neither the suite nor reading the markup would ever have shown it.
+
+   Higher specificity than the `display` rules it has to beat, so no `!important`.
+   Hiding the direct children takes their descendants with them. */
+details.dir-filter-block:not([open]) > *:not(summary) {
+  display: none;
+}

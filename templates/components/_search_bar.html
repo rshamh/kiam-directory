@@ -1,0 +1,97 @@
+{% comment %}
+SearchBar — the query, the location and the radius, side by side.
+
+Params: params · near · location · location_failed · facets
+
+The location field is a plain text input with a native `<datalist>`. That is a
+deliberate choice over a hand-rolled combobox: the browser supplies the entire
+keyboard pattern — arrow keys, Escape, filtering, the announcement — and if the
+suggestion request never lands, what remains is a working text box that the server
+geocodes anyway. A `<div>` with a keydown handler is precisely what this avoids.
+
+The radius is a `<select>`, not a slider. A slider needs a text alternative, is
+hard to operate with a motor impairment and is worse on a phone; a select needs
+none of that and is seven discrete values.
+
+`hx-get` on the location input populates the datalist as you type. `hx-trigger`
+carries a delay so it is not a request per keystroke, and `changed` so re-focusing
+the field does not re-ask.
+{% endcomment %}
+{% comment %}
+`role="search"` is on THIS region rather than on the form, which also wraps the
+sidebar and twenty result cards — a landmark named "Search practitioners"
+containing the whole page body helps nobody navigating by landmark.
+{% endcomment %}
+<div class="dir-searchbar" role="search" aria-label="Search practitioners">
+
+  <div class="dir-searchbar__field">
+    <label for="search-q">What do you need help with?</label>
+    <input class="ds-control"
+           type="search"
+           id="search-q"
+           name="q"
+           value="{{ params.q }}"
+           {% comment %} spellcheck stays ON: this site ships a dyslexia display mode, and
+              switching it off on the one box where somebody types "obsessive
+              compulsive" or "dissociation" removes a real aid. {% endcomment %}
+           placeholder="ADHD assessment, anxiety, EMDR…"
+           aria-describedby="search-q-help">
+    <p class="dir-searchbar__help" id="search-q-help">
+      A condition, an approach, or a practitioner's name. Leave it blank to browse everything.
+    </p>
+  </div>
+
+  <div class="dir-searchbar__field">
+    <label for="search-near">Where are you?</label>
+    <input class="ds-control"
+           type="text"
+           id="search-near"
+           name="near"
+           value="{{ near }}"
+           list="place-options"
+           autocomplete="off"
+           placeholder="Postcode or town"
+           aria-describedby="search-near-help"
+           hx-get="{% url 'search:place_suggestions' %}"
+           hx-trigger="input changed delay:400ms"
+           hx-target="#place-options"
+           hx-sync="this:replace">
+    <datalist id="place-options">
+      {% include "search/partials/_place_options.html" %}
+    </datalist>
+    <p class="dir-searchbar__help" id="search-near-help">
+      {% if location %}
+        Showing practitioners near <strong>{{ location.label }}</strong>.
+        Suggestions may appear as you type.
+      {% elif location_failed %}
+        We didn't recognise that place, so these results aren't filtered by distance.
+        Try a full postcode.
+      {% else %}
+        A postcode or a town name — suggestions may appear as you type. Optional:
+        leave it blank to include everywhere.
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="dir-searchbar__field dir-searchbar__field--radius">
+    {% comment %} "Within" alone announces as "Within, combo box" with nothing to say what it
+       measures (WCAG 2.4.6). {% endcomment %}
+    <label for="search-radius">Within (distance from you)</label>
+    <select class="ds-control ds-control--select" id="search-radius" name="radius">
+      {% for miles in facets.radii %}
+        <option value="{{ miles }}" {% if miles == params.radius_miles %}selected{% endif %}>
+          {{ miles }} mile{{ miles|pluralize }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="dir-searchbar__submit">
+    {% comment %}
+    A real, always-visible submit button. With JavaScript off this is the only way
+    to run the search, so it is never hidden and never replaced by an icon.
+    {% endcomment %}
+    {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Search" icon="search" icon_position="left" %}
+  </div>
+
+</div>

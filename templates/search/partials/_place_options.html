@@ -1,0 +1,10 @@
+{% comment %}
+Options for the location field's native datalist.
+
+Rendered inline on first paint (empty) and swapped in by HTMX as somebody types.
+Bare <option> elements: a datalist takes nothing else, and there is no wrapper to
+get out of step with the element the swap targets.
+{% endcomment %}
+{% for place in places %}
+  <option value="{{ place.label }}"></option>
+{% endfor %}

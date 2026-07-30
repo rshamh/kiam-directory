@@ -1,0 +1,127 @@
+{% comment %}
+PractitionerCard — one listing in a result list.
+
+  {% include "components/_practitioner_card.html" with practitioner=practitioner %}
+
+Composed on kiam-ui's card shell with a `dir-practitioner` modifier, per
+docs/design-system.md §8 — not a new card.
+
+**The whole card is not a link.** The practitioner's name is. A card-sized anchor
+wrapping a headshot, three pills and a badge gives a screen reader one enormous
+link whose accessible name is the entire card read aloud, and it makes the pills
+untargetable. One clear link, named after the person, is what somebody navigating
+by links needs to hear.
+
+**Featured listings are labelled here, at the point of display.** Nothing is
+featured yet; the label exists before the first person pays for one, because
+undisclosed paid ranking breaches CAP rules (docs/content-compliance.md §6) and a
+label added later is a label somebody has to remember to add.
+
+Contact details are deliberately absent, exactly as on the profile. The card links
+to the profile and the reveal happens there.
+{% endcomment %}
+<article class="ds-card dir-practitioner{% if practitioner.is_featured %} dir-practitioner--featured{% endif %}">
+
+  {% if practitioner.is_featured %}
+    <p class="dir-practitioner__featured">
+      {% include "kiam_ui/components/core/pill.html" with label="Paid placement" tone="outline" %}
+    </p>
+  {% endif %}
+
+  <div class="dir-practitioner__body">
+
+    {% if practitioner.headshot %}
+      {% comment %}
+      `width`/`height` are the CSS box (5rem = 80px, `.dir-practitioner__headshot`),
+      hard-coded rather than read off the file: `headshot.width` opens the image
+      through the storage backend on every render, and twenty of those on a result
+      page is twenty round trips — with a missing file taking the page down. The
+      attributes are what stop twenty images reflowing the list as they resolve.
+
+      The FIRST card is not lazy-loaded. It is the likely LCP element on this page,
+      and `loading="lazy"` on the largest above-the-fold image is a known Core Web
+      Vitals anti-pattern (docs/seo.md §Performance asks for lazy loading *below*
+      the fold, which is the half that was missed).
+
+      No `srcset` yet: `headshot` is a plain ImageField with no rendition pipeline,
+      so there is only one file to offer. Tracked for Phase 5 with the home-page
+      grid, which has the same need.
+      {% endcomment %}
+      <img class="dir-practitioner__headshot"
+           src="{{ practitioner.headshot.url }}"
+           alt="{{ practitioner.display_title }} {{ practitioner.full_name }}"
+           width="80"
+           height="80"
+           loading="{% if forloop.first %}eager{% else %}lazy{% endif %}"
+           {% if forloop.first %}fetchpriority="high"{% endif %}
+           decoding="async">
+    {% else %}
+      <div class="dir-practitioner__headshot dir-practitioner__headshot--empty" aria-hidden="true">
+        {% include "kiam_ui/components/icon.html" with name="user" size=28 %}
+      </div>
+    {% endif %}
+
+    <div class="dir-practitioner__detail">
+
+      <h3 class="dir-practitioner__name">
+        <a href="{% url 'directory:profile' practitioner.slug %}">
+          {{ practitioner.display_title }} {{ practitioner.full_name }}</a>{% if practitioner.post_nominals %}
+        <span class="dir-practitioner__post-nominals">{{ practitioner.post_nominals }}</span>{% endif %}
+      </h3>
+
+      {% if practitioner.profession %}
+        <p class="dir-practitioner__profession">{{ practitioner.profession.name }}</p>
+      {% endif %}
+
+      {% comment %}
+      The badge comes from the SHARED partial, not a copy.
+
+      This card reimplemented it inline at first, and lost three things by doing so:
+      the mandatory "What this does and does not mean" link — whose own component
+      docstring says it "is part of the badge rather than an optional extra, because
+      the policy requires the limits of the claim to be one click away from wherever
+      the claim appears", and on a results page the claim appears twenty times; the
+      date format (`F Y` instead of `j F Y`); and single-sourcing, so a
+      Dr. Abbass-signed reword of the most-repeated gated string on the site would
+      have silently missed this copy.
+      {% endcomment %}
+      {% include "components/_verified_badge.html" with practitioner=practitioner %}
+
+      <p class="dir-practitioner__meta">
+        {% comment %}
+        Distance when we have one, "Online" when we do not. `distance_miles` is
+        computed in the service — a practitioner with no address, matched because
+        they work online, genuinely has no distance and must not be shown "0 miles".
+        {% endcomment %}
+        {% if practitioner.distance_miles is not None %}
+          <span class="dir-practitioner__distance">
+            {% include "kiam_ui/components/icon.html" with name="pin" size=15 %}
+            {{ practitioner.distance_miles|floatformat:1 }} miles away
+          </span>
+        {% elif practitioner.offers_online %}
+          <span class="dir-practitioner__distance">
+            {% include "kiam_ui/components/icon.html" with name="video" size=15 %}
+            Online
+          </span>
+        {% endif %}
+      </p>
+
+      {% if practitioner.top_specialities %}
+        <ul class="dir-practitioner__specialities" role="list">
+          {% for speciality in practitioner.top_specialities %}
+            <li>{% include "kiam_ui/components/core/pill.html" with label=speciality.name %}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <p class="dir-practitioner__availability">
+        {% if practitioner.accepting_new_clients %}
+          <span class="dir-practitioner__accepting">Accepting new clients</span>
+        {% else %}
+          <span class="dir-practitioner__closed">Not currently accepting new clients</span>
+        {% endif %}
+      </p>
+
+    </div>
+  </div>
+</article>

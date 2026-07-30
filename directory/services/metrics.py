@@ -55,6 +55,38 @@ def record_reveal(practitioner, channel: str) -> None:
     _increment(practitioner, field)
 
 
+def record_search_impressions(practitioners, *, request=None) -> None:
+    """Count one search appearance for everybody on this page of results.
+
+    Two queries for a whole page, not two per practitioner. ``bulk_create`` with
+    ``ignore_conflicts`` creates whichever rows are missing for today and silently
+    skips the rest, then one ``update`` with ``F()`` increments them all — which
+    also keeps the increment atomic, so two people running the same search in the
+    same second both count.
+
+    A per-practitioner ``get_or_create`` loop here would be forty queries on a page
+    with a latency budget (docs/seo.md), for a counter.
+    """
+    if request is not None and looks_automated(request):
+        return
+
+    ids = [p.pk for p in practitioners]
+    if not ids:
+        return
+
+    today = timezone.localdate()
+    try:
+        DailyMetric.objects.bulk_create(
+            [DailyMetric(practitioner_id=pk, date=today) for pk in ids],
+            ignore_conflicts=True,
+        )
+        DailyMetric.objects.filter(practitioner_id__in=ids, date=today).update(
+            search_impressions=F("search_impressions") + 1
+        )
+    except Exception:  # noqa: BLE001 — a counter must never break a page
+        logger.exception("metrics.impressions_failed", extra={"count": len(ids)})
+
+
 def looks_automated(request) -> bool:
     agent = request.META.get("HTTP_USER_AGENT", "").lower()
     return any(marker in agent for marker in CRAWLER_MARKERS)

@@ -1,0 +1,139 @@
+{% comment %}
+The results themselves — the whole of what HTMX swaps into #results, and the same
+markup the full page renders inline on a normal GET. One template for both, so the
+no-JavaScript path cannot drift from the enhanced one.
+
+The out-of-band block updates the persistent live region in search.html. It is
+guarded on `request.htmx` because on a full-page render the region is rendered
+directly and a second copy would appear as stray text.
+
+The independence notice is NOT in this fragment — it is in `search/search.html`,
+above the form, so it is on the page before the results and stays put when they
+swap. §5 requires it on every search-results page and it is there; saying so here
+just made it look like this file's job.
+{% endcomment %}
+
+{% if request.htmx %}
+  <span hx-swap-oob="innerHTML:#result-count">{% include "search/partials/_result_count.html" %}</span>
+{% endif %}
+
+{% if location_failed %}
+  <div class="dir-search__notice" role="status">
+    <p>
+      We couldn't place “{{ near }}”, so these results aren't narrowed by distance.
+      A full postcode usually works best.
+    </p>
+  </div>
+{% endif %}
+
+{% if results %}
+
+  {% comment %}
+  A real heading for the results, screen-reader-only because the count above it
+  already says this visually.
+
+  Without it the last <h2> before the practitioners' <h3> names is the sidebar's
+  "Filters" — the aside comes first in DOM order — so the document outline said
+  every practitioner was a subsection of the filter panel. No heading level is
+  skipped, which is why the heading-order test passed; the outline was still wrong.
+  It also replaces the `aria-label` that used to be on the <ol>, which was doing
+  nothing: a list is not a landmark or a named role, so the name was never exposed.
+  {% endcomment %}
+  <h2 class="sr-only">Practitioners matching your search</h2>
+
+  <ol class="dir-results" role="list">
+    {% for practitioner in results %}
+      <li class="dir-results__item">
+        {% include "components/_practitioner_card.html" with practitioner=practitioner %}
+      </li>
+    {% endfor %}
+  </ol>
+
+  {% if page.num_pages > 1 %}
+    <nav class="dir-pagination" aria-label="Results pages">
+      {% if page.has_previous %}
+        {% comment %}
+        `id` is load-bearing, not decoration. htmx 2.0.4 restores focus after a swap
+        only when the previously focused element had one
+        (`if (s.elt && !le(s.elt) && ee(s.elt, "id"))`), and these anchors live
+        inside #results and are destroyed by it. Without an id, activating "Next"
+        dropped focus to <body> — leaving a keyboard user with no position and the
+        whole filter sidebar between them and the link they had just used.
+        {% endcomment %}
+        <a class="dir-pagination__link"
+           id="pagination-previous"
+           href="{{ previous_url }}"
+           hx-get="{% url 'search:search' %}{{ previous_url }}"
+           hx-target="#results"
+           hx-replace-url="true"
+           rel="prev">
+          {% include "kiam_ui/components/icon.html" with name="arrow-left" size=16 %}
+          Previous
+        </a>
+      {% endif %}
+
+      <p class="dir-pagination__status">
+        Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.total }}
+      </p>
+
+      {% if page.has_next %}
+        <a class="dir-pagination__link"
+           id="pagination-next"
+           href="{{ next_url }}"
+           hx-get="{% url 'search:search' %}{{ next_url }}"
+           hx-target="#results"
+           hx-replace-url="true"
+           rel="next">
+          Next
+          {% include "kiam_ui/components/icon.html" with name="arrow-right" size=16 %}
+        </a>
+      {% endif %}
+    </nav>
+  {% endif %}
+
+{% else %}
+
+  {% comment %}
+  The empty state. It suggests the two things that actually widen a search —
+  a bigger radius and fewer filters — with working links rather than advice,
+  because "try broadening your search" is not help.
+  {% endcomment %}
+  <div class="dir-empty-state">
+    <h2 class="dir-empty-state__title">No practitioners match these filters</h2>
+    <p>That may just mean the directory is still small. Two things usually help:</p>
+    <ul class="dir-empty-state__actions">
+      {% if location and params.radius_miles < 50 %}
+        <li>
+          {% comment %} A plain navigation. Swapping only #results left the radius <select>
+             showing the old value, so the next filter change reverted the widening
+             the visitor had just asked for. {% endcomment %}
+          <a href="{{ wider_radius_url }}">
+            Search within {{ wider_radius }} miles of {{ location.label }} instead
+          </a>
+        </li>
+      {% endif %}
+      {% if active_filters %}
+        <li>
+          {% comment %}
+          The link keeps `q` in the href — it has to, or it is not the same search —
+          but the visible text does not quote it back. Rendering a stranger's typed
+          words as page prose is how a prescription-only medicine name ends up in
+          copy, and "your search" reads better anyway.
+          {% endcomment %}
+          <a href="{% url 'search:search' %}?q={{ params.q|urlencode }}">
+            Keep your search but clear the {{ active_filters|length }} filter{{ active_filters|length|pluralize }}
+          </a>
+        </li>
+        <li><a href="{% url 'search:search' %}">Start again with no filters</a></li>
+      {% endif %}
+      {% if not location %}
+        <li>Add a postcode or town to see who is near you.</li>
+      {% endif %}
+    </ul>
+    <p class="dir-empty-state__note">
+      If you were expecting somebody specific, they may not be listed here — the
+      directory only lists practitioners who have joined it.
+    </p>
+  </div>
+
+{% endif %}

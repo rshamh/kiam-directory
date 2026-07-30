@@ -83,3 +83,52 @@ def test_a_failed_metric_write_never_breaks_the_page(client, published, monkeypa
     monkeypatch.setattr(DailyMetric.objects, "get_or_create", explode)
 
     assert client.get(f"/p/{published.slug}/").status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Search impressions — added at the Phase 4 compliance review, which noted the
+# behaviour was correct and nothing held it there.
+# ---------------------------------------------------------------------------
+
+
+def test_a_search_counts_an_impression_for_everyone_on_the_page(client):
+    from directory.factories import PractitionerFactory
+
+    listed = [PractitionerFactory(published=True, slug=f"imp{i}") for i in range(3)]
+
+    client.get("/search/")
+
+    for practitioner in listed:
+        assert DailyMetric.objects.get(practitioner=practitioner).search_impressions == 1
+
+
+def test_impressions_cost_two_queries_for_a_whole_page(django_assert_max_num_queries):
+    """Not two per practitioner. A get_or_create loop would be forty queries on a
+    page with a latency budget."""
+    from directory.factories import PractitionerFactory
+
+    listed = [PractitionerFactory(published=True, slug=f"q{i}") for i in range(10)]
+
+    with django_assert_max_num_queries(2):
+        metrics.record_search_impressions(listed)
+
+
+def test_a_crawler_does_not_inflate_search_impressions(client):
+    from directory.factories import PractitionerFactory
+
+    PractitionerFactory(published=True, slug="crawled")
+
+    client.get("/search/", HTTP_USER_AGENT="Mozilla/5.0 (compatible; Googlebot/2.1)")
+
+    assert not DailyMetric.objects.exists()
+
+
+def test_impressions_accumulate_rather_than_resetting(client):
+    from directory.factories import PractitionerFactory
+
+    practitioner = PractitionerFactory(published=True, slug="twice")
+
+    client.get("/search/")
+    client.get("/search/")
+
+    assert DailyMetric.objects.get(practitioner=practitioner).search_impressions == 2

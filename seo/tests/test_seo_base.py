@@ -45,9 +45,19 @@ def test_robots_txt_disallows_the_account_and_staff_areas(client):
 
 
 def test_robots_txt_does_not_block_search(client):
-    """Facet URLs must stay crawlable so their noindex is actually read."""
-    body = client.get("/robots.txt").content.decode()
-    assert "Disallow: /search" not in body
+    """Facet URLs must stay crawlable so their noindex is actually read.
+
+    Asserted on the exact line rather than the substring: Phase 4 added
+    `Disallow: /search/places/`, which is a *different* URL and must stay blocked —
+    it returns head-less HTML that cannot carry a noindex tag. Blocking `/search/`
+    itself would stop a crawler ever reading the facet noindex.
+    """
+    lines = client.get("/robots.txt").content.decode().splitlines()
+
+    assert "Disallow: /search/" not in lines
+    assert "Disallow: /search" not in lines
+    # The datalist partial, however, is blocked deliberately.
+    assert "Disallow: /search/places/" in lines
 
 
 # ---------------------------------------------------------------------------
@@ -91,10 +101,21 @@ def test_sitemap_is_served_and_contains_the_home_page(client):
     assert b"<loc>" in response.content
 
 
-def test_sitemap_contains_no_search_urls(client):
-    """Faceted URLs are noindex; a sitemap entry claims the opposite."""
+def test_the_sitemap_lists_the_bare_search_page_but_no_facets(client):
+    """Faceted URLs are noindex; a sitemap entry would claim the opposite.
+
+    The BARE `/search/` is listed, and has been since Phase 4: `docs/seo.md`
+    requires every facet permutation to canonicalise to it, and a canonical
+    pointing at a URL in no sitemap and linked from nowhere is a dead end rather
+    than a signal.
+    """
     body = client.get("/sitemap.xml").content.decode()
-    assert "/search/" not in body
+
+    assert "<loc>https://testserver/search/</loc>" in body
+    # No permutation, ever.
+    assert "/search/?" not in body
+    assert "speciality=" not in body
+    assert "/search/places/" not in body
 
 
 # ---------------------------------------------------------------------------

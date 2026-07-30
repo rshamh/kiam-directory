@@ -97,9 +97,9 @@ def organisation() -> dict:
 def website() -> dict:
     """This subdomain as a site in its own right.
 
-    No ``SearchAction``: pointing one at ``/search/`` before that view exists
-    advertises a 404, and the facet engine is not the indexable surface anyway
-    (docs/seo.md). Add it in Phase 4.
+    The ``SearchAction`` arrived in Phase 4, with the view it points at. It
+    advertises the ``q`` parameter only — the entry point, not the facet engine,
+    which is ``noindex`` and is not a surface to invite a crawler into.
     """
     return {
         "@type": "WebSite",
@@ -108,6 +108,14 @@ def website() -> dict:
         "name": DIRECTORY_NAME,
         "publisher": {"@id": absolute("/#organization")},
         "inLanguage": "en-GB",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": absolute("/search/") + "?q={search_term_string}",
+            },
+            "query-input": "required name=search_term_string",
+        },
     }
 
 
@@ -271,6 +279,29 @@ def profile_page(*, path: str, name: str, description: str = "", modified=None) 
     if modified is not None:
         node["dateModified"] = modified.isoformat()
     return node
+
+
+def search_results(*, path: str) -> SafeString:
+    """The search page's own graph.
+
+    A ``SearchResultsPage`` and nothing else. Emphatically **no ``ItemList``** of
+    the practitioners on it: the page is ``noindex`` on every faceted URL, so marking
+    up its contents would be describing listings on a page we have asked not to be
+    indexed, and each of those people already has a ``Person`` node on their own
+    profile. One canonical description per practitioner, on their own page.
+    """
+    return render(
+        graph(
+            {
+                "@type": "SearchResultsPage",
+                "@id": absolute(path) + "#webpage",
+                "url": absolute(path),
+                "name": "Search the Kiam Clinic Directory",
+                "isPartOf": {"@id": absolute("/#website")},
+                "inLanguage": "en-GB",
+            }
+        )
+    )
 
 
 def practitioner_profile(*, person_node: dict, page_node: dict) -> SafeString:
