@@ -115,8 +115,20 @@ psql kiam_directory -c "CREATE EXTENSION postgis; CREATE EXTENSION pg_trgm;"
 
 python manage.py migrate
 python manage.py seed_taxonomy      # the controlled vocabulary; safe to re-run
+python manage.py seed_demo --fresh  # 28 searchable practitioners — DEVELOPMENT ONLY
 python manage.py runserver
 ```
+
+`seed_demo` gives you something to search: 28 published practitioners spread across
+the UK, every DBS state, current and lapsed badges, online-only and in-person-only,
+four featured listings so the paid-placement cap has something to cap, and one
+practitioner whose in-range office has steps while their step-free office is 200
+miles away. Verification goes through the real service, so a demo badge is backed by
+the same dated evidence a real one would be.
+
+**It refuses to run with `DEBUG` off, and there is no `--force`.** It creates
+fictional practitioners carrying "Credentials checked" badges, and that is a claim
+Kiam makes about a real person's documents.
 
 ### Scheduled jobs
 
@@ -195,7 +207,7 @@ docker compose build --ssh default  # the image is where the .env leak surfaced
 
 ## Testing
 
-~825 tests. Two conventions worth knowing before adding more:
+~860 tests. Two conventions worth knowing before adding more:
 
 - **Factories never write a verification field.** `PractitionerFactory(verified=True)` creates
   dated checks and calls `recompute()`, exactly as production does. A factory that set

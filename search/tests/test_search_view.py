@@ -792,3 +792,28 @@ def test_no_template_comment_leaks_into_the_page(client, cohort):
         # The specific escapee, and the shape of the mistake.
         assert "announces as" not in body
         assert "{% comment %}" not in body
+
+
+def test_uploaded_media_is_routed_in_development_only():
+    """`runserver` serves STATIC_URL and nothing else, so without a MEDIA_URL route
+    every headshot 404s locally — on search results AND on the profile page. That
+    went unnoticed from Phase 3 until a development database had headshots in it to
+    look at.
+
+    A STRUCTURAL assertion, deliberately. The root URLconf is built once at import
+    time under the settings then in force, and the test settings have DEBUG off, so
+    flipping `settings.DEBUG` here cannot make the route appear — and reloading the
+    URLconf mid-suite leaks into every test that follows. What can be checked is
+    that the route exists and that it is inside the `if settings.DEBUG` guard, which
+    is the part that would be wrong to lose in either direction: no route breaks
+    development, an unguarded one puts `django.views.static.serve` in production.
+    """
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[2] / "config" / "urls.py").read_text()
+
+    guard = source.index("if settings.DEBUG:")
+    media = source.index("static(settings.MEDIA_URL")
+
+    assert media > guard, "the media route must be inside the DEBUG guard"
+    assert "document_root=settings.MEDIA_ROOT" in source
