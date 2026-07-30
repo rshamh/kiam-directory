@@ -74,7 +74,19 @@ The table above is the intent. This is the repo.
 * `directory/services/search.py` — `homepage_grid()` stopped being unused code, and its daily
   seed moved from the UTC date to `timezone.localdate()` so it rotates at the same moment the
   result shuffle does. `decorate_cards()` is a public seam onto `_decorate` so the grid can ask
-  for the same card decoration as a results page without reaching into a private function.
+  for the same card decoration as a results page without reaching into a private function. Two
+  clauses were added at the gate review and both are about the grid being an **editorial sample**
+  rather than an answer to a question: `FEATURED_CAP_PER_PAGE` applies here too (four paid
+  listings had taken the first four of twelve slots, under a disclosure promising three), and
+  `_ungated_minor_work_ids()` keeps listings that advertise under-18 work without a cleared DBS
+  out of the selection. The second is **not** a third under-18 gate — see
+  `pages/tests/test_home_minors_gate.py`.
+* **Town browse links centre on an outward code, not a town name.** `?near=Croydon` resolved to
+  Croydon *Cambridgeshire* — `geocode.places()` takes the first OS Open Names match with no
+  importance ranking, and three of ten links led to the wrong county. `?near=CR0` goes through
+  `/outcodes/`, an exact lookup. A person typing a town can correct the resolved label; a link
+  asserts the destination. The `county` column is no help — the demo seed has Croydon in West
+  Yorkshire, and nothing lints it.
 
 **Models:** `accounts.{User, LoginToken, Invite}` plus the full `directory` set — the four
 taxonomy axes (`Profession`, `SpecialityCategory`/`Speciality`, `Approach`, `ClientGroup`), the

@@ -6,9 +6,9 @@ directly.
 
 Django · PostgreSQL/PostGIS · Redis · Tailwind + HTMX + Alpine · [`kiam-ui`](#kiam-ui)
 
-**Phases 0–4 are built.** Foundation, data model and taxonomy, the admin back office, the public
-profile with its static pages, and search. Phase 5 (the real home page) is next — the home page is
-still a placeholder.
+**Phases 0–5 are built.** Foundation, data model and taxonomy, the admin back office, the public
+profile with its static pages, search, and the home page. Phase 6 (the practitioner dashboard) is
+next.
 
 ## Start here
 
@@ -16,7 +16,7 @@ still a placeholder.
    and invariants that will otherwise bite you
 2. `docs/multi-project-architecture.md` — how this sits alongside the main site and rooms
 3. `docs/architecture.md` — apps, models, URLs, roles, as they actually are
-4. `docs/design-system.md` — what `kiam-ui` really exposes, and the nine gaps
+4. `docs/design-system.md` — what `kiam-ui` really exposes, and the twenty-one gaps
 5. `docs/roadmap.md` — the eight build phases and their gates
 
 ---
@@ -220,7 +220,7 @@ used; see `docs/roadmap.md` for the numbers it produced.
 
 ## Testing
 
-~940 tests. Two conventions worth knowing before adding more:
+~960 tests. Two conventions worth knowing before adding more:
 
 - **Factories never write a verification field.** `PractitionerFactory(verified=True)` creates
   dated checks and calls `recompute()`, exactly as production does. A factory that set
@@ -236,6 +236,7 @@ pytest directory/tests/test_verification.py         # the service that decides w
 pytest backoffice/tests/test_flow.py                # invite -> draft -> submit -> verify -> publish
 pytest pages/tests/test_home.py                     # the Phase 5 gate: the hero works with no JavaScript
 pytest pages/tests/test_home_service.py             # the grid rotates daily, caches, and cannot show a suspension
+pytest pages/tests/test_home_minors_gate.py         # the Phase 5 gate: no un-cleared child work on the front page
 pytest --create-db                                  # after a migration, or the reused DB will lie
 ```
 
@@ -434,6 +435,22 @@ image never breaks the page" into a 500. The suite could not see it: `config/set
 sets the root logger to CRITICAL, so `makeRecord` is never reached in a test run.
 `directory/tests/test_images.py::test_the_logging_calls_are_actually_emittable` is the guard, and
 it is the only test in that module that turns logging on.
+
+**A cached payload's version tracks its MEANING, not just its keys.** Phase 5 added a key to the
+browse payload and a cap to the grid selection without bumping `CACHE_VERSION`, so the shape check
+passed, the old entry was served, and the live page showed browse counts with no unit next to four
+"Paid placement" cards under a promise of three. Both fixes were correct and both were invisible
+for as long as the entry lived.
+
+**A link asserts its destination; a text box only suggests one.** `?near=Croydon` was fine as
+something a visitor typed — they see the resolved label and can correct it — and wrong as an
+authored href, because `geocode.places()` takes the first OS Open Names match and Croydon,
+Cambridgeshire is a real place. Authored location links use an outward code.
+
+**Lighthouse and axe scored the home page 100 on accessibility while it had two AA failures.**
+Neither tests reflow at 320 px, focus-indicator contrast, or 2.5.8's spacing exception. A
+`minmax()` min track cannot shrink below its floor; a focus ring the same colour as the gradient
+it is drawn on is not a focus ring.
 
 **An `<ol>` outside `.prose` has no numbers.** Tailwind's preflight sets
 `ol, ul, menu { list-style: none }`. Where the sequence is the information this is WCAG 1.3.1, so

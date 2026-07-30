@@ -509,6 +509,35 @@ component**; each is either configured around or built locally in `templates/com
     `--text-display-md`, so it is right for one h1 and flattens the hierarchy if used for every
     section.
 
+19. **The focus ring is invisible on `.ds-cta` and in `.site-footer` — WCAG 1.4.11.**
+    `--focus-ring` is `--green-600`, and `.ds-cta` is a `green-800 → green-600` gradient, so the
+    outline is drawn at a 2px offset *on* the gradient in the same colour as one end of it:
+    measured **1.00:1** against the light end, 1.28:1 against the dark end, and 1.76:1 in the
+    footer. `html[data-contrast="high"]` makes both **worse**, because it re-points `--focus-ring`
+    at the darker `--green-900` — 1.03:1 in the footer, arithmetically invisible for the one user
+    who asked for more contrast.
+    §5's row *"The green focus ring is replaced with a light ring on deep-forest surfaces"* reads
+    as a guarantee the package does not give: that rule exists **only** for `.disclaimer-bar`
+    (`outline: 3px solid var(--white)`), which this site switches off. `.ds-cta` and
+    `.site-footer` get nothing.
+    *Worked around locally at Phase 5:* the same `var(--white)` ring the package uses for its own
+    deep surface, applied to those two — 5.25:1, 6.71:1 and 9.23:1 respectively. A literal token
+    rather than `--focus-ring`, so high-contrast mode widens it instead of darkening it back to
+    invisible. **Raise as a kiam-ui issue**, and correct the §5 row while you are there.
+
+20. **`ul.footer-legal-links` does not wrap, so the package's own text-size control breaks
+    reflow.** At 375px with `data-font-size="larger"` the four legal links measured 407px against
+    a 375px viewport — a WCAG 1.4.10 failure *triggered by* an accessibility preference, on every
+    page. *Worked around locally:* `flex-wrap: wrap`. One declaration; **raise upstream.**
+
+21. **`.ds-disclaimer__title` renders smaller than the body text it introduces.** Measured 16.5px
+    against the 18px paragraph beneath it, and against 25px for every other section `h2` on the
+    page. The markup and the heading level are correct — `heading_level=2` does what it says — so
+    this is visual hierarchy, not semantics, and axe passes it. Recorded rather than overridden:
+    the notice is on the home page, `/search/` and `/about/`, and re-sizing a packaged component's
+    own title from this repo would be a fourth local override of `ds-*` in one phase. **Raise as a
+    kiam-ui issue.**
+
 > §5's row *"Footer link text on `--green-900` uses `--mint-100`"* does not match the shipped
 > v1.0.1 footer, which is `--surface-inverse` with `#cdd6d6` links. Both pass AA; the documented
 > pairing is simply not the one in the package. Re-check on the next pin bump.

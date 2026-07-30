@@ -1109,9 +1109,21 @@ details.dir-filter-block:not([open]) > *:not(summary) {
 
    `auto-fill` with a min track, not a fixed column count: twelve cards reflow from
    one column to four with no breakpoint to keep in step with the card's own
-   content. `minmax(19rem, 1fr)` is the width at which a name, a profession, the
-   badge and three speciality pills still read as a card rather than as a column of
-   fragments. */
+   content. 19rem is the width at which a name, a profession, the badge and three
+   speciality pills still read as a card rather than as a column of fragments.
+
+   `min(19rem, 100%)` and NOT a bare `19rem`, and this is WCAG 1.4.10.
+
+   A `minmax()` min track cannot shrink below its floor. At a 320px viewport the
+   container is 264px and each card was forced to 304px, so the page scrolled in two
+   dimensions and every card was sliced off at the right edge — measured
+   `scrollWidth: 340` against `clientWidth: 320`, with the whole grid overflowing.
+   320px IS the requirement (1280px at 400% zoom), and it broke below ~336px, which
+   is exactly why a 375px check passed.
+
+   `min()` makes the floor "19rem, or the full container if that is narrower", so the
+   track collapses to 264px instead of overflowing. The 19rem preference is
+   unchanged at every width where it fits. */
 
 .dir-home-grid {
   list-style: none;
@@ -1119,7 +1131,7 @@ details.dir-filter-block:not([open]) > *:not(summary) {
   margin-block-start: var(--space-6);
   display: grid;
   gap: var(--space-4);
-  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
 }
 
 /* The cards stretch to the row height so the grid does not look ragged, and the
@@ -1208,8 +1220,14 @@ details.dir-filter-block:not([open]) > *:not(summary) {
   gap: var(--space-1);
 }
 
-/* 44px of height clears WCAG 2.2 §2.5.8 without a bespoke hit area, and these are
-   the densest set of links on the page. */
+/* The 44px minimum buys SPACING, not target size, and the difference matters.
+   2.5.8's target is the `<a>`, which measures ~26px tall here and clears the 24px
+   minimum by two pixels; what `min-block-size` guarantees is 48px centre-to-centre
+   between adjacent links, which is the exception the anchors actually pass under.
+   The first version of this comment said the check was "cleared without a bespoke
+   hit area", which would have let a later line-height or `--text-body` change drop
+   those anchors under 24px with a comment claiming it was handled. If the type ever
+   shrinks, these need real padding. */
 .dir-browse__links li {
   display: flex;
   flex-wrap: wrap;
@@ -1279,4 +1297,54 @@ details.dir-filter-block:not([open]) > *:not(summary) {
    Raise as a kiam-ui issue — it affects all three sites. */
 .site-footer .brand-name-accent {
   color: var(--mint-200);
+}
+
+/* The focus ring is invisible on the CTA banner and in the footer — WCAG 1.4.11.
+
+   `--focus-ring` is `--green-600`, and `.ds-cta` is a `green-800 → green-600`
+   gradient. The outline is drawn at a 2px offset, i.e. ON the gradient, in the same
+   colour as one end of it: measured 1.28:1 against the dark end and **1.00:1**
+   against the light end. The footer's `--surface-inverse` gives 1.76:1. And
+   `html[data-contrast="high"]` makes both WORSE rather than better, because it
+   re-points `--focus-ring` at the darker `--green-900` — 1.42:1 on the gradient and
+   **1.03:1** in the footer, arithmetically invisible for the one user who explicitly
+   asked for more contrast.
+
+   docs/design-system.md §5 records "the green focus ring is replaced with a light
+   ring on deep-forest surfaces" as something the package does. It does — for
+   `.disclaimer-bar` only (`outline: 3px solid var(--white)`), which this site
+   switches off. `.ds-cta` and `.site-footer` get nothing. So this follows the
+   package's own established pattern for its own problem, on the two surfaces it
+   forgot: white measures 5.25:1 on the light end of the gradient, 6.71:1 on the dark
+   end and 9.23:1 in the footer.
+
+   A literal `--white` rather than `--focus-ring`, deliberately: that is what stops
+   high-contrast mode darkening it back to invisible. High contrast widens it
+   instead, which is the direction that helps.
+
+   Phase 5 is what made this reachable — the CTA banner is new on this page — but the
+   footer has been like this since Phase 0. Raise as a kiam-ui issue with gap 17. */
+.ds-cta :focus-visible,
+.ds-cta :focus,
+.site-footer :focus-visible,
+.site-footer :focus {
+  outline: 3px solid var(--white);
+  outline-offset: 2px;
+}
+
+html[data-contrast="high"] .ds-cta :focus-visible,
+html[data-contrast="high"] .ds-cta :focus,
+html[data-contrast="high"] .site-footer :focus-visible,
+html[data-contrast="high"] .site-footer :focus {
+  outline-width: 4px;
+}
+
+/* The site's own text-size control breaks reflow, which is worse than not offering
+   it. `ul.footer-legal-links` does not wrap, so at 375px with
+   `data-font-size="larger"` the four legal links measured 407px wide against a
+   375px viewport — a 1.4.10 failure triggered BY an accessibility preference, on
+   every page. One declaration, and it is kiam-ui's markup, so it goes upstream with
+   the two above. */
+.site-footer .footer-legal-links {
+  flex-wrap: wrap;
 }

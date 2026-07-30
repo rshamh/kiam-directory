@@ -32,8 +32,17 @@ that matter more:
   happened while Phase 4 was being built. Primary keys have no schema.
 
 ``CACHE_VERSION`` is inside the payload for the same reason it is in the facet
-cache: a shape change is then self-healing rather than a manual flush in a
-runbook.
+cache: a change is then self-healing rather than a manual flush in a runbook.
+
+**Bump it when the SHAPE or the MEANING of a payload changes**, and the second half
+of that sentence is there because Phase 5's own gate review caught this module
+failing its own rule. Two fixes landed — ``count_label`` was added to the browse
+dicts, and ``homepage_grid()`` started applying ``FEATURED_CAP_PER_PAGE`` — and the
+version was not bumped. The shape check passed, the old payload was served, and the
+live page rendered browse counts with no unit at all next to four "Paid placement"
+cards under a sentence promising no more than three. Both fixes were correct and
+both were invisible for as long as the entry lived. A selection rule is as much a
+part of a cached payload as its keys are.
 
 **The one thing the cache miss does that is not free** is building headshot
 renditions (``directory.services.images``) — up to twelve images × three widths of
@@ -48,6 +57,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import Counter
 from urllib.parse import urlencode
 
 from django.core.cache import cache
@@ -58,6 +68,7 @@ from directory.models import Practitioner, PractitionerLocation, PublicationStat
 from directory.services import images
 from directory.services import search as search_service
 from search.services import params as params_service
+from search.services.geocode import OUTCODE_RE
 
 logger = logging.getLogger("pages.home")
 
@@ -72,8 +83,14 @@ BROWSE_CACHE_KEY = "homepage:browse"
 #: a longer one would outlive the seed that chose them.
 CACHE_SECONDS = 60 * 60 * 24
 
-#: Bump when the SHAPE of a cached payload changes. See the module docstring.
-CACHE_VERSION = 1
+#: Bump when the SHAPE **or the MEANING** of a cached payload changes — a new key, a
+#: renamed one, or a change to the rule that chose what is in it. See the module
+#: docstring for the deploy this caught.
+#:
+#: 2: Phase 5 gate. ``count_label`` added to the browse dicts, and the grid
+#:    selection began applying ``FEATURED_CAP_PER_PAGE`` and excluding listings that
+#:    advertise under-18 work without a cleared DBS.
+CACHE_VERSION = 2
 
 GRID_SIZE = 12
 
@@ -213,6 +230,18 @@ def _speciality_links() -> list[dict]:
     Eighteen categories is a browsable list; 138 specialities is the filter
     sidebar, which already exists one click away and which Phase 4 had to collapse
     to stop it being a wall of 317 controls.
+
+    **No minimum count, unlike the town links, and the asymmetry is deliberate.**
+    A category with one listing is a link to one result: thin, but accurate, and the
+    count next to it sets that expectation. The town floor exists for a reason
+    categories do not have — naming a town with one practitioner in it publishes
+    where that person works. Phase 7's landing pages apply the stricter ≥3 rule to
+    both, because a *page* makes a claim a link does not.
+
+    **Phase 7 dependency.** These anchors are the anchors the curated
+    ``/[speciality]/[town]`` pages will want. Re-point this function and
+    ``_town_links()`` at them when they exist, or the landing pages launch with no
+    internal links from the strongest page on the subdomain.
     """
     categories = (
         SpecialityCategory.objects.filter(
@@ -225,7 +254,14 @@ def _speciality_links() -> list[dict]:
         .values("slug", "name", "listed")[:BROWSE_LIMIT]
     )
     return [
-        {"label": row["name"], "count": row["listed"], "url": _search_url(category=row["slug"])}
+        {
+            "label": row["name"],
+            "count": row["listed"],
+            # Accurate as a result count: the destination filters on the same
+            # category and applies no radius, so "10 listed" lands on 10 results.
+            "count_label": "listed",
+            "url": _search_url(category=row["slug"]),
+        }
         for row in categories
     ]
 
@@ -233,25 +269,87 @@ def _speciality_links() -> list[dict]:
 def _town_links() -> list[dict]:
     """Towns with a public practice address and enough practitioners to be useful.
 
-    ``is_public=False`` addresses are excluded. Those exist so a practitioner can
-    be found by radius without publishing where they work — usually a home office
-    — and naming that town in a browse link would publish it by inference.
+    ``is_public=False`` addresses are excluded. Those exist so a practitioner can be
+    found by radius without publishing where they work — usually a home office — and
+    naming that town in a browse link would publish it by inference.
 
-    The link is ``?near=<town>``, which the search view geocodes. That is one
-    outbound call the first time anyone follows it and a month of cache
-    afterwards (``search.services.geocode``), which is cheaper than storing
-    coordinates for a town list that changes when somebody moves house.
+    **The link centres on an OUTWARD CODE, not on the town name, and that is a
+    correction from the Phase 5 SEO review.** ``?near=Croydon`` looked obvious and
+    was wrong: ``geocode.places()`` takes the first OS Open Names match with no
+    importance ranking, so three of the ten town links resolved to the wrong
+    settlement entirely — Croydon, *Cambridgeshire*; Brighton, *Cornwall*;
+    Guildford, *Pembrokeshire*. A person typing "Guildford" sees the resolved label
+    and can correct it; a link on the home page **asserts** the destination, so the
+    weakness became a defect the moment Phase 5 authored the anchor.
+
+    An outward code goes through ``geocode`` 's ``/outcodes/`` path, which is an
+    exact lookup rather than a prefix search, so "CR0" is Croydon and cannot be
+    anywhere else. It is also not a household — ``search/views.py`` already logs
+    only the outward code, for that reason — so this publishes no more about a
+    practice address than the town name already did. Note the ``county`` column is
+    *not* usable for disambiguation: the demo seed has Croydon in West Yorkshire,
+    and nothing lints it.
+
+    ``delivery=in_person`` is on the link because the heading is "By where they
+    work". Without it the radius search ORs in ``offers_online=True``
+    (``directory/services/search.py``), so "Epsom — 3 based here" landed on
+    twenty-five results and read as a broken filter.
+
+    Grouped in Python rather than by ``annotate``: picking the modal outward code
+    per town is not something one aggregate expresses, and this runs once per
+    24-hour cache entry over a small table.
     """
-    rows = (
-        PractitionerLocation.objects.filter(is_public=True, practitioner__status=PublicationStatus.PUBLISHED)
-        .values("city")
-        .annotate(listed=Count("practitioner", distinct=True))
-        .filter(listed__gte=MIN_PRACTITIONERS_PER_TOWN)
-        .order_by("-listed", "city")[:BROWSE_LIMIT]
-    )
-    return [
-        {"label": row["city"], "count": row["listed"], "url": _search_url(near=row["city"])} for row in rows
-    ]
+    rows = PractitionerLocation.objects.filter(
+        is_public=True, practitioner__status=PublicationStatus.PUBLISHED
+    ).values_list("city", "postcode", "practitioner_id")
+
+    towns: dict[str, dict] = {}
+    for city, postcode, practitioner_id in rows:
+        city = (city or "").strip()
+        if not city:
+            continue
+        town = towns.setdefault(city, {"practitioners": set(), "outcodes": Counter()})
+        town["practitioners"].add(practitioner_id)
+        outcode = _outward_code(postcode)
+        if outcode:
+            town["outcodes"][outcode] += 1
+
+    links = []
+    for city, town in towns.items():
+        count = len(town["practitioners"])
+        if count < MIN_PRACTITIONERS_PER_TOWN or not town["outcodes"]:
+            # No usable outward code means no link. Falling back to `?near=<city>`
+            # would reintroduce the wrong-Croydon bug on exactly the towns whose
+            # data is weakest.
+            continue
+        outcode = town["outcodes"].most_common(1)[0][0]
+        links.append(
+            {
+                "label": city,
+                "count": count,
+                # NOT "listed". The number counts practitioners with an address in
+                # this town; the destination is everyone within ten miles of its
+                # outward code, which is legitimately more. "3 listed" landing on
+                # nine results reads as a broken filter, so the label says what the
+                # number actually is and promises no result count.
+                "count_label": "based here",
+                "url": _search_url(near=outcode, delivery="in_person"),
+            }
+        )
+
+    links.sort(key=lambda link: (-link["count"], link["label"]))
+    return links[:BROWSE_LIMIT]
+
+
+def _outward_code(postcode: str) -> str:
+    """ "KT18 5EP" -> "KT18", or ``""`` if it is not an outward code.
+
+    Validated against ``geocode.OUTCODE_RE`` rather than a second pattern here, so
+    the one definition of "outward code" in this project is the one the geocoder
+    routes on.
+    """
+    head = (postcode or "").strip().upper().split(" ")[0]
+    return head if OUTCODE_RE.match(head) else ""
 
 
 def _search_url(**query) -> str:

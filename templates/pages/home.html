@@ -18,13 +18,16 @@ either; above is strictly better, because the sentence a visitor needs before th
 read twelve names and photographs on a Kiam-branded page is that these people are
 not Kiam's clinicians. Same partial as everywhere else — never retyped.
 
-**The lede is the first paragraph, it answers the obvious question directly, and it
-is SHORT.** docs/seo.md ("AEO / AI search") says the first paragraph is what gets
-extracted, so it says what the directory lists, who is on it, and that they are
-independent of Kiam, in that order. The longer plain-language version is its own
-section below the fold — because the first draft put all of it in the hero, and on
-a 375px phone that was a nine-line serif paragraph between the visitor and the
-search box. The most important interaction on the site cannot be below a paragraph.
+**The lede is the first paragraph, it NAMES THE ENTITY, and it is SHORT.**
+docs/seo.md ("AEO / AI search") says the first paragraph is what gets extracted, so
+it has to be a sentence that stands on its own: "The Kiam Clinic Directory lists
+independent …", not a subject-less fragment beginning "Psychiatrists,
+psychologists, …", which is what the second draft had and which reads as a list of
+nothing in particular when lifted out of the page. It stays under 220 characters
+(pinned by a test) because the first draft put the whole plain-language explanation
+here, and on a 375px phone that was a nine-line serif paragraph between the visitor
+and the search box. The most important interaction on the site cannot sit below a
+paragraph. The fuller version is its own section, further down.
 
 **Nothing on this page books, matches or takes payment.** No booking control (the
 field exists and is deliberately unrendered — docs/content-compliance.md §9), and
@@ -37,11 +40,22 @@ gives every heading the same `--text-display-md` regardless of level — fine fo
 one h1, but it flattens h1 and h2 to the same size on a page with seven sections.
 See the heading-size note in the Phase 5 block of static/src/app.css.
 
-TODO(sign-off): Dr. Abbass — the trust strip summarises the verification policy,
-which docs/verification-policy.md puts behind a clinical gate wherever it is
-stated publicly. It is deliberately narrowed to the checks that are actually
-enforced; see /how-verification-works/, which carries the same narrowing and the
-same marker.
+**Every verification claim on this page is conditional on the badge, and that is a
+correction, not a style.** The first draft said "Before a listing goes live, Kiam
+Clinic checks…" in three places. Publication does not require verification:
+`review.blocking_publication_reasons()` blocks only a restricted title with no
+verified registration, `is_verified` is a separate computed field, and CLAUDE.md's
+own design keeps a listing UP when its badge is withdrawn. So on a directory where
+9 of 28 published listings currently carry no badge, that sentence was untrue —
+and it was untrue in exactly the direction docs/verification-policy.md exists to
+prevent. The claim is now attached to the badge wherever it appears.
+
+TODO(sign-off): Dr. Abbass — verification-policy-derived copy appears in THREE
+places on this page, not one: the "What this directory is" paragraph, the
+"What “Credentials checked” means" strip, and the practitioner CTA at the bottom.
+docs/verification-policy.md puts any public wording derived from it behind a
+clinical gate. All three are narrowed to what is actually enforced; see
+/how-verification-works/, which carries the same narrowing and the same marker.
 TODO(sign-off): CQC compliance lead — the independence framing on this page: the
 lede, "How it works" step 3, and the "Kiam Clinic" cross-link section.
 TODO(sign-off): solicitor — the paid-placement sentence under the grid, alongside
@@ -59,7 +73,7 @@ the Listing Agreement that has to cover a featured tier at all.
   <section class="dir-hero">
     <div class="container dir-hero__inner">
 
-      {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Kiam Clinic Directory" title="Find an independent mental-health practitioner" description="Psychiatrists, psychologists, psychotherapists and counsellors working across the UK, in person and online. You contact them directly." heading_level=1 %}
+      {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Kiam Clinic Directory" title="Find an independent mental-health practitioner" description="The Kiam Clinic Directory lists independent psychiatrists, psychologists, psychotherapists and counsellors across the UK, in person and online. You contact them directly." heading_level=1 %}
 
       <form method="get" action="{% url 'search:search' %}" class="dir-hero__form">
         {% include "components/_search_bar.html" %}
@@ -89,11 +103,12 @@ the Listing Agreement that has to cover a featured tier at all.
       <p class="dir-home__intro">
         The Kiam Clinic Directory is a public list of independent mental-health
         practitioners working in the UK. Each listing says what the practitioner
-        offers, who they work with, what they charge and where they work, and Kiam
-        Clinic has checked their registration, qualifications and insurance before
-        publishing it. You read the listings, choose for yourself, and contact the
-        practitioner directly. There is nothing to sign up for and nothing to pay
-        Kiam Clinic.
+        offers and who they work with, and most also give their fees and the places
+        they work from. Where a listing shows <strong>“Credentials checked”</strong>
+        and a date, Kiam Clinic had checked that practitioner's registration,
+        qualifications and insurance on that date. You read the listings, choose for
+        yourself, and contact the practitioner directly. There is nothing to sign up
+        for and nothing to pay Kiam Clinic.
       </p>
     </section>
 
@@ -126,9 +141,9 @@ the Listing Agreement that has to cover a featured tier at all.
           <a href="{% url 'search:search' %}">Search the directory</a>.
         </li>
         <li>
-          <strong>Read their listing, then contact them.</strong> Each listing says
-          what the practitioner offers, who they work with, what they charge and
-          where they work. Their contact details are on their own page.
+          <strong>Read their listing, then contact them.</strong> A listing sets out
+          what the practitioner offers, who they work with, and usually their fees
+          and where they work. Their contact details are on their own page.
         </li>
         <li>
           <strong>Arrange it directly with them.</strong> You agree the appointment
@@ -149,14 +164,26 @@ the Listing Agreement that has to cover a featured tier at all.
         </p>
         <div class="dir-trust__body prose">
           <p>
-            Before a listing goes live, Kiam Clinic checks the practitioner's
-            identity, their registration with their regulator or professional body,
-            their qualifications and their indemnity insurance. The badge carries
-            the date those checks were last completed, and it lapses on its own when
-            a document expires.
+            Where a listing carries that badge and a date, Kiam Clinic had — on that
+            date — checked the practitioner's identity, their registration with their
+            regulator or professional body, their qualifications and their indemnity
+            insurance. The badge lapses on its own when one of those documents
+            expires, and a listing whose badge has lapsed stays up without it.
+          </p>
+          {% comment %}
+          Absence is meaningful and has to be said, because the badge's own component
+          deliberately renders NOTHING for an unverified listing — there is no "not
+          verified" label, so a visitor who does not know the badge exists cannot read
+          its absence. Saying "we check everyone before publishing" instead would be
+          the overstatement this section was rewritten to remove.
+          {% endcomment %}
+          <p>
+            A listing without the badge has not been through those checks, or has
+            been through them and something has since expired. Being listed at all is
+            not the same as being checked.
           </p>
           <p>
-            It is a documents check and nothing more. It is
+            The badge is a documents check and nothing more. It is
             <strong>not a quality, competence or outcome claim</strong>, and it is
             not a recommendation — the practitioners listed here are responsible for
             their own practice.
@@ -186,7 +213,7 @@ the Listing Agreement that has to cover a featured tier at all.
               {% for entry in browse.specialities %}
                 <li>
                   <a href="{{ entry.url }}">{{ entry.label }}</a>
-                  <span class="dir-browse__count">{{ entry.count }} listed</span>
+                  <span class="dir-browse__count">{{ entry.count }} {{ entry.count_label }}</span>
                 </li>
               {% endfor %}
             </ul>
@@ -200,7 +227,7 @@ the Listing Agreement that has to cover a featured tier at all.
               {% for entry in browse.towns %}
                 <li>
                   <a href="{{ entry.url }}">{{ entry.label }}</a>
-                  <span class="dir-browse__count">{{ entry.count }} listed</span>
+                  <span class="dir-browse__count">{{ entry.count }} {{ entry.count_label }}</span>
                 </li>
               {% endfor %}
             </ul>
@@ -252,9 +279,18 @@ the Listing Agreement that has to cover a featured tier at all.
   or enquire" — this site books nothing (KIAM_UI["PRIMARY_CTA"] is None for the
   same reason). `cta_banner` emits its title as an h2, which is the level this
   page's other sections use.
+
+  **It does not say "sends enquiries straight to you".** The first draft did, and
+  there is no message relay anywhere in this project — `directory/views.py` says so
+  explicitly, and that relaying would make Kiam a processor of the client's
+  health-adjacent personal data and change its data-controller position, which
+  needs legal review before anyone builds it (docs/content-compliance.md §9). A CTA
+  advertising a deferred intermediary function to prospective members, on the
+  highest-authority page on the subdomain, is how a deferred decision gets made by
+  accident. Clients contact the practitioner; nothing passes through Kiam.
   {% endcomment %}
   <div class="container dir-home__cta">
-    {% include "kiam_ui/components/sections/cta_banner.html" with eyebrow="For practitioners" title="Are you an independent practitioner?" description="Listing is by invitation and membership. Kiam Clinic checks your identity, registration, qualifications and insurance, publishes your listing, and sends enquiries straight to you — it takes no commission on your fees and no part in your clinical work." actions_template="pages/_home_cta_actions.html" %}
+    {% include "kiam_ui/components/sections/cta_banner.html" with eyebrow="For practitioners" title="Are you an independent practitioner?" description="Listing is by invitation and membership. Kiam Clinic checks your credentials and publishes your listing; clients then contact you directly. No commission on your fees, and no part in your clinical work." actions_template="pages/_home_cta_actions.html" %}
   </div>
 
 </div>

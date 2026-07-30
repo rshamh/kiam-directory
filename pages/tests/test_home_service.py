@@ -119,6 +119,40 @@ def test_a_payload_written_by_an_older_deploy_is_rebuilt_not_read(cohort):
     assert cache.get(home.GRID_CACHE_KEY)["version"] == home.CACHE_VERSION
 
 
+def test_a_browse_payload_from_an_older_deploy_is_rebuilt_not_read(cohort):
+    """The half that was missing, and the omission shipped.
+
+    Phase 5's gate review found this module failing its own rule: `count_label` was
+    added to the browse dicts and `FEATURED_CAP_PER_PAGE` to the grid selection, the
+    version was not bumped, and the live page served the old payload — browse counts
+    with no unit, and four "Paid placement" cards under a promise of three.
+    """
+    cache.set(home.BROWSE_CACHE_KEY, {"version": home.CACHE_VERSION - 1, "data": {"nonsense": True}})
+
+    data = home.browse_entry_points()
+
+    assert set(data) == {"specialities", "towns"}
+    assert cache.get(home.BROWSE_CACHE_KEY)["version"] == home.CACHE_VERSION
+
+
+def test_every_browse_entry_carries_the_keys_the_template_reads(cohort):
+    """A missing key renders as the empty string, silently. `count_label` did."""
+    from directory.factories import SpecialityCategoryFactory, SpecialityFactory
+
+    cohort[0].specialities.add(
+        SpecialityFactory(slug="adult-adhd", category=SpecialityCategoryFactory(slug="neuro"))
+    )
+    for practitioner in cohort[:2]:
+        PractitionerLocationFactory(practitioner=practitioner, city="Epsom", postcode="KT18 5EP")
+
+    data = home.browse_entry_points()
+
+    assert data["specialities"] and data["towns"]
+    for entry in data["specialities"] + data["towns"]:
+        assert set(entry) == {"label", "count", "count_label", "url"}, entry
+        assert entry["label"] and entry["count"] and entry["count_label"] and entry["url"]
+
+
 def test_nothing_user_specific_can_reach_the_cached_payload(cohort):
     """None of the three entry points takes a request, which is what makes "do not
     cache anything user-specific" true by construction rather than by care.
@@ -210,14 +244,62 @@ def test_browse_entry_points_are_cached_and_busted_by_publication(cohort, admin_
     assert cache.get(home.BROWSE_CACHE_KEY) is None
 
 
-def test_a_town_link_encodes_a_name_with_a_space_in_it(cohort):
+def test_a_town_link_centres_on_an_outward_code_not_the_town_name(cohort):
+    """The Phase 5 SEO review's second blocker.
+
+    `?near=Croydon` sent visitors to Croydon, **Cambridgeshire** — `geocode.places()`
+    takes the first OS Open Names match with no importance ranking, and three of the
+    ten town links resolved to the wrong county. A person typing a town sees the
+    resolved label and can correct it; a link on the home page asserts the
+    destination.
+    """
     for practitioner in cohort[:2]:
-        PractitionerLocationFactory(practitioner=practitioner, city="Newcastle upon Tyne")
+        PractitionerLocationFactory(practitioner=practitioner, city="Croydon", postcode="CR0 1LB")
 
     towns = home.browse_entry_points()["towns"]
 
-    assert towns[0]["url"] == "/search/?near=Newcastle+upon+Tyne"
-    assert towns[0]["count"] == 2
+    assert towns[0]["label"] == "Croydon"
+    assert "near=CR0" in towns[0]["url"]
+    assert "near=Croydon" not in towns[0]["url"]
+
+
+def test_a_town_link_asks_for_a_building_so_its_count_is_not_swamped(cohort):
+    """`delivery=in_person` turns off the "…or works online" fallback. The heading is
+    "By where they work"; without this, "Epsom — 3 based here" landed on twenty-five
+    results and read as a broken filter."""
+    for practitioner in cohort[:2]:
+        PractitionerLocationFactory(practitioner=practitioner, city="Epsom", postcode="KT18 5EP")
+
+    assert "delivery=in_person" in home.browse_entry_points()["towns"][0]["url"]
+
+
+def test_a_town_with_no_usable_postcode_is_not_offered(cohort):
+    """No outward code means no link. Falling back to `?near=<city>` would put the
+    wrong-Croydon bug back on exactly the towns whose data is weakest."""
+    for practitioner in cohort[:2]:
+        PractitionerLocationFactory(practitioner=practitioner, city="Nowhereton", postcode="")
+
+    assert home.browse_entry_points()["towns"] == []
+
+
+def test_the_two_browse_lists_label_their_counts_differently(cohort):
+    """The numbers count different things, so they must not both say "listed".
+
+    A category count IS a result count. A town count is practitioners with an address
+    in that town, while the destination is everyone within ten miles of its outward
+    code — legitimately more.
+    """
+    from directory.factories import SpecialityCategoryFactory, SpecialityFactory
+
+    speciality = SpecialityFactory(slug="adult-adhd", category=SpecialityCategoryFactory(slug="neuro"))
+    cohort[0].specialities.add(speciality)
+    for practitioner in cohort[:2]:
+        PractitionerLocationFactory(practitioner=practitioner, city="Epsom", postcode="KT18 5EP")
+
+    data = home.browse_entry_points()
+
+    assert data["specialities"][0]["count_label"] == "listed"
+    assert data["towns"][0]["count_label"] == "based here"
 
 
 def test_browse_lists_are_capped(cohort):

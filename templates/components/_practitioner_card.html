@@ -65,7 +65,10 @@ to the profile and the reveal happens there.
            src="{{ practitioner.headshot.url }}"
            {% if practitioner.headshot_srcset %}srcset="{{ practitioner.headshot_srcset }}"
            sizes="{{ practitioner.headshot_sizes }}"{% endif %}
-           alt="{{ practitioner.display_title }} {{ practitioner.full_name }}"
+           {% comment %} `spaceless`-style guard rather than "{{ title }} {{ name }}": an empty
+              display_title left the alt text as " Marcus Osei", which a screen reader
+              announces with a leading pause. {% endcomment %}
+           alt="{% if practitioner.display_title %}{{ practitioner.display_title }} {% endif %}{{ practitioner.full_name }}"
            width="80"
            height="80"
            loading="{% if forloop.first and headshot_priority != 'lazy' %}eager{% else %}lazy{% endif %}"

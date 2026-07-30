@@ -190,7 +190,14 @@ def _seo(request, params) -> dict:
     # stays (the input `value` and the form's own hrefs). What Kiam ASSERTS about
     # the page to crawlers and to chat clients does not include anything a stranger
     # typed.
-    title = "Find an independent mental-health practitioner"
+    # NOT the home page's title. `/` and `/search/` shipped byte-identical <title>,
+    # og:title and <h1> — the two highest-priority indexable URLs on the subdomain,
+    # both in the sitemap, asking to be told apart by a description alone
+    # (docs/seo.md, "Every page"). Phase 5 made the duplication structural as well
+    # as textual by giving the home page the same hero search bar and the same
+    # disclaimer, so this is the half that moves: the home page keeps the phrase a
+    # stranger actually searches for, and this page says what it is.
+    title = "Search the directory"
 
     return {
         "meta_title": title,

@@ -62,15 +62,20 @@ means a consumer following the spec found nothing here to follow.
 - [Report a concern]({{ base_url }}/report-a-concern/): reporting a problem with
   a listing. Complaints about a practitioner's care go to their regulator, not
   to Kiam
-- [Sitemap]({{ base_url }}/sitemap.xml): every published page, including one
-  listing page per practitioner at /p/&lt;name&gt;/
+{% comment %}
+`{{ "<name>" }}`, not a literal `&lt;name&gt;`. Django autoescapes VARIABLES, not
+literal template text, so writing the entity by hand publishes the entity itself —
+"/p/&amp;lt;name&amp;gt;/" — into a text/plain file. Caught at the Phase 5 SEO review.
+{% endcomment %}- [Sitemap]({{ base_url }}/sitemap.xml): every published page, including one
+  listing page per practitioner at /p/{{ "<name>" }}/
 
 ## Status
 
-The directory is still being built. Search is published; the browse pages and the
-curated speciality/town pages are not. Individual practitioner listings are
-published as practitioners join, and every published listing appears in
-{{ base_url }}/sitemap.xml.
+The directory is still being built. The home page and search are published, and the
+home page offers entry points by speciality and by town — as filtered searches, not
+as pages of their own. The curated /[speciality]/[town] pages do not exist yet.
+Individual practitioner listings are published as practitioners join, and every
+published listing appears in {{ base_url }}/sitemap.xml.
 
 Faceted search URLs — anything with a query string on /search/ — are marked
 noindex and canonicalise to the bare /search/. They are working URLs, not

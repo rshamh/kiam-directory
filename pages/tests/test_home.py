@@ -307,6 +307,42 @@ def test_an_unfeatured_grid_carries_no_paid_label_on_a_card(client, listings):
     assert "dir-practitioner--featured" not in grid
 
 
+def test_the_featured_cap_applies_to_the_grid(client, listings):
+    """The Phase 5 compliance review's warning, and it made the disclosure false.
+
+    `homepage_grid()` ordered `-featured, shuffle` and sliced, so FOUR paid listings
+    took the first four of twelve slots while the paragraph below promised no more
+    than three. In principle all twelve could be paid. This is what ADOPTION
+    CHANGE (4) fixed for `/search/`; the grid needed it too
+    (docs/content-compliance.md §6).
+    """
+    from django.utils import timezone
+
+    from directory.models import Practitioner
+    from directory.services.search import FEATURED_CAP_PER_PAGE
+
+    for index in range(6):
+        Practitioner.objects.filter(pk=listings[index].pk).update(
+            featured_until=timezone.now() + timezone.timedelta(days=30)
+        )
+
+    grid = grid_markup(client.get(URL).content.decode())
+
+    assert grid.count("Paid placement") == FEATURED_CAP_PER_PAGE
+    # And the page is still full — the cap reserves slots, it does not shrink the grid.
+    assert grid.count("dir-practitioner__name") == 12
+
+
+def test_the_paid_cap_the_page_promises_is_the_one_it_applies(client, listings):
+    """The number in the copy comes from the same constant the query uses, so a
+    change to one cannot leave the other lying."""
+    from directory.services.search import FEATURED_CAP_PER_PAGE
+
+    body = flat(client.get(URL).content.decode())
+
+    assert f"No more than {FEATURED_CAP_PER_PAGE} featured listings appear together" in body
+
+
 def test_the_page_discloses_that_position_can_be_paid_for(client, listings):
     """A per-card label satisfies CAP at the point of display; a listing set where
     payment affects POSITION also needs the arrangement stated (DMCCA 2024)."""
@@ -384,6 +420,56 @@ def test_the_trust_strip_states_the_limits_of_the_badge(client):
     assert "/how-verification-works/" in client.get(URL).content.decode()
 
 
+def test_no_verification_claim_is_unconditional(client, listings):
+    """Both gate reviews caught this independently, and it is the worst kind of
+    over-claim: a true-sounding sentence about somebody else's credentials.
+
+    Publication does NOT require verification.
+    `review.blocking_publication_reasons()` blocks only a restricted title with no
+    verified registration, `is_verified` is a separate computed field, and Phase 3b's
+    design deliberately keeps a listing PUBLISHED while its checks are reopened. So
+    "before a listing goes live, Kiam Clinic checks…" was untrue of every unbadged
+    listing — nine of twenty-eight on the review database.
+    """
+    body = flat(client.get(URL).content.decode())
+
+    assert "Before a listing goes live" not in body
+    assert "has checked their registration, qualifications and insurance before publishing" not in body
+
+    # What it says instead: the badge carries the claim, and its absence is stated.
+    # Tags stripped, because "Credentials checked" is wrapped in <strong> in the copy.
+    text = flat(re.sub(r"<[^>]+>", " ", client.get(URL).content.decode()))
+    assert "Where a listing shows “Credentials checked” and a date, Kiam Clinic had checked" in text
+    assert "A listing without the badge has not been through those checks" in text
+    assert "Being listed at all is not the same as being checked." in text
+
+
+def test_an_unbadged_listing_can_appear_in_the_grid_which_is_why_the_copy_is_conditional(client, listings):
+    """The condition is not hypothetical. `homepage_grid()` filters on `status` and
+    `completeness`, never on `is_verified`, so the grid mixes badged and unbadged
+    cards — which is correct, and is exactly why the copy above them cannot claim
+    they were all checked."""
+    from directory.services.search import homepage_grid
+
+    # `listings` are published and complete but never verified.
+    chosen = homepage_grid(12)
+
+    assert chosen, "no grid to assert about"
+    assert all(not p.is_verified for p in chosen)
+    assert "Credentials checked" not in grid_markup(client.get(URL).content.decode())
+
+
+def test_the_practitioner_cta_promises_no_message_relay(client):
+    """There is no relay anywhere in this project, and `directory/views.py` says
+    building one needs legal review first (docs/content-compliance.md §9). A CTA
+    advertising it to prospective members is how a deferred decision gets made by
+    accident."""
+    body = flat(client.get(URL).content.decode())
+
+    assert "sends enquiries straight to you" not in body
+    assert "clients then contact you directly" in body
+
+
 def test_how_it_works_ends_where_kiam_involvement_ends(client):
     body = flat(client.get(URL).content.decode())
 
@@ -407,7 +493,10 @@ def test_the_first_paragraph_answers_the_question_and_is_short(client):
     body = client.get(URL).content.decode()
     lede = body.split('class="ds-section-head__lede"', 1)[1].split("</p>", 1)[0]
 
-    assert "Psychiatrists, psychologists, psychotherapists and counsellors" in flat(lede)
+    # It NAMES THE ENTITY. A fragment starting "Psychiatrists, psychologists, …"
+    # reads as a list of nothing in particular once an answer engine lifts it out
+    # of the page.
+    assert flat(lede).lstrip(">").strip().startswith("The Kiam Clinic Directory lists independent")
     assert "You contact them directly" in flat(lede)
     assert len(flat(lede)) < 220, "the hero lede is long enough to push the search box off a phone"
 
@@ -462,6 +551,22 @@ def test_a_town_only_used_for_the_radius_is_never_named(client, listings):
     assert "Hiddenham" not in client.get(URL).content.decode()
 
 
+def test_every_browse_count_is_rendered_with_a_unit(client, listings):
+    """A bare "10" next to a link is a 1.3.1 information failure, and it is what the
+    live page rendered when the browse payload's shape changed without a
+    CACHE_VERSION bump. Asserted on the HTML, so it catches the symptom whatever the
+    cause."""
+    PractitionerLocationFactory(practitioner=listings[0], city="Epsom", postcode="KT18 5EP")
+    PractitionerLocationFactory(practitioner=listings[1], city="Epsom", postcode="KT18 5EP")
+
+    body = client.get(URL).content.decode()
+    counts = re.findall(r'class="dir-browse__count">(.*?)</span>', body, re.S)
+
+    assert counts, "no browse counts rendered at all"
+    for count in counts:
+        assert re.fullmatch(r"\s*\d+\s+(listed|based here)\s*", count), f"bare count: {count!r}"
+
+
 def test_the_page_cross_links_to_the_main_site(client):
     """docs/seo.md: this subdomain does not inherit kiamclinic.com's authority, and
     the mitigation is deliberate cross-linking."""
@@ -494,6 +599,25 @@ def test_the_search_page_is_reachable_from_the_home_page(client):
 # ---------------------------------------------------------------------------
 # SEO
 # ---------------------------------------------------------------------------
+
+
+def test_the_home_page_and_the_search_page_do_not_share_a_title(client, listings):
+    """They shipped byte-identical <title>, og:title and <h1> — the two
+    highest-priority indexable URLs on the subdomain, both in the sitemap, asking to
+    be told apart by a description alone (docs/seo.md, "Every page"). Phase 5 made
+    the duplication structural as well, by giving the home page the same hero search
+    bar and the same disclaimer."""
+    import re as _re
+
+    def title_of(url):
+        return _re.search(r"<title>(.*?)</title>", client.get(url).content.decode()).group(1)
+
+    def h1_of(url):
+        body = client.get(url).content.decode()
+        return flat(_re.search(r"<h1[^>]*>(.*?)</h1>", body, _re.S).group(1))
+
+    assert title_of("/") != title_of("/search/")
+    assert h1_of("/") != h1_of("/search/")
 
 
 def test_the_home_page_is_indexable_and_self_canonical(client, listings):
