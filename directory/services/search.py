@@ -32,6 +32,9 @@ absorbed silently:
 6. **The text query FILTERS, not only ranks.** As authored, `q` annotated a rank
    and nothing else, so a search for "zzzznonsense" returned the entire
    directory and the empty state was unreachable from the search box.
+7. **`homepage_grid()` seeded its daily shuffle from the UTC date**, so for half
+   the year it rotated at 01:00 local while the result shuffle rotated at
+   midnight. Phase 5, when the grid stopped being unused code.
 """
 
 from dataclasses import dataclass, field
@@ -451,6 +454,18 @@ def _decorate(items, *, top_specialities: int, radius_miles: int | None = None) 
         item.top_specialities = by_practitioner.get(item.pk, [])
 
 
+def decorate_cards(items, *, radius_miles: int | None = None) -> None:
+    """Attach what ``_practitioner_card.html`` needs to an arbitrary list of rows.
+
+    A public seam onto ``_decorate``, added at Phase 5 because the home-page grid
+    renders the same card component from a different queryset and had no way to ask
+    for the same decoration without reaching into a private function. The cap on
+    speciality pills is applied here rather than passed in, so the card carries the
+    same number of pills wherever it appears.
+    """
+    _decorate(items, top_specialities=TOP_SPECIALITIES_ON_CARD, radius_miles=radius_miles)
+
+
 def wider_radius(current: int) -> int | None:
     """The next radius up, for the empty state's "search further out" link."""
     larger = [option for option in RADIUS_OPTIONS if option > current]
@@ -570,15 +585,89 @@ def weights() -> dict[str, float]:
     }
 
 
-def homepage_grid(limit: int = 12):
+#: A listing has to be this complete to appear in the home-page grid. The grid is
+#: the first twelve practitioners a stranger ever sees, and a listing with no
+#: intro, no specialities and no photo represents the directory badly on the one
+#: page with the most authority on the subdomain.
+HOMEPAGE_MIN_COMPLETENESS = 70
+
+
+def _ungated_minor_work_ids():
+    """Listings that advertise work with under-18s without a cleared DBS.
+
+    A practitioner with an ``implies_minors`` speciality — "Child & adolescent ADHD
+    assessment", "Autism assessment (children)" — whose ``minor_work_status`` is
+    anything but ``CLEARED``. ``NOT_APPLICABLE`` is in scope and is the whole point:
+    it is the state CLAUDE.md's open question 1 produces, where the listing selected
+    only adult client groups, so ``recompute()`` derived no DBS requirement at all
+    and the badge is full.
+
+    An explicit id subquery rather than a compound ``exclude()``: Django's
+    exclude-across-a-multi-valued-relation semantics are subtle enough that the next
+    person to read them has to think, and this is a safeguarding control.
+    """
+    return (
+        Practitioner.objects.filter(specialities__implies_minors=True)
+        .exclude(minor_work_status=MinorWorkStatus.CLEARED)
+        .values("pk")
+    )
+
+
+def homepage_grid(limit: int = 12, *, day=None):
     """
     Rotates daily: cacheable for 24h, but not the same twelve faces forever.
     Featured listings take the first slots and are always labelled as such.
+
+    ``day`` exists so a test can assert the rotation without waiting a day, and so
+    two calls inside one request cannot straddle midnight.
+
+    Returns a **list**, not a queryset, because ``FEATURED_CAP_PER_PAGE`` is not
+    something an ORDER BY can express — the same reason ``results_page()`` splits
+    into two querysets.
+
+    ADOPTION CHANGE (7), Phase 5: the seed was ``timezone.now().date()``, which is
+    the UTC date. Between midnight and 01:00 British Summer Time that is
+    *yesterday*, so the grid rotated at 01:00 local for half the year while
+    ``search.services.params.daily_seed()`` — the equivalent seed for the result
+    shuffle — rotated at midnight. Same clock for both now.
+
+    Two things were added at the Phase 5 compliance review, and both are about the
+    grid being an EDITORIAL SAMPLE rather than an answer to a question.
+
+    **The featured cap applies here too.** Without it the grid ordered
+    ``-featured, shuffle`` and sliced, so four paid listings took the first four of
+    twelve slots — on a page whose own disclosure promised no more than three, which
+    is a worse disclosure than none. It is also exactly what ADOPTION CHANGE (4)
+    fixed for search: a paid tier able to take a whole page the moment anyone buys
+    one (docs/content-compliance.md §6).
+
+    **Listings that advertise under-18 work without a cleared DBS are excluded.**
+    This is NOT a fourth copy of the under-18 gate, and the distinction matters
+    because ``directory/services/profile.py`` records the standing decision that
+    adding a speciality gate at one surface would recreate the one-sided leak
+    CLAUDE.md warns about. The two real gates — ``can_show_minor_groups`` and the
+    search queryset — answer "may this listing be shown to somebody asking about
+    children?", and both still do, unchanged. This clause answers a different
+    question: "should Kiam *choose* this listing, unprompted, for the twelve faces on
+    its own front page?" Nobody asked for it, the pill sits under Kiam's own claim to
+    have checked the listing, and excluding it from a sample of twelve out of
+    twenty-eight hides nothing — the profile is unchanged and the listing stays
+    searchable. There is no asymmetry for a later change to break.
+
+    The underlying defect is still CLAUDE.md open question 1: ``recompute()`` derives
+    ``works_with_minors`` from client groups alone, so a speciality that implies
+    child work requires no DBS. That is **Dr. Abbass / CQC compliance lead**, and
+    Phase 5 raises its priority rather than settling it — this page turned a
+    query-triggered risk into published copy.
     """
-    day_seed = timezone.now().date().isoformat()
+    day_seed = (day or timezone.localdate()).isoformat()
     now = timezone.now()
-    return (
-        Practitioner.objects.filter(status=PublicationStatus.PUBLISHED, completeness__gte=70)
+
+    ranked = (
+        Practitioner.objects.filter(
+            status=PublicationStatus.PUBLISHED, completeness__gte=HOMEPAGE_MIN_COMPLETENESS
+        )
+        .exclude(pk__in=_ungated_minor_work_ids())
         .annotate(
             featured=Case(
                 When(featured_until__gt=now, then=Value(1)), default=Value(0), output_field=FloatField()
@@ -586,8 +675,16 @@ def homepage_grid(limit: int = 12):
             shuffle=MD5(Concat(Cast("id", output_field=CharField()), Value(day_seed))),
         )
         .select_related("profession")
-        .order_by("-featured", "shuffle")[:limit]
+        .order_by("shuffle")
     )
+
+    is_featured = Q(featured_until__gt=now)
+    cap = min(FEATURED_CAP_PER_PAGE, max(0, limit))
+
+    featured = list(ranked.filter(is_featured)[:cap])
+    standard = list(ranked.filter(~is_featured)[: limit - len(featured)])
+
+    return featured + standard
 
 
 # ---------------------------------------------------------------------------

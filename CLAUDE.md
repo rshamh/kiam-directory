@@ -119,10 +119,16 @@ must appear in a queue, or the practitioner waits for a re-check nobody can see 
 > somebody who asked for a child therapist. The second is the higher-severity of the two, and
 > neither substitutes for the other.
 >
-> **STILL OPEN, and now more exposed than it was.** Only *client groups* are gated. A speciality
-> with `implies_minors=True` — "Child & adolescent ADHD assessment" — is neither gated on the
-> profile nor gated in search, and a listing that tags one while selecting only adult client groups
-> never requires a DBS at all (`recompute()` derives the requirement from client groups alone).
+> **STILL OPEN, and Phase 5 raised its priority again.** Only *client groups* are gated. A
+> speciality with `implies_minors=True` — "Child & adolescent ADHD assessment" — is neither gated
+> on the profile nor gated in search, and a listing that tags one while selecting only adult client
+> groups never requires a DBS at all (`recompute()` derives the requirement from client groups
+> alone). Phase 5's compliance review found a **BLOCKED** listing publishing exactly that pill on
+> the home page, unprompted, under Kiam's own claim to have checked the listing. The grid now
+> declines to *select* such a listing (`search._ungated_minor_work_ids`, and see
+> `pages/tests/test_home_minors_gate.py` for why narrowing an editorial sample is not a third
+> gate) — but that is a fail-safe on one surface, not the fix. The one-line fix is still in
+> `recompute()`.
 > Phase 4 makes this worse in two ways: a **free-text query** for "child adhd" matches that
 > speciality through the search vector, and a **speciality facet** matches it directly — neither of
 > which goes anywhere near the client-group gate. The one-line fix is in `recompute()` so all three
@@ -194,10 +200,21 @@ change and bump the pin. A local override is a last resort and must be commented
 `CompletenessMeter`, `VerificationStatusPanel`.
 
 Built so far, in `templates/components/` and `templates/directory/`:
-`_independence_notice.html` (Phase 0), and from Phase 3 `_verified_badge.html`, `_tag_group.html`
+`_independence_notice.html` (Phase 0); from Phase 3 `_verified_badge.html`, `_tag_group.html`
 and the ContactRevealPanel set — `directory/_contact_panel.html`, `_contact_button.html`,
-`_contact_revealed.html`, `_contact_limited.html`. Their styles are the `Phase 3` block at the end
-of `static/src/app.css`, all `dir-*` and all referencing kiam-ui tokens.
+`_contact_revealed.html`, `_contact_limited.html`; from Phase 4 `_search_bar.html` (which is the
+SearchBar, LocationInput and RadiusSelect in one partial), `_filter_sidebar.html`,
+`_filter_group.html` and `_practitioner_card.html`. Their styles are the `Phase 3`, `Phase 4` and
+`Phase 5` blocks at the end of `static/src/app.css`, all `dir-*` and all referencing kiam-ui
+tokens.
+
+**Phase 5 reused rather than added.** The home page's hero is `_search_bar.html` and its grid is
+`_practitioner_card.html` — the same two components `/search/` uses, so the keyboard pattern, the
+verification badge with its mandatory "what this does and does not mean" link, the "Paid
+placement" label and the "no contact details on a card" rule are single-sourced. The card grew one
+parameter, `headshot_priority`, because a list below the fold must not claim
+`fetchpriority="high"`. `CompletenessMeter` and `VerificationStatusPanel` are still unbuilt —
+they belong to the Phase 6 dashboard.
 
 Build these as plain Django `{% include %}` partials in `templates/components/`, composed from
 `kiam-ui` primitives. Propose one upward to `kiam-ui` only if another project needs it.
@@ -477,15 +494,173 @@ The result count is a **persistent live region outside `#results`**, updated by
 `hx-swap-oob="innerHTML:#result-count"`. A live region that is itself replaced by the swap is not
 announced — the same lesson as the Phase 3 contact reveal.
 
+### The home page (Phase 5)
+
+`/` → `pages.views.home` → `pages/services/home.py`. Five things about it are decisions, not
+implementation.
+
+* **The hero search is the SAME component as `/search/`.** `components/_search_bar.html`, wrapped
+  in a plain `<form method="get" action="/search/">`. The brief calls the hero the most important
+  interaction on the site, and a second implementation of the query field, the location field's
+  native `<datalist>`, the radius `<select>` and the always-visible submit button would be a
+  second one to keep accessible. Only 4 tab stops before the grid, and the whole thing is a plain
+  GET with script off — `test_the_hero_search_works_completely_without_javascript` is this phase's
+  equivalent of the search page's non-negotiable test.
+* **The cache holds primary keys, not rows and not HTML.** `homepage:grid` stores twelve ids;
+  every render re-reads the rows and **re-applies `status=PUBLISHED`**. So a `bust_cache()` that
+  never fires still cannot leave a suspended listing on the busiest page on the site — the
+  reputational worst case in `docs/verification-policy.md`. It also means compliance copy is never
+  a day stale, and that a migration cannot turn Redis into a 500 the way a pickled model instance
+  can (the `FACET_CACHE_VERSION` lesson, one phase later). `homepage:browse` is in
+  `publication.CACHE_KEY_PATTERNS` for the same reason.
+* **The independence notice is ABOVE the grid.** The brief allowed "above the fold or immediately
+  below the grid"; above is strictly better, because the sentence a visitor needs before reading
+  twelve names and photographs on a Kiam-branded page cannot be below them.
+* **The hero lede is short on purpose.** The first draft put the whole plain-language explanation
+  there, and on a 375px viewport that was a nine-line serif paragraph between the visitor and the
+  search box. It is now one sentence — still the extractable AEO answer (`docs/seo.md`) — and the
+  fuller version is its own "What this directory is" section.
+* **Browse entry points are counted from live listings**, never from the taxonomy, and capped at
+  twelve each. They are `noindex, follow` facet URLs until Phase 7's curated landing pages replace
+  them; a home page fanning out into dozens of thin permutations is the doorway pattern
+  `docs/seo.md` forbids. A town needs **two** published practitioners before it is named, and
+  `is_public=False` addresses are excluded — naming the town of a single home office publishes it
+  by inference.
+
+**Headshot renditions arrived here**, not in Phase 3 where the card first wanted them:
+`directory/services/images.py`, 80/160/240px, built inside the cached grid path so twelve
+conversions happen once a day. Names are deterministic from the original's, so a replaced headshot
+gets new rendition names and there is nothing to bust. It is **all-or-nothing and never fatal** —
+any failure returns `""` and the card falls back to the plain `src`, because a `srcset` naming a
+rendition that does not exist is a broken image. Re-encoding drops EXIF, which takes the GPS
+coordinates out of a phone photo. `/search/` is unchanged: it builds no renditions, so it emits no
+`srcset`.
+
+### What the Phase 5 gate found
+
+**Eleven defects, and the three review subagents caught seven of them.** Recorded in full because
+the shapes recur, and because two of the worst were in copy *this phase wrote*.
+
+**Four found by running the real thing** — none visible to the suite:
+
+* **`extra={"name": ...}` in a log call raises.** `name` is a reserved `LogRecord` attribute and
+  `Logger.makeRecord` raises `KeyError` on a collision — so the line meant to *record* a failure
+  *became* the failure, and turned "a broken image never breaks the page" into a 500 on the home
+  page. The suite could not see it: `config/settings/test.py` sets the root logger to CRITICAL, so
+  `isEnabledFor` is False and `makeRecord` is never reached.
+  `test_the_logging_calls_are_actually_emittable` turns logging on for exactly this.
+* **Concurrent requests wrote duplicate renditions.** Django's storage never overwrites, so the
+  loser of a write race got a suffixed name nothing would ever request. Measured: five concurrent
+  cold-cache loads produced 111 orphans. `_write` deletes the file it lost with.
+* **`.dir-steps` had no numbers.** Tailwind's preflight sets `ol { list-style: none }`, and this
+  class is used where the sequence *is* the information — WCAG 1.3.1, on the home page and on
+  `/two-factor/setup/` since Phase 0.
+* **The footer wordmark accent measured 1.76:1.** In the chrome, on every page since Phase 0.
+
+**Three blockers from the compliance review:**
+
+* **The grid published child-work specialities, unprompted, for practitioners with no DBS.** Both
+  real gates were intact and the card renders no client groups — this was `implies_minors`
+  *specialities*, and a **BLOCKED** listing was carrying "Child & adolescent ADHD assessment" on
+  the front page on five of six days simulated. Materially worse than `/search/` for one reason:
+  **nobody asked.** On search that route needs a typed query or a ticked facet; here Kiam selects
+  the twelve and publishes the pill under its own claim to have checked the listing.
+  Fixed in `homepage_grid()` via `_ungated_minor_work_ids()`, with
+  `pages/tests/test_home_minors_gate.py`. **This is not a fourth gate** — see that file's
+  docstring for why narrowing an editorial *sample* is a different act from gating a *query*, and
+  why it leaves no asymmetry for a later change to break.
+* **The page claimed every listing was credential-checked before publication.** It is not:
+  `blocking_publication_reasons()` blocks only a restricted title with no verified registration,
+  `is_verified` is a separate computed field, and the badge-withdrawal design deliberately keeps a
+  listing **up**. Nine of twenty-eight published listings carry no badge. Every verification claim
+  on the page is now conditional on the badge, and the page says plainly that absence means
+  something — because `_verified_badge.html` renders *nothing* for an unverified listing, so a
+  visitor cannot read the absence unaided. The same over-claim is in
+  `for_practitioners.html` and `how_verification_works.html`'s table caption: **not fixed here**,
+  flagged for Dr. Abbass, because it is systemic copy rather than a home-page typo.
+* **13 published listings hold a restricted title with no verified registration.** Demo data:
+  `seed_demo` writes `status=PUBLISHED` directly, bypassing `approve()` and therefore
+  `blocking_publication_reasons()`. **Not fixed here** — it is dev-data, and the real answer is
+  Phase 7's continuous re-check (open item 2). Flagged, because a demo dataset that cannot fail
+  the gate it is used to review is worse than no dataset.
+
+**Two blockers from the accessibility review**, both measured, neither visible to Lighthouse or
+axe (which test neither reflow nor focus-indicator contrast):
+
+* **The grid did not reflow at 320px — WCAG 1.4.10.** A `minmax()` min track cannot shrink below
+  its floor, so `minmax(19rem, 1fr)` forced 304px cards into a 264px container:
+  `scrollWidth: 340` against `clientWidth: 320`, the whole grid sliced off at the right edge.
+  320px **is** the requirement (1280px at 400% zoom), and it broke below ~336px — which is
+  precisely why the 375px check passed. `minmax(min(19rem, 100%), 1fr)`.
+* **The focus ring was invisible on the CTA banner and in the footer — WCAG 1.4.11.**
+  `--focus-ring` is green-600 and `.ds-cta` is a green-800→green-600 gradient, so the outline was
+  drawn *on* the gradient in the same colour as one end of it: **1.00:1**. The footer gave 1.76:1.
+  And `html[data-contrast="high"]` made both **worse**, because it re-points `--focus-ring` at the
+  darker green-900 — 1.03:1 in the footer, invisible for the one user who asked for more contrast.
+  Design-system §5 claims the package swaps in a light ring on deep surfaces; it does, for
+  `.disclaimer-bar` only, which this site switches off. Gaps 19–21.
+
+**Two the reviews caught in code this phase wrote, which are worth more than the blockers:**
+
+* **`CACHE_VERSION` was not bumped, and this module invented the rule.** `count_label` was added
+  to the browse payload and `FEATURED_CAP_PER_PAGE` to the grid selection; the shape check passed,
+  the old payload was served, and the live page rendered browse counts **with no unit at all**
+  next to **four** "Paid placement" cards under a sentence promising no more than three. Both
+  fixes were correct and both were invisible for as long as the entry lived. The constant's
+  docstring now says **shape or meaning** — a selection rule is as much part of a cached payload
+  as its keys are.
+* **Three of ten town links led to the wrong county.** `?near=Croydon` resolved to Croydon,
+  *Cambridgeshire*; Brighton to *Cornwall*; Guildford to *Pembrokeshire* — `geocode.places()`
+  takes the first OS Open Names match with no importance ranking. A person typing a town sees the
+  resolved label and can correct it; **a link asserts the destination**, so Phase 5 turned a
+  Phase 4 weakness into a defect. Town links now centre on an outward code (`?near=CR0`), which
+  goes through `/outcodes/` — an exact lookup, not a prefix search — and carry
+  `delivery=in_person`, because "By where they work" should not OR in everyone who works online.
+  The `county` column is no help: the demo seed has Croydon in West Yorkshire.
+
+Also from the reviews and applied: `/` and `/search/` shipped byte-identical `<title>`, `og:title`
+and `<h1>` (the search page moved); the hero lede was a subject-less fragment that named no entity;
+the CTA advertised a message relay `directory/views.py` says needs legal review before anyone
+builds one; the browse counts described neither of the two different things they count;
+`alt=" Marcus Osei"` carried a leading space; the cross-links cost a redirect hop each; `llms.txt`
+published an HTML entity into a `text/plain` file and told crawlers browsing did not exist while
+the page browsed.
+
+**Measured Core Web Vitals** (Lighthouse 13.4.1, production-like local server — `DEBUG` off so
+WhiteNoise serves the compressed static a visitor gets; 3 mobile runs, medians):
+
+| | Mobile, Slow 4G (1,638 Kbps, 150 ms RTT, 4× CPU) | Desktop |
+|---|---|---|
+| Performance | 89 | 99 |
+| LCP | 3.21 s | 0.78 s |
+| CLS | 0.001 | 0.002 |
+| TBT | 0 ms | 0 ms |
+| FCP | 2.61 s | 0.69 s |
+| Accessibility | 100 | 100 |
+| Best practices | 100 | 96 |
+| Weight | 199 KiB / 13 requests | 209 KiB / 19 requests |
+
+LCP is the only metric outside "good" and **it is not this page's markup**: 1,510 ms of it is
+render-blocking stylesheets, of which Google Fonts is 796 ms and 68 KiB. Blocking that origin takes
+mobile LCP to **1.84 s** and the score to **98**. That is design-system **gap 3** with a number on
+it, and it collides with golden rule #4 — the fix is self-hosting the two families upstream in
+`kiam-ui`, not here. The next item after fonts is the **HTML document, 81 KiB uncompressed**:
+nothing in the stack gzips a response body (`GZipMiddleware` is deliberately absent — BREACH), so
+that belongs to the reverse proxy or CDN at Phase 7 launch prep.
+
+**Lighthouse and axe both scored the page 100 on accessibility while it had two AA failures.**
+Worth remembering before the Phase 7 audit: neither tests reflow at 320px, focus-indicator
+contrast, nor 2.5.8's spacing exception, and those are where both blockers lived.
+
 ### Still to build
 
-Phases 5–7: the real home page, the practitioner dashboard, and insights / landing pages / launch
-prep. See `docs/roadmap.md`.
+Phases 6–7: the practitioner dashboard, and insights / landing pages / launch prep. See
+`docs/roadmap.md`.
 
 `directory/services/search.py` was recovered from the rooms repo at Phase 4
-(`git -C ../rooms show f49d0c2^:search.py`) and is now in this repo, reviewed and fixed. Its
-`homepage_grid()` is written and **unused until Phase 5** — the rotating grid of twelve. It has no
-tests yet for the same reason.
+(`git -C ../rooms show f49d0c2^:search.py`) and is now in this repo, reviewed and fixed.
+`homepage_grid()` is in use from Phase 5 and has tests; its daily seed moved from the UTC date to
+`timezone.localdate()` so it rotates when the result shuffle does.
 
 ---
 

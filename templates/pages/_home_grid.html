@@ -1,0 +1,66 @@
+{% comment %}
+The home-page grid — twelve listings, rotating daily.
+
+Params: grid (list of Practitioner, decorated by pages.services.home)
+
+The SAME card component the search results use, so the verification badge, its
+mandatory "what this does and does not mean" link, the "Paid placement" label and
+the "no contact details on a card" rule are single-sourced. `headshot_priority`
+is "lazy" because this list sits below the hero: everything in it is below the
+fold, and an eager `fetchpriority="high"` image down here competes with the actual
+LCP element above it.
+
+`<ul role="list">`, not `<ol>`: unlike search results this is not a ranked
+sequence, so numbering it would assert an order that does not exist. The explicit
+`role` is because WebKit drops the implicit list role from a list with
+`list-style: none`, and "list, 12 items" is how a VoiceOver user learns how many
+there are.
+
+The paid-placement sentence is here rather than in the section lede because it
+belongs next to the thing it describes. Featured listings take the first slots
+(directory/services/search.py `homepage_grid`), so payment affects position on
+this page too, and undisclosed paid ranking breaches CAP rules
+(docs/content-compliance.md §6). Nothing is featured yet; the disclosure exists
+before the first person pays, for the same reason the per-card label does.
+{% endcomment %}
+
+{% if grid %}
+
+  <ul class="dir-home-grid" role="list">
+    {% for practitioner in grid %}
+      <li class="dir-home-grid__item">
+        {% include "components/_practitioner_card.html" with practitioner=practitioner headshot_priority="lazy" %}
+      </li>
+    {% endfor %}
+  </ul>
+
+  <p class="dir-home-grid__note">
+    Practitioners can pay for a <strong>featured</strong> place, which appears first
+    here and on search results and is always labelled “Paid placement”. No more than
+    {{ featured_cap }} featured listings appear together. Paying changes position
+    only — it has no effect on whether somebody is listed and none at all on the
+    verification checks.
+    <a href="{% url 'pages:how_verification_works' %}">What the verification badge means</a>.
+  </p>
+
+{% else %}
+
+  {% comment %}
+  Reachable, and not only in an empty database: the grid requires
+  `completeness >= 70`, so a directory with a handful of half-finished listings
+  renders this. It says what is true and offers the two routes out, rather than
+  pretending twelve listings exist.
+  {% endcomment %}
+  <div class="dir-empty-state">
+    <h3 class="dir-empty-state__title">No listings to show here yet</h3>
+    <p>
+      The directory is new and listings appear here once they are complete. In the
+      meantime you can still search everything that is published.
+    </p>
+    <ul class="dir-empty-state__actions">
+      <li><a href="{% url 'search:search' %}">Search the directory</a></li>
+      <li><a href="{% url 'pages:for_practitioners' %}">Get listed as a practitioner</a></li>
+    </ul>
+  </div>
+
+{% endif %}

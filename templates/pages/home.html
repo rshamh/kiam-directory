@@ -1,46 +1,297 @@
 {% extends "base.html" %}
 {% comment %}
-Placeholder home page (Phase 0).
+The home page (Phase 5).
 
-Its only job is to prove the wiring: kiam-ui's chrome renders, the tokens are
-loaded, our Tailwind layer is on top, and the SEO base emits a title, a
-description, a self-referencing canonical, OG tags and JSON-LD.
+Four things about this page are decisions rather than layout.
 
-The real home page — hero search, radius control, daily-rotating grid of twelve,
-trust strip — is Phase 5. Do not grow this one.
+**The hero search is the same component as the one on /search/.**
+`components/_search_bar.html`, in a plain `<form method="get" action="/search/">`.
+Not a copy: the query field, the location field's native `<datalist>`
+autocomplete, the radius `<select>` and the always-visible submit button are one
+implementation of that keyboard pattern, and a second one on the most important
+page on the site is a second one to keep accessible. With JavaScript off this form
+is a plain GET — the only enhancement is `hx-get` on the location input, which
+populates the datalist and whose absence leaves a working text box.
+
+**The independence notice is ABOVE the grid, not below it.** The brief allows
+either; above is strictly better, because the sentence a visitor needs before they
+read twelve names and photographs on a Kiam-branded page is that these people are
+not Kiam's clinicians. Same partial as everywhere else — never retyped.
+
+**The lede is the first paragraph, it NAMES THE ENTITY, and it is SHORT.**
+docs/seo.md ("AEO / AI search") says the first paragraph is what gets extracted, so
+it has to be a sentence that stands on its own: "The Kiam Clinic Directory lists
+independent …", not a subject-less fragment beginning "Psychiatrists,
+psychologists, …", which is what the second draft had and which reads as a list of
+nothing in particular when lifted out of the page. It stays under 220 characters
+(pinned by a test) because the first draft put the whole plain-language explanation
+here, and on a 375px phone that was a nine-line serif paragraph between the visitor
+and the search box. The most important interaction on the site cannot sit below a
+paragraph. The fuller version is its own section, further down.
+
+**Nothing on this page books, matches or takes payment.** No booking control (the
+field exists and is deliberately unrendered — docs/content-compliance.md §9), and
+"how it works" ends at "arrange it with them directly" because that is where
+Kiam's involvement ends.
+
+Only the h1 uses kiam-ui's `section_head` component. The section h2s are plain
+elements sized by `.dir-home__section > h2` in app.css, because `section_head`
+gives every heading the same `--text-display-md` regardless of level — fine for
+one h1, but it flattens h1 and h2 to the same size on a page with seven sections.
+See the heading-size note in the Phase 5 block of static/src/app.css.
+
+**Every verification claim on this page is conditional on the badge, and that is a
+correction, not a style.** The first draft said "Before a listing goes live, Kiam
+Clinic checks…" in three places. Publication does not require verification:
+`review.blocking_publication_reasons()` blocks only a restricted title with no
+verified registration, `is_verified` is a separate computed field, and CLAUDE.md's
+own design keeps a listing UP when its badge is withdrawn. So on a directory where
+9 of 28 published listings currently carry no badge, that sentence was untrue —
+and it was untrue in exactly the direction docs/verification-policy.md exists to
+prevent. The claim is now attached to the badge wherever it appears.
+
+TODO(sign-off): Dr. Abbass — verification-policy-derived copy appears in THREE
+places on this page, not one: the "What this directory is" paragraph, the
+"What “Credentials checked” means" strip, and the practitioner CTA at the bottom.
+docs/verification-policy.md puts any public wording derived from it behind a
+clinical gate. All three are narrowed to what is actually enforced; see
+/how-verification-works/, which carries the same narrowing and the same marker.
+TODO(sign-off): CQC compliance lead — the independence framing on this page: the
+lede, "How it works" step 3, and the "Kiam Clinic" cross-link section.
+TODO(sign-off): solicitor — the paid-placement sentence under the grid, alongside
+the Listing Agreement that has to cover a featured tier at all.
 {% endcomment %}
 
 {% block content %}
-<div class="container section">
-
-  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Kiam Clinic Directory" title="Find an independent mental-health practitioner" description="Search by speciality, approach and location, and contact practitioners directly." heading_level=1 %}
+<div class="dir-home">
 
   {% comment %}
-  The independence notice, verbatim from docs/content-compliance.md §5. It is
-  required on every profile page and every search-results page; it is here too
-  because the relationship should be clear from the first page a visitor lands
-  on, not only once they have gone looking.
+  The hero. A `<section>` rather than a bare div so the h1 and the search box are
+  one region; the `role="search"` landmark inside `_search_bar.html` names only the
+  controls, not the page.
   {% endcomment %}
-  {% include "kiam_ui/components/feedback/disclaimer.html" with title="About the practitioners listed here" heading_level=2 body_template="components/_independence_notice.html" %}
+  <section class="dir-hero">
+    <div class="container dir-hero__inner">
+
+      {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Kiam Clinic Directory" title="Find an independent mental-health practitioner" description="The Kiam Clinic Directory lists independent psychiatrists, psychologists, psychotherapists and counsellors across the UK, in person and online. You contact them directly." heading_level=1 %}
+
+      <form method="get" action="{% url 'search:search' %}" class="dir-hero__form">
+        {% include "components/_search_bar.html" %}
+      </form>
+
+    </div>
+  </section>
+
+  <div class="container dir-home__body">
+
+    {% comment %}
+    Verbatim from docs/content-compliance.md §5, via the one partial. Immediately
+    below the hero, so it is read before the grid and, on a desktop viewport, above
+    the fold.
+    {% endcomment %}
+    {% include "kiam_ui/components/feedback/disclaimer.html" with title="About the practitioners listed here" heading_level=2 body_template="components/_independence_notice.html" %}
+
+    {% comment %}
+    ---------- what this is ----------
+
+    One paragraph, plain language, before anybody scrolls into twelve photographs.
+    It is the fuller version of the hero's one-line lede, and it is here rather than
+    in the hero for the reason in the file comment above.
+    {% endcomment %}
+    <section class="dir-home__section dir-home__section--first">
+      <h2>What this directory is</h2>
+      <p class="dir-home__intro">
+        The Kiam Clinic Directory is a public list of independent mental-health
+        practitioners working in the UK. Each listing says what the practitioner
+        offers and who they work with, and most also give their fees and the places
+        they work from. Where a listing shows <strong>“Credentials checked”</strong>
+        and a date, Kiam Clinic had checked that practitioner's registration,
+        qualifications and insurance on that date. You read the listings, choose for
+        yourself, and contact the practitioner directly. There is nothing to sign up
+        for and nothing to pay Kiam Clinic.
+      </p>
+    </section>
+
+    {% comment %} ---------- the grid ---------- {% endcomment %}
+    <section class="dir-home__section">
+      <h2>Some of the practitioners listed here</h2>
+      <p class="dir-home__lede">
+        Twelve listings from the directory. Which twelve changes every day, so this
+        is a sample rather than a ranking — it is not a shortlist and it is not a
+        recommendation.
+      </p>
+
+      {% include "pages/_home_grid.html" %}
+    </section>
+
+    {% comment %} ---------- how it works ---------- {% endcomment %}
+    <section class="dir-home__section">
+      <h2>How it works</h2>
+
+      {% comment %}
+      A real `<ol>`: the order is information, so it is carried by the markup and
+      not only by the numbers in the copy (WCAG 1.3.1). `.dir-steps` restores the
+      markers Tailwind's preflight removes — see the `.prose` comment in app.css.
+      {% endcomment %}
+      <ol class="dir-steps dir-home__steps">
+        <li>
+          <strong>Find someone.</strong> Search by condition, approach or
+          practitioner name, and narrow it by location, availability, fees,
+          language and accessibility.
+          <a href="{% url 'search:search' %}">Search the directory</a>.
+        </li>
+        <li>
+          <strong>Read their listing, then contact them.</strong> A listing sets out
+          what the practitioner offers, who they work with, and usually their fees
+          and where they work. Their contact details are on their own page.
+        </li>
+        <li>
+          <strong>Arrange it directly with them.</strong> You agree the appointment
+          and the fee with the practitioner. Kiam Clinic does not arrange
+          appointments, takes no payment, and does not choose a practitioner for
+          you.
+        </li>
+      </ol>
+    </section>
+
+    {% comment %} ---------- trust strip ---------- {% endcomment %}
+    <section class="dir-home__section">
+      <h2>What “Credentials checked” means</h2>
+
+      <div class="dir-trust">
+        <p class="dir-trust__icon" aria-hidden="true">
+          {% include "kiam_ui/components/icon.html" with name="shield-check" size=28 %}
+        </p>
+        <div class="dir-trust__body prose">
+          <p>
+            Where a listing carries that badge and a date, Kiam Clinic had — on that
+            date — checked the practitioner's identity, their registration with their
+            regulator or professional body, their qualifications and their indemnity
+            insurance. The badge lapses on its own when one of those documents
+            expires, and a listing whose badge has lapsed stays up without it.
+          </p>
+          {% comment %}
+          Absence is meaningful and has to be said, because the badge's own component
+          deliberately renders NOTHING for an unverified listing — there is no "not
+          verified" label, so a visitor who does not know the badge exists cannot read
+          its absence. Saying "we check everyone before publishing" instead would be
+          the overstatement this section was rewritten to remove.
+          {% endcomment %}
+          <p>
+            A listing without the badge has not been through those checks, or has
+            been through them and something has since expired. Being listed at all is
+            not the same as being checked.
+          </p>
+          <p>
+            The badge is a documents check and nothing more. It is
+            <strong>not a quality, competence or outcome claim</strong>, and it is
+            not a recommendation — the practitioners listed here are responsible for
+            their own practice.
+            <a href="{% url 'pages:how_verification_works' %}">How verification works, in full</a>.
+          </p>
+          <p>
+            If something in a listing looks wrong,
+            <a href="{% url 'pages:report_concern' %}">tell us about it</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    {% comment %} ---------- browse ---------- {% endcomment %}
+    <section class="dir-home__section">
+      <h2>Browse the directory</h2>
+      <p class="dir-home__lede">
+        Every link here leads to practitioners who are actually listed — these lists
+        are counted from live listings, not from the vocabulary.
+      </p>
+
+      <div class="dir-browse">
+        {% if browse.specialities %}
+          <div class="dir-browse__group">
+            <h3>By what they work with</h3>
+            <ul class="dir-browse__links" role="list">
+              {% for entry in browse.specialities %}
+                <li>
+                  <a href="{{ entry.url }}">{{ entry.label }}</a>
+                  <span class="dir-browse__count">{{ entry.count }} {{ entry.count_label }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        {% if browse.towns %}
+          <div class="dir-browse__group">
+            <h3>By where they work</h3>
+            <ul class="dir-browse__links" role="list">
+              {% for entry in browse.towns %}
+                <li>
+                  <a href="{{ entry.url }}">{{ entry.label }}</a>
+                  <span class="dir-browse__count">{{ entry.count }} {{ entry.count_label }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        <div class="dir-browse__group">
+          <h3>Or search everything</h3>
+          <p>
+            The full filter list — profession, approach, client group, language,
+            fees, waiting time, evenings and weekends, step-free access, parking
+            and hearing loops — is on the search page.
+          </p>
+          {% url 'search:search' as search_url %}
+          {% include "kiam_ui/components/core/button.html" with variant="ghost" label="Search the directory" icon="search" icon_position="left" href=search_url %}
+        </div>
+      </div>
+    </section>
+
+    {% comment %}
+    ---------- the cross-link back to the clinic ----------
+
+    docs/seo.md: search engines treat this subdomain as a separate site, and the
+    mitigation is deliberate cross-linking rather than canonical tricks. It is also
+    the honest thing for a visitor who arrived here looking for the clinic — with
+    the boundary stated, so the link cannot be read as "the practitioners above
+    work at this clinic".
+    {% endcomment %}
+    <section class="dir-home__section">
+      <h2>Kiam Clinic</h2>
+
+      <div class="prose dir-home__crosslink">
+        <p>
+          Kiam Clinic is a private mental-health clinic in Epsom, Surrey, and is the
+          publisher of this directory. Its own clinical services — its own team, its
+          own appointments — are a separate thing from the practitioners listed here.
+        </p>
+        <p>
+          <a href="{{ kiam_ui.URLS.main|default:'https://kiamclinic.com' }}">Visit kiamclinic.com</a>
+          · <a href="{% url 'pages:about' %}">About this directory</a>
+        </p>
+      </div>
+    </section>
+
+  </div>
 
   {% comment %}
-  This sentence has now been wrong twice, in the same way, one phase apart.
+  The practitioner CTA. `eyebrow` is overridden because kiam-ui's default is "Book
+  or enquire" — this site books nothing (KIAM_UI["PRIMARY_CTA"] is None for the
+  same reason). `cta_banner` emits its title as an h2, which is the level this
+  page's other sections use.
 
-  At Phase 3 it claimed practitioner listings did not exist while sitemap.xml
-  listed every published one. At Phase 4 it claimed search did not exist while
-  this page's own JSON-LD emitted a SearchAction pointing at /search/ — a
-  machine-readable and a human-readable claim contradicting each other on one
-  document, on the highest-authority page on the subdomain.
-
-  The lesson, for whoever writes the real home page in Phase 5: a placeholder that
-  enumerates what does NOT exist has to be edited every time something does. State
-  what IS there instead.
+  **It does not say "sends enquiries straight to you".** The first draft did, and
+  there is no message relay anywhere in this project — `directory/views.py` says so
+  explicitly, and that relaying would make Kiam a processor of the client's
+  health-adjacent personal data and change its data-controller position, which
+  needs legal review before anyone builds it (docs/content-compliance.md §9). A CTA
+  advertising a deferred intermediary function to prospective members, on the
+  highest-authority page on the subdomain, is how a deferred decision gets made by
+  accident. Clients contact the practitioner; nothing passes through Kiam.
   {% endcomment %}
-  <p class="dir-placeholder-note">
-    <a href="{% url 'search:search' %}">Search the directory</a> to find an
-    independent practitioner by speciality, approach and location. The browse pages
-    are still being built.
-  </p>
+  <div class="container dir-home__cta">
+    {% include "kiam_ui/components/sections/cta_banner.html" with eyebrow="For practitioners" title="Are you an independent practitioner?" description="Listing is by invitation and membership. Kiam Clinic checks your credentials and publishes your listing; clients then contact you directly. No commission on your fees, and no part in your clinical work." actions_template="pages/_home_cta_actions.html" %}
+  </div>
 
 </div>
 {% endblock %}

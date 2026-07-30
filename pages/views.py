@@ -1,7 +1,9 @@
 """Public content pages.
 
-The home page is still the Phase 0 placeholder — the real one (hero search,
-rotating grid, trust strip) is Phase 5.
+The home page is Phase 5: a hero search that submits to ``/search/``, a
+daily-rotating grid of twelve, the independence notice above the grid, and browse
+entry points. The work is in ``pages/services/home.py`` — the view assembles a
+context and renders.
 
 Everything else here is Phase 3's static set. They share one view: the registry
 in ``pages/content.py`` holds each page's URL, title, meta description and
@@ -24,15 +26,32 @@ from django.views.decorators.http import require_GET, require_http_methods
 
 from accounts.services import ratelimit
 from backoffice.services import concerns as concerns_service
+from directory.services import search as search_service
 from seo import jsonld
 
 from . import content, forms
+from .services import home as home_service
 
 logger = logging.getLogger("pages")
 
 
 @require_GET
 def home(request):
+    """The home page.
+
+    Nothing here is per-visitor, which is what lets the grid and the browse links
+    be cached (``pages.services.home``). The view holds no cache logic of its own
+    and reads nothing off ``request`` except to render — so there is no path by
+    which something user-specific could end up in a shared cache entry.
+
+    **No search impression is recorded for the grid.** ``metrics`` counts
+    ``search_impressions``, which means "appeared in a set of search results";
+    the grid is a rotating sample of the directory, not an answer to a query, and
+    counting it as one would inflate the number Phase 6's insights page shows a
+    practitioner and Phase 7 uses to justify a subscription. It is also behind a
+    24-hour cache, so a per-request counter here would count the request and not
+    the selection. Carried forward as its own counter if the dashboard needs it.
+    """
     return render(
         request,
         "pages/home.html",
@@ -44,6 +63,10 @@ def home(request):
                 "practitioners directly."
             ),
             "jsonld": jsonld.home(),
+            **home_service.hero(),
+            "grid": home_service.grid(),
+            "browse": home_service.browse_entry_points(),
+            "featured_cap": search_service.FEATURED_CAP_PER_PAGE,
         },
     )
 

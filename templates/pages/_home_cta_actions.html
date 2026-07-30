@@ -1,0 +1,14 @@
+{% comment %}
+The action row inside kiam-ui's CTA banner (its `actions_template` slot).
+
+`light` is the variant the component's own docstring specifies for the green
+gradient — docs/design-system.md §5 records that anything else drops below AA
+somewhere across the teal-to-green sweep.
+
+One link, not two. There is no self-serve sign-up: listing is by invitation
+(backoffice.services.invites), so the honest call to action is "read what is
+involved" rather than "create an account" — and practitioner sign-in is already in
+the chrome, from KIAM_UI["AUTH"].
+{% endcomment %}
+{% url 'pages:for_practitioners' as for_practitioners_url %}
+{% include "kiam_ui/components/core/button.html" with variant="light" label="How listing works" icon="arrow-right" href=for_practitioners_url %}

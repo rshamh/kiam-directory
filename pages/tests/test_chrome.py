@@ -149,9 +149,14 @@ def test_nav_items_have_the_shape_kiam_ui_expects(rf):
 
 
 def test_the_nav_cross_links_to_the_main_site(rf):
-    """How authority flows between the subdomains (docs/seo.md)."""
+    """How authority flows between the subdomains (docs/seo.md).
+
+    The trailing slash is asserted, not tolerated: this link is in the chrome of
+    every page, and `https://kiamclinic.com` without it costs a redirect hop on
+    every one of them.
+    """
     urls = [item["url"] for item in nav.nav_items(rf.get("/"))]
-    assert "https://kiamclinic.com" in urls
+    assert "https://kiamclinic.com/" in urls
 
 
 def test_the_footer_has_no_links_to_pages_that_do_not_exist_yet(rf, client):

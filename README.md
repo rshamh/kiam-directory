@@ -6,9 +6,9 @@ directly.
 
 Django · PostgreSQL/PostGIS · Redis · Tailwind + HTMX + Alpine · [`kiam-ui`](#kiam-ui)
 
-**Phases 0–4 are built.** Foundation, data model and taxonomy, the admin back office, the public
-profile with its static pages, and search. Phase 5 (the real home page) is next — the home page is
-still a placeholder.
+**Phases 0–5 are built.** Foundation, data model and taxonomy, the admin back office, the public
+profile with its static pages, search, and the home page. Phase 6 (the practitioner dashboard) is
+next.
 
 ## Start here
 
@@ -16,7 +16,7 @@ still a placeholder.
    and invariants that will otherwise bite you
 2. `docs/multi-project-architecture.md` — how this sits alongside the main site and rooms
 3. `docs/architecture.md` — apps, models, URLs, roles, as they actually are
-4. `docs/design-system.md` — what `kiam-ui` really exposes, and the nine gaps
+4. `docs/design-system.md` — what `kiam-ui` really exposes, and the twenty-one gaps
 5. `docs/roadmap.md` — the eight build phases and their gates
 
 ---
@@ -130,6 +130,11 @@ the same dated evidence a real one would be.
 fictional practitioners carrying "Credentials checked" badges, and that is a claim
 Kiam makes about a real person's documents.
 
+`.claude/launch.json` runs the dev server on **8010**, not 8000: the main site and the
+room-rental app are the other two checkouts on this machine and one of them usually has
+8000. Nothing in the app depends on the port — `SITE_BASE_URL` only feeds canonicals in
+mail and the sitemap, and page canonicals come from the request.
+
 ### Scheduled jobs
 
 Two nightly commands, defined in `ops/crontab`:
@@ -195,19 +200,27 @@ ruff check . && ruff format --check . && pytest
 
 CI runs the same three, plus `makemigrations --check` and a full image build.
 
-**Run the app, not just the suite.** Three of the worst bugs found so far passed a green suite:
+**Run the app, not just the suite.** Five of the worst bugs found so far passed a green suite:
 a developer `.env` baked into a Docker layer, `collectstatic` failing on kiam-ui's shipped CSS
-source, and password sign-in rejecting the *correct* password for a mixed-case address. A green
-test run is not evidence the thing starts.
+source, password sign-in rejecting the *correct* password for a mixed-case address, a closed
+`<details>` that did not collapse (317 tab stops instead of 35), and — at Phase 5 — a reserved
+`LogRecord` key that turned "a broken image never breaks the page" into a 500, invisible to the
+suite because test settings silence logging. A green test run is not evidence the thing starts.
 
 ```bash
 python manage.py runserver          # then actually load a page
 docker compose build --ssh default  # the image is where the .env leak surfaced
 ```
 
+**Measure the rendered page before closing a phase with a performance or accessibility gate.**
+Reading the markup did not find the collapsed-`<details>` bug and would not have found the
+footer wordmark at 1.76:1. Lighthouse against a production-like local server — `DEBUG` off, so
+WhiteNoise serves the compressed static files a visitor actually gets — is what the Phase 5 gate
+used; see `docs/roadmap.md` for the numbers it produced.
+
 ## Testing
 
-~860 tests. Two conventions worth knowing before adding more:
+~960 tests. Two conventions worth knowing before adding more:
 
 - **Factories never write a verification field.** `PractitionerFactory(verified=True)` creates
   dated checks and calls `recompute()`, exactly as production does. A factory that set
@@ -221,6 +234,9 @@ pytest directory/tests/test_search_minors_gate.py   # the Phase 4 gate: PROVISIO
 pytest directory/tests/test_profile_minor_gate.py   # the Phase 3 gate: minor groups are not in the HTML
 pytest directory/tests/test_verification.py         # the service that decides what the public sees
 pytest backoffice/tests/test_flow.py                # invite -> draft -> submit -> verify -> publish
+pytest pages/tests/test_home.py                     # the Phase 5 gate: the hero works with no JavaScript
+pytest pages/tests/test_home_service.py             # the grid rotates daily, caches, and cannot show a suspension
+pytest pages/tests/test_home_minors_gate.py         # the Phase 5 gate: no un-cleared child work on the front page
 pytest --create-db                                  # after a migration, or the reused DB will lie
 ```
 
@@ -232,12 +248,18 @@ pytest --create-db                                  # after a migration, or the 
 
 | Page | What it does |
 |---|---|
+| `/` | Hero search — query, location and radius side by side, submitting as a plain GET to `/search/`. Then a grid of twelve published listings that changes every day, the independence notice above it, how it works, what "Credentials checked" means, browse entry points counted from live listings, and cross-links to kiamclinic.com. The grid and the browse lists are cached for 24 hours; **the cache holds primary keys, not rows**, so a suspended listing drops out on the next request even if nothing busted the key |
 | `/search/` | Filter sidebar and results. **Works completely without JavaScript** — one plain `<form>`, a visible submit button, full results in the body. HTMX swaps `#results` when it is available. Every faceted URL is `noindex, follow` with a canonical to the bare path |
 | `/p/<slug>/` | A practitioner's profile. **PUBLISHED only** — a draft, a suspension and a slug nobody has used all return the same 404, so a suspension is invisible rather than announced. Old slugs 301 to the current one |
 | `/p/<slug>/contact/<channel>/` | Reveals one contact detail. POST only, rate limited, `noindex`. Works without JavaScript as a whole page, and with HTMX as an in-place swap |
 | `/about/` · `/how-verification-works/` · `/for-practitioners/` · `/accessibility/` | Written content. The verification page states plainly what the badge does **not** mean |
 | `/terms/` · `/privacy/` · `/cookies/` | Outlines only. `TODO(sign-off)` — solicitor |
 | `/report-a-concern/` | Writes a `ConcernReport`. Routes complaints about **care** to the practitioner's regulator, and names them, above the form |
+
+The home page's hero uses the *same* `components/_search_bar.html` as `/search/` — one
+implementation of the query field, the location field's native `<datalist>` autocomplete, the
+radius `<select>` and the always-visible submit button, because a second copy on the most
+important page on the site is a second copy to keep accessible.
 
 Two rules run through all of it. Client groups render through
 `Practitioner.visible_client_groups()`, so a `PROVISIONAL` practitioner's under-18 groups are
@@ -394,5 +416,44 @@ would be a defamation risk against someone who may be cleared next week.
 
 **Never retype the independence notice.** It is one partial,
 `templates/components/_independence_notice.html`, verbatim from `docs/content-compliance.md` §5.
-Profile pages, results pages and the contact-reveal interstitial all `{% include %}` it, so a
-change to §5 lands in one place.
+The home page, profile pages, results pages and the contact-reveal interstitial all
+`{% include %}` it, so a change to §5 lands in one place. On the home page it sits **above** the
+grid: the sentence a visitor needs before reading twelve names and photographs on a
+Kiam-branded page cannot be below them.
+
+**Cache primary keys, not rows, and never HTML.** `pages/services/home.py` caches the twelve
+chosen ids and re-reads the rows every render. Caching the rows would freeze a practitioner's
+own details and the verification badge's wording for a day; caching pickled model instances
+would 500 the busiest page on the site after the next migration; and re-applying
+`status=PUBLISHED` on the way out means a `bust_cache()` that never fires cannot leave a
+suspended listing on the home page.
+
+**`extra={"name": ...}` in a log call raises.** `name` is a reserved `LogRecord` attribute, and
+`Logger.makeRecord` raises `KeyError` on a collision — so a log line meant to record a failure
+becomes the failure. Two calls in `directory/services/images.py` did this, which turned "a broken
+image never breaks the page" into a 500. The suite could not see it: `config/settings/test.py`
+sets the root logger to CRITICAL, so `makeRecord` is never reached in a test run.
+`directory/tests/test_images.py::test_the_logging_calls_are_actually_emittable` is the guard, and
+it is the only test in that module that turns logging on.
+
+**A cached payload's version tracks its MEANING, not just its keys.** Phase 5 added a key to the
+browse payload and a cap to the grid selection without bumping `CACHE_VERSION`, so the shape check
+passed, the old entry was served, and the live page showed browse counts with no unit next to four
+"Paid placement" cards under a promise of three. Both fixes were correct and both were invisible
+for as long as the entry lived.
+
+**A link asserts its destination; a text box only suggests one.** `?near=Croydon` was fine as
+something a visitor typed — they see the resolved label and can correct it — and wrong as an
+authored href, because `geocode.places()` takes the first OS Open Names match and Croydon,
+Cambridgeshire is a real place. Authored location links use an outward code.
+
+**Lighthouse and axe scored the home page 100 on accessibility while it had two AA failures.**
+Neither tests reflow at 320 px, focus-indicator contrast, or 2.5.8's spacing exception. A
+`minmax()` min track cannot shrink below its floor; a focus ring the same colour as the gradient
+it is drawn on is not a focus ring.
+
+**An `<ol>` outside `.prose` has no numbers.** Tailwind's preflight sets
+`ol, ul, menu { list-style: none }`. Where the sequence is the information this is WCAG 1.3.1, so
+`.dir-steps` sets `list-style: decimal` itself rather than relying on a container. Same class of
+bug as an unsized heading: kiam-ui sizes only `.ds-section-head__title`, so a plain `<h2>`
+renders at body size until this repo's CSS sizes it.

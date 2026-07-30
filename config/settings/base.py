@@ -420,10 +420,14 @@ KIAM_UI = {
         "phone_e164": "+441372660580",
         "email": "enquiries@kiamclinic.com",
     },
+    # Trailing slashes on purpose: docs/seo.md asks for deliberate cross-linking to
+    # the main site by name, and `https://kiamclinic.com` costs a redirect hop on
+    # every one of those links — in the nav, in the footer and in the home page's
+    # own "Kiam Clinic" section.
     "URLS": {
-        "main": "https://kiamclinic.com",
-        "rooms": "https://rooms.kiamclinic.com",
-        "directory": "https://directory.kiamclinic.com",
+        "main": "https://kiamclinic.com/",
+        "rooms": "https://rooms.kiamclinic.com/",
+        "directory": "https://directory.kiamclinic.com/",
     },
     # Staff and practitioners log in; clients never do (docs/architecture.md).
     "AUTH": {
