@@ -1,0 +1,122 @@
+{% extends "dashboard/base.html" %}
+{% comment %}
+Where your listing stands, and what to do next.
+
+Order is deliberate and it is not "most interesting first". Anything that needs
+the practitioner to act comes above anything that is merely informative: a
+provisional-DBS countdown and a reviewer's note are things somebody is waiting
+on them for, and the insights snapshot is not.
+{% endcomment %}
+{% block dash_title %}Overview{% endblock %}
+
+{% block dash_content %}
+
+  {% if open_review and latest_review.reviewer_notes and status.waiting_on == "you" %}
+    <section class="dir-dash__panel dir-dash__panel--warning">
+      <h2>What we have asked for</h2>
+      <p class="dir-dash__notes">{{ latest_review.reviewer_notes }}</p>
+      <p>Make those changes, then send your listing back to us.</p>
+    </section>
+  {% endif %}
+
+  {% if minor_work %}
+    {% comment %}
+    The provisional-DBS countdown. This is the sentence on the whole dashboard
+    somebody is most likely to act on wrongly if it is vague: they are live, they
+    are taking clients, and what is missing is a safeguarding check. So it says
+    which parts of the listing are showing and which are not, and it never
+    implies the listing itself is at risk.
+    {% endcomment %}
+    <section class="dir-dash__panel dir-dash__panel--{{ minor_work.tone }}">
+      <h2>{{ minor_work.headline }}</h2>
+      <p>{{ minor_work.detail }}</p>
+      {% if minor_work.days_left is not None %}
+        <p class="dir-dash__countdown">
+          <strong>{{ minor_work.days_left }} day{{ minor_work.days_left|pluralize }}</strong> left to send us your DBS certificate.
+          After that your under-18 client groups stay hidden until it is verified.
+        </p>
+        <p><a href="{% url 'dashboard:documents' %}">Upload your DBS certificate</a></p>
+      {% elif minor_work.state == "blocked" %}
+        <p><a href="{% url 'dashboard:documents' %}">Upload your DBS certificate</a></p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <div class="dir-dash__columns">
+
+    <section class="dir-dash__panel">
+      <h2>Your listing</h2>
+      {% include "dashboard/_completeness.html" with completeness=completeness %}
+
+      {% if status.waiting_on == "you" and status.is_public == False and completeness.is_complete %}
+        <form method="post" action="{% url 'dashboard:submit' %}" class="dir-dash__submit">
+          {% csrf_token %}
+          {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Send my listing to Kiam to check" %}
+        </form>
+      {% endif %}
+    </section>
+
+    <section class="dir-dash__panel">
+      <h2>What we have checked</h2>
+      <p class="dir-dash__lede">
+        Your listing shows a “Credentials checked” badge only while every one of
+        these is verified and in date. <a href="{% url 'pages:how_verification_works' %}">What that means</a>.
+      </p>
+
+      <ul class="dir-checks" role="list">
+        {% for check in checks %}
+          <li class="dir-checks__item dir-checks__item--{{ check.state }}">
+            <span class="dir-checks__label">{{ check.label }}</span>
+            <span class="dir-checks__state">{{ check.state_label }}</span>
+
+            {% if check.expires_at %}
+              <span class="dir-checks__expiry">
+                {% if check.has_expired %}
+                  Expired {{ check.expires_at|date:"j F Y" }}
+                {% else %}
+                  Valid until {{ check.expires_at|date:"j F Y" }}
+                  {% if check.is_expiring_soon %}
+                    — <strong>{{ check.days_left }} day{{ check.days_left|pluralize }} left</strong>
+                  {% endif %}
+                {% endif %}
+              </span>
+            {% endif %}
+
+            {% if check.needs_action %}
+              <a class="dir-checks__action" href="{% url 'dashboard:documents' %}">{{ check.action }}</a>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+
+  </div>
+
+  <section class="dir-dash__panel">
+    <h2>How your listing is doing</h2>
+    {% if insights.has_any_data %}
+      <ul class="dir-stats" role="list">
+        <li class="dir-stats__item">
+          <span class="dir-stats__value">{{ insights.impressions.value }}</span>
+          <span class="dir-stats__label">{{ insights.impressions.label }}</span>
+        </li>
+        <li class="dir-stats__item">
+          <span class="dir-stats__value">{{ insights.views.value }}</span>
+          <span class="dir-stats__label">{{ insights.views.label }}</span>
+        </li>
+        <li class="dir-stats__item">
+          <span class="dir-stats__value">{{ insights.contacts.value }}</span>
+          <span class="dir-stats__label">{{ insights.contacts.label }}</span>
+        </li>
+      </ul>
+      <p class="dir-dash__lede">In the last {{ insights.window_days }} days.
+        <a href="{% url 'dashboard:insights' %}">See the detail</a>.</p>
+    {% else %}
+      <p class="dir-dash__lede">
+        Nothing to show yet — these fill in once your listing has been live for a
+        few days. <a href="{% url 'dashboard:insights' %}">About these numbers</a>.
+      </p>
+    {% endif %}
+  </section>
+
+{% endblock %}

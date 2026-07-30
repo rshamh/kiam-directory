@@ -1,0 +1,97 @@
+{% extends "dashboard/base.html" %}
+{% comment %}
+Evidence upload.
+
+**There is deliberately no way to open a document from here.** The only door to a
+private object is `documents.open_evidence()`, which requires `can_view_evidence`
+and writes an access-log row in the same transaction as it mints the URL. A
+"download your own copy" link would be a second, unlogged route to the evidence
+bucket, which is what directory/storages.py exists to make impossible. A
+practitioner can see that a file is there, what it is, and what state it is in —
+which is what they actually need.
+{% endcomment %}
+{% block dash_title %}Documents{% endblock %}
+
+{% block dash_content %}
+<h1>Documents</h1>
+
+<div class="dir-dash__legend">
+  <p>
+    These are stored separately from your listing, are never public, and are only
+    opened by the member of Kiam staff checking them — every time one is opened we
+    record who and when.
+  </p>
+  <p>
+    You will not be able to open them again from here. If you need a copy, keep
+    your own.
+  </p>
+</div>
+
+<section class="dir-dash__panel">
+  <h2>What we still need</h2>
+  <ul class="dir-checks" role="list">
+    {% for check in checks %}
+      <li class="dir-checks__item dir-checks__item--{{ check.state }}">
+        <span class="dir-checks__label">{{ check.label }}</span>
+        <span class="dir-checks__state">{{ check.state_label }}</span>
+        {% if check.expires_at and not check.has_expired %}
+          <span class="dir-checks__expiry">Valid until {{ check.expires_at|date:"j F Y" }}</span>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="dir-dash__panel">
+  <h2>Upload a document</h2>
+  <form method="post" enctype="multipart/form-data" class="dir-dash__form" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="dir-field__error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    {% include "dashboard/_field.html" with field=form.check_type %}
+    {% include "dashboard/_field.html" with field=form.file %}
+    {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Upload" %}
+  </form>
+</section>
+
+{% if documents %}
+  <section class="dir-dash__panel">
+    <h2>What you have sent us</h2>
+    <table class="dir-table">
+      <thead>
+        <tr><th scope="col">Document</th><th scope="col">What it is</th><th scope="col">Sent</th><th scope="col">State</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
+      </thead>
+      <tbody>
+        {% for document in documents %}
+          <tr>
+            <td>{{ document.original_filename }}</td>
+            <td>{{ document.get_type_display }}</td>
+            <td>{{ document.uploaded_at|date:"j F Y" }}</td>
+            <td>
+              {% if document.verification_check %}
+                {{ document.verification_check.get_status_display }}
+              {% else %}
+                Waiting
+              {% endif %}
+            </td>
+            <td>
+              {% if document.verification_check and document.verification_check.status == "verified" %}
+                <span class="dir-dash__locked">Kept as evidence</span>
+              {% else %}
+                <form method="post" action="{% url 'dashboard:document_delete' document.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="dir-linkbutton">Delete<span class="sr-only"> {{ document.original_filename }}</span></button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="dir-dash__lede">
+      Once we have checked a document it stays on file as the evidence behind your
+      verification — you can upload a newer one to replace it, but it cannot be
+      deleted at that point.
+    </p>
+  </section>
+{% endif %}
+{% endblock %}

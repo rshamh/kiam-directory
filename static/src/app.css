@@ -1348,3 +1348,607 @@ html[data-contrast="high"] .site-footer :focus {
 .site-footer .footer-legal-links {
   flex-wrap: wrap;
 }
+
+/* ============================================================
+   Phase 6 — the practitioner dashboard.
+
+   Same rules as Phases 3–5: semantic token aliases only, no raw swatches, no hex,
+   no transitions and no animations.
+
+   The audience is different from every other surface in this repo. The back
+   office is staff and can be dense; the public side is a client who may be
+   distressed. This is a professional being asked about their own credentials,
+   often after an email saying something has lapsed — so it is generously spaced,
+   never dense, and every state has a colour AND a word, because a red border on
+   its own says "wrong" to somebody who is already anxious about it.
+   ============================================================ */
+
+.dir-dash {
+  max-width: 62rem;
+}
+
+/* ---------- the status strip ----------
+
+   On every page, not just the overview: "is my listing live?" is the question
+   somebody has WHILE they are editing, which is exactly when they cannot see the
+   overview. */
+
+.dir-dash__status {
+  padding: var(--space-5);
+  border: 1px solid var(--border-hover);
+  border-inline-start: 4px solid var(--border-hover);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+
+.dir-dash__status--good { border-inline-start-color: var(--brand-primary); }
+.dir-dash__status--warning { border-inline-start-color: var(--amber-text); }
+.dir-dash__status--blocked { border-inline-start-color: var(--ds-danger, var(--amber-text)); }
+
+.dir-dash__status-headline {
+  font-size: var(--text-title-sm);
+  line-height: var(--line-height-heading);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+}
+
+.dir-dash__status-detail,
+.dir-dash__status-link {
+  margin-block-start: var(--space-2);
+  color: var(--text-secondary);
+}
+
+.dir-dash__status-link a,
+.dir-dash__lede a,
+.dir-dash__leaving a,
+.dir-meter__list a,
+.dir-checks__action,
+.dir-places__actions a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* ---------- navigation ---------- */
+
+.dir-dash__nav {
+  margin-block-start: var(--space-6);
+  padding-block-end: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  border-block-end: 1px solid var(--border-hover);
+}
+
+/* 44px of height clears WCAG 2.2 §2.5.8 with room, and these wrap onto three
+   rows on a phone — so the padding is doing the spacing as well. */
+.dir-dash__nav a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.dir-dash__nav a:hover {
+  background: var(--surface-sunken);
+}
+
+/* The current page is marked by weight and an underline bar, never by colour
+   alone (WCAG 1.4.1). `aria-current` carries it for a screen reader. */
+.dir-dash__nav a[aria-current="page"] {
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+  box-shadow: inset 0 -3px 0 0 var(--brand-primary);
+}
+
+/* ---------- messages ---------- */
+
+.dir-dash__messages {
+  margin-block-start: var(--space-6);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dir-dash__message {
+  padding: var(--space-4);
+  border: 1px solid var(--border-hover);
+  border-inline-start: 4px solid var(--brand-primary);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-primary);
+}
+
+.dir-dash__message--warning { border-inline-start-color: var(--amber-text); }
+.dir-dash__message--error { border-inline-start-color: var(--ds-danger, var(--amber-text)); }
+.dir-dash__message--info { border-inline-start-color: var(--border-hover); }
+
+.dir-dash__main {
+  margin-block-start: var(--space-8);
+}
+
+.dir-dash__main > h1 {
+  font-size: var(--text-display-sm);
+  line-height: var(--line-height-heading);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+  margin-block-end: var(--space-4);
+}
+
+/* ---------- panels ---------- */
+
+.dir-dash__panel {
+  margin-block-start: var(--space-6);
+  padding: var(--space-6);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+
+.dir-dash__panel--warning { border-inline-start: 4px solid var(--amber-text); }
+.dir-dash__panel--blocked { border-inline-start: 4px solid var(--ds-danger, var(--amber-text)); }
+.dir-dash__panel--good { border-inline-start: 4px solid var(--brand-primary); }
+.dir-dash__panel--neutral,
+.dir-dash__panel--quiet { background: var(--surface-sunken); }
+
+.dir-dash__panel > h2 {
+  font-size: var(--text-title-sm);
+  line-height: var(--line-height-heading);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+  margin-block-end: var(--space-3);
+}
+
+.dir-dash__panel > h2 ~ * + * { margin-block-start: var(--space-3); }
+
+.dir-dash__lede,
+.dir-dash__notes,
+.dir-dash__countdown,
+.dir-dash__diagnosis {
+  max-width: 68ch;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.dir-dash__diagnosis {
+  color: var(--text-primary);
+  font-size: var(--text-body-lg);
+}
+
+.dir-dash__notes {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  white-space: pre-line;
+}
+
+@media (min-width: 60rem) {
+  .dir-dash__columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-6);
+    align-items: start;
+  }
+  .dir-dash__columns > .dir-dash__panel { margin-block-start: var(--space-6); }
+}
+
+/* ---------- the completeness meter ---------- */
+
+.dir-meter__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.dir-meter__label {
+  color: var(--text-heading);
+  font-weight: var(--weight-semibold);
+}
+
+.dir-meter__value {
+  font-size: var(--text-title-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+}
+
+/* A real `<progress>`: announced as a progress bar, carries its own value and
+   maximum, needs no ARIA. Browsers style it inconsistently, so both the WebKit
+   and the Firefox pseudo-elements are set — and the track keeps a border so the
+   control has a visible boundary at 3:1 (WCAG 1.4.11) even at 0%. */
+.dir-meter__bar {
+  inline-size: 100%;
+  block-size: 0.75rem;
+  margin-block-start: var(--space-2);
+  appearance: none;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.dir-meter__bar::-webkit-progress-bar { background: var(--surface-sunken); }
+.dir-meter__bar::-webkit-progress-value { background: var(--brand-primary); }
+.dir-meter__bar::-moz-progress-bar { background: var(--brand-primary); }
+
+.dir-meter__heading {
+  margin-block-start: var(--space-5);
+  font-size: var(--text-body-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+}
+
+.dir-meter__list {
+  list-style: none;
+  padding: 0;
+  margin-block-start: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.dir-meter__item {
+  padding-block: var(--space-2);
+  min-block-size: 2.75rem;
+}
+
+.dir-meter__because {
+  display: block;
+  margin-block-start: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--text-body-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.dir-meter__done { margin-block-start: var(--space-3); color: var(--text-secondary); }
+
+/* ---------- the verification checks ---------- */
+
+.dir-checks {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dir-checks__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.dir-checks__label { color: var(--text-heading); font-weight: var(--weight-medium); }
+
+/* State is carried by a WORD as well as a colour — `state_label` is always
+   rendered — so this is emphasis, not information (WCAG 1.4.1). */
+.dir-checks__state { font-size: var(--text-body-sm); color: var(--text-secondary); }
+.dir-checks__item--verified .dir-checks__state { color: var(--brand-primary-dark); }
+.dir-checks__item--expired .dir-checks__state,
+.dir-checks__item--rejected .dir-checks__state { color: var(--amber-text); }
+
+.dir-checks__expiry {
+  flex-basis: 100%;
+  font-size: var(--text-body-sm);
+  color: var(--text-secondary);
+}
+
+.dir-checks__action { font-size: var(--text-body-sm); }
+
+/* ---------- forms ---------- */
+
+.dir-dash__legend {
+  margin-block-end: var(--space-6);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--surface-sunken);
+  max-width: 68ch;
+}
+
+.dir-dash__legend > * + * { margin-block-start: var(--space-3); }
+.dir-dash__legend--controlled { border-inline-start: 4px solid var(--amber-text); }
+.dir-dash__legend--safe { border-inline-start: 4px solid var(--brand-primary); }
+.dir-dash__legend ul { padding-inline-start: var(--space-7); list-style: disc; display: grid; gap: var(--space-2); }
+
+.dir-dash__form { max-width: 44rem; }
+
+.dir-dash__fieldset {
+  border: 0;
+  padding: 0;
+  margin-block-end: var(--space-10);
+}
+
+.dir-dash__fieldset > legend {
+  font-size: var(--text-title-sm);
+  line-height: var(--line-height-heading);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+  margin-block-end: var(--space-3);
+}
+
+.dir-field { margin-block-end: var(--space-6); }
+
+.dir-field > label {
+  display: block;
+  margin-block-end: var(--space-1);
+  color: var(--text-heading);
+  font-weight: var(--weight-semibold);
+}
+
+.dir-field__required {
+  margin-inline-start: var(--space-1);
+  color: var(--text-secondary);
+  font-weight: var(--weight-regular);
+  font-size: var(--text-caption);
+}
+
+/* The marker that answers "what will saving this do". A pill with a word in it,
+   not a coloured dot: the whole point is that it is readable. */
+.dir-field__controlled {
+  display: inline-block;
+  margin-inline-start: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--amber-100);
+  color: var(--amber-text);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+
+.dir-field__consequence,
+.dir-field__help {
+  margin-block-end: var(--space-2);
+  max-width: 68ch;
+  color: var(--text-secondary);
+  font-size: var(--text-body-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.dir-field__consequence { color: var(--amber-text); }
+
+.dir-field__error {
+  margin-block-end: var(--space-2);
+  padding: var(--space-3);
+  border-inline-start: 3px solid var(--ds-danger, var(--amber-text));
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  max-width: 68ch;
+}
+
+/* Django renders bare inputs here, so they need the packaged control's look
+   without the packaged partial (docs/design-system.md gaps 12 and 13). */
+.dir-field input[type="text"],
+.dir-field input[type="email"],
+.dir-field input[type="url"],
+.dir-field input[type="tel"],
+.dir-field input[type="number"],
+.dir-field input[type="password"],
+.dir-field select,
+.dir-field textarea {
+  inline-size: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-body);
+  box-sizing: border-box;
+}
+
+.dir-field input[type="checkbox"],
+.dir-field input[type="radio"] {
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  accent-color: var(--brand-primary);
+}
+
+/* A checkbox with its label above it reads as a heading with an orphan box. The
+   whole row is the target, and it clears 44px. */
+.dir-field:has(input[type="checkbox"]) {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-block-size: 2.75rem;
+}
+
+.dir-field:has(input[type="checkbox"]) > label { margin-block-end: 0; }
+.dir-field:has(input[type="checkbox"]) > .dir-field__help,
+.dir-field:has(input[type="checkbox"]) > .dir-field__consequence { flex-basis: 100%; }
+
+.dir-field--error input,
+.dir-field--error select,
+.dir-field--error textarea { border-color: var(--ds-danger, var(--amber-text)); }
+
+/* Focus. kiam-ui's `.ds-control:focus-visible` problem does not apply to these
+   (they are not `.ds-control`), but the global ring is what they inherit and it
+   is right here — white background, 5.25:1. Stated so the next person does not
+   assume this surface was missed. */
+
+.dir-choices {
+  display: grid;
+  gap: var(--space-1);
+  max-block-size: 22rem;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+}
+
+.dir-choices label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+  padding-block: var(--space-2);
+  line-height: var(--line-height-relaxed);
+}
+
+.dir-choices input { margin-block-start: 0.35em; flex: 0 0 auto; accent-color: var(--brand-primary); }
+.dir-choices ul { list-style: none; padding: 0; margin: 0; }
+
+.dir-dash__row {
+  padding: var(--space-4);
+  margin-block-end: var(--space-4);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md);
+}
+
+.dir-dash__row-actions { border-block-start: 1px solid var(--border-hover); padding-block-start: var(--space-3); }
+.dir-dash__verified { color: var(--brand-primary-dark); font-size: var(--text-body-sm); }
+.dir-dash__headshot { border-radius: var(--radius-md); object-fit: cover; margin-block-end: var(--space-3); }
+.dir-dash__submit { margin-block-start: var(--space-5); }
+
+/* ---------- lists: places, sessions ---------- */
+
+.dir-places,
+.dir-sessions {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dir-places__item,
+.dir-sessions__item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md);
+}
+
+.dir-places__name,
+.dir-sessions__device { color: var(--text-heading); font-weight: var(--weight-semibold); }
+
+.dir-places__address,
+.dir-places__days,
+.dir-sessions__meta {
+  margin-block-start: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--text-body-sm);
+}
+
+.dir-places__tag {
+  display: inline-block;
+  margin-inline-start: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--brand-accent-soft);
+  color: var(--text-heading);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+}
+
+.dir-places__actions { display: flex; gap: var(--space-3); align-items: center; }
+
+/* A button that has to read as a link — a destructive action inside a POST form,
+   which cannot be an anchor. Underlined, so it is not distinguished by colour
+   alone, and 44px tall. */
+.dir-linkbutton {
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-link);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+/* ---------- insights ---------- */
+
+.dir-stats {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+}
+
+.dir-stats__item {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.dir-stats__value {
+  display: block;
+  font-size: var(--text-display-sm);
+  line-height: var(--line-height-heading);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+}
+
+.dir-stats__label { display: block; margin-block-start: var(--space-1); color: var(--text-primary); }
+
+.dir-stats__change {
+  display: block;
+  margin-block-start: var(--space-2);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+/* Direction is in the text too ("+4 (+13%)"), so colour is emphasis only. */
+.dir-stats__change--up { color: var(--brand-primary-dark); }
+
+.dir-funnel {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.dir-funnel__value {
+  font-size: var(--text-title-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+  margin-inline-end: var(--space-2);
+}
+
+.dir-funnel__rate { color: var(--text-secondary); font-size: var(--text-body-sm); }
+
+/* A wide table has to scroll inside its own container rather than the page —
+   WCAG 1.4.10, and the same rule the Phase 5 grid needed. Keyboard-reachable so
+   somebody who cannot drag can still scroll it. */
+.dir-table--scroll {
+  display: block;
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.dir-dash__caveats {
+  padding-inline-start: var(--space-7);
+  list-style: disc;
+  display: grid;
+  gap: var(--space-3);
+  max-width: 68ch;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.dir-dash__leaving {
+  margin-block-start: var(--space-4);
+  padding-inline-start: var(--space-7);
+  list-style: disc;
+  display: grid;
+  gap: var(--space-4);
+  max-width: 68ch;
+  line-height: var(--line-height-relaxed);
+}
+
+.dir-dash__locked { color: var(--text-secondary); font-size: var(--text-body-sm); }

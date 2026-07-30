@@ -1,0 +1,42 @@
+{% extends "dashboard/base.html" %}
+{% comment %}
+The confirmation for withdrawing consent.
+
+It is a confirmation, not a persuasion. No "are you sure?", no list of what they
+will lose, no offer to talk to somebody first — consent is the lawful basis for
+publishing this data and a withdrawal flow that argues back is a dark pattern
+wearing a compliance hat. What it does do is state, accurately, that nothing is
+deleted and it can be undone, because that is true and somebody hesitating
+deserves to know it.
+{% endcomment %}
+{% block dash_title %}Take my listing down{% endblock %}
+
+{% block dash_content %}
+<h1>Take my listing down</h1>
+
+<div class="dir-dash__legend">
+  <p>This takes effect immediately. Your listing will:</p>
+  <ul role="list">
+    <li>stop being visible to anyone</li>
+    <li>stop appearing in search results</li>
+    <li>stop appearing on the Kiam Clinic Directory home page</li>
+  </ul>
+  <p>
+    <strong>Nothing you have written is deleted.</strong> Your listing, your
+    documents and your verification stay as they are, so if you want to come back
+    it is one email and we put it live again.
+  </p>
+  <p>
+    If you would also like us to delete the documents you have sent us,
+    <a href="{% url 'dashboard:remove' %}">remove yourself from the directory</a> instead.
+  </p>
+</div>
+
+<form method="post" class="dir-dash__form" novalidate>
+  {% csrf_token %}
+  {% include "dashboard/_field.html" with field=form.confirm %}
+  {% include "dashboard/_field.html" with field=form.reason wide=True %}
+  {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Take my listing down now" %}
+  <p><a href="{% url 'dashboard:home' %}">Cancel and go back</a></p>
+</form>
+{% endblock %}

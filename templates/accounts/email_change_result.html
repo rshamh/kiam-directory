@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% comment %}
+The landing page for an email-change confirmation link.
+
+Four states, and each says what is still needed. "half" is the common one and the
+one worth getting right: somebody has confirmed at one address and nothing has
+happened yet, which looks like a failure unless the page explains that the other
+address has to confirm too.
+{% endcomment %}
+
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block content %}
+<div class="container section dir-page">
+  {% if state == "done" %}
+    {% include "kiam_ui/components/sections/section_head.html" with title="Your email address has been changed" description="Both addresses confirmed, so the change is done." heading_level=1 %}
+    <div class="prose">
+      <p>You now sign in with <strong>{{ new_email }}</strong>.</p>
+      <p><a href="{% url 'accounts:login' %}">Sign in</a></p>
+    </div>
+
+  {% elif state == "half" %}
+    {% include "kiam_ui/components/sections/section_head.html" with title="Thank you — one more to go" description="We have recorded this confirmation. The change happens once the other address confirms too." heading_level=1 %}
+    <div class="prose">
+      <p>
+        We ask both the old and the new address to confirm. That is what stops
+        somebody moving an account to an address its owner cannot reach, and what
+        stops a mistyped address locking you out.
+      </p>
+      <p>Nothing has changed yet. You can close this page.</p>
+    </div>
+
+  {% elif state == "taken" %}
+    {% include "kiam_ui/components/sections/section_head.html" with title="We could not make that change" description="Another account is now using that address." heading_level=1 %}
+    <div class="prose">
+      <p>
+        Both addresses confirmed, but in the meantime that address was taken by
+        another account, so we have cancelled the change. Your address is unchanged.
+        Start again from your account settings with a different address.
+      </p>
+    </div>
+
+  {% else %}
+    {% include "kiam_ui/components/sections/section_head.html" with title="That link is no longer valid" description="It may have expired, already been used, or the change may have been cancelled." heading_level=1 %}
+    <div class="prose">
+      <p>
+        Nothing has changed. If you still want to change your email address, sign
+        in and start again from your account settings.
+      </p>
+      <p><a href="{% url 'accounts:login' %}">Sign in</a></p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

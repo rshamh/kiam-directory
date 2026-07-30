@@ -652,10 +652,71 @@ that belongs to the reverse proxy or CDN at Phase 7 launch prep.
 Worth remembering before the Phase 7 audit: neither tests reflow at 320px, focus-indicator
 contrast, nor 2.5.8's spacing exception, and those are where both blockers lived.
 
+### The practitioner dashboard (Phase 6)
+
+`/dashboard/` → `dashboard.views` → `dashboard/services/{overview,editing,insights}.py`. Every view
+carries `can_use_dashboard` **and** `owns_practitioner` through the `practitioner_view` decorator,
+and **no dashboard URL names a practitioner** — the listing comes from the session, so there is no
+per-view authorisation decision to forget. `test_no_dashboard_url_names_a_practitioner` guards
+that, because `/dashboard/<pk>/` "so staff can help somebody" is one line away.
+
+Six things are decisions rather than implementation.
+
+* **`completeness` had no writer.** It has been a ranking input since Phase 1 (15% of the search
+  score) and the home-grid gate since Phase 5 — and nothing ever wrote it, so every real listing
+  sat at the default 0: bottom of every tie-break and absent from the front page.
+  `seed_demo` hard-coded plausible numbers and the factory defaulted to 80, which is exactly why
+  it looked fine. `directory/services/completeness.py` is the single writer, wired through
+  `directory/signals.py` with a `post_save` **and four `m2m_changed` receivers** — one relation is
+  not enough, the same lesson as the search vector. **The score and the checklist are one list**:
+  a meter saying 68% and advice saying something else would be two sources of truth about the
+  same question.
+* **"Controlled" and "safe" are `review.CONTROLLED_FIELDS`, imported, never restated.**
+  `dashboard/services/editing.py` derives from it so the label a practitioner reads and the
+  behaviour they get cannot disagree. **The copy says the listing stays online**, because
+  "re-enters review" reads as "my page disappears" and somebody who believes that will not fix
+  their own typo — which is the opposite of what the control is for.
+* **Changed-field detection is the whole correctness problem.** Row fields and `client_groups`
+  come from `form.changed_data`; `registrations` and `qualifications` are separate models and
+  appear in it not at all, so `editing.save()` takes them as an explicit `related_changed`
+  argument. A caller that forgets is a badge left on against an unchecked GMC number, which is
+  why it is a required argument rather than something inferred.
+* **The lint runs on every edit, not just at submission.** `directory/services/lint.py` was
+  written for `review.submit()` — the one-time draft→published path. Phase 6 is the first time a
+  practitioner can edit a **live** listing's free text, and a safe-field edit publishes
+  immediately, so without `dashboard.forms.LintedPractitionerForm` a published practitioner could
+  put a prescription-only medicine name into their intro and it would be public the moment they
+  pressed Save. Only findings about fields *this* form shows become errors — otherwise a bad
+  intro would block somebody from editing their opening hours, with an error pointing at a field
+  that is not on the page.
+* **Evidence upload fails closed.** `directory/services/antivirus.py` defaults to `reject`:
+  with no scanner configured, every upload is refused. A control that switches itself off when it
+  cannot reach its dependency is not a control — the same reasoning as the POM dictionary, which
+  raises rather than permitting everything. `skip` exists for development, is named so it cannot
+  be mistaken for anything else, and `prod.py` deliberately does not set `ANTIVIRUS_BACKEND` at
+  all. **An upload cannot advance the practitioner's own verification state**: it moves a check
+  to SUBMITTED and never off VERIFIED, and touches no computed field.
+* **Withdrawal is one atomic act.** `publication.withdraw_consent()` closes **every** open
+  `ConsentRecord` and unpublishes in one transaction, because an unpublish that forgets the
+  consent row leaves the record saying somebody still consents to a listing that is gone.
+  `request_removal()` is the stronger, separate ask — it additionally sets `Document.delete_after`
+  from `EVIDENCE_RETENTION_DAYS`, which carries a `TODO(sign-off)` rather than a confident number
+  (`docs/verification-policy.md`: "a solicitor question... leave it configurable"). There is no
+  "contact us to be removed" anywhere in the flow, and a test asserts it stays that way.
+
+**Two-factor is now available to practitioners.** Phase 0 built the flow and gated every entry
+point on `requires_two_factor`, which is staff-only — so the brief's "available to practitioners,
+mandatory for staff" was half built. `access.py` gained `can_enrol_two_factor` (anyone signed in),
+`must_challenge_two_factor` (staff by role, **or anyone who has enrolled** — a second factor
+somebody opted into and is never asked for is worse than none, because they believe they have it)
+and `can_disable_two_factor` (practitioners yes, staff no). The middleware asks the second
+question, not the first. A consequence worth knowing: a session that has not passed the challenge
+cannot turn the challenge off, which is what stops an unattended half-authenticated session
+disabling it.
+
 ### Still to build
 
-Phases 6–7: the practitioner dashboard, and insights / landing pages / launch prep. See
-`docs/roadmap.md`.
+Phase 7: insights rollups, landing pages and launch prep. See `docs/roadmap.md`.
 
 `directory/services/search.py` was recovered from the rooms repo at Phase 4
 (`git -C ../rooms show f49d0c2^:search.py`) and is now in this repo, reviewed and fixed.

@@ -1,0 +1,107 @@
+{% extends "dashboard/base.html" %}
+{% comment %}
+Insights.
+
+The chart is inline SVG with no JavaScript and no charting library: it is a
+sparkline of five series over thirty days, and shipping a dependency for that
+would be the largest thing on the page. It has a table beside it carrying the same
+numbers, because a chart is not accessible to a screen reader however much ARIA is
+bolted on, and because the exact numbers are what somebody wants anyway.
+
+One shared vertical scale across all five series, deliberately: impressions are an
+order of magnitude above contacts, and that relationship IS the diagnosis.
+{% endcomment %}
+{% block dash_title %}Insights{% endblock %}
+
+{% block dash_content %}
+<h1>How your listing is doing</h1>
+<p class="dir-dash__lede">
+  The last {{ report.window_days }} days ({{ report.start|date:"j M" }} – {{ report.end|date:"j M Y" }}),
+  compared with the {{ report.window_days }} days before that.
+</p>
+
+{% if not report.has_any_data %}
+  <div class="dir-dash__panel dir-dash__panel--neutral">
+    <h2>Nothing to show yet</h2>
+    <p>
+      These numbers start once your listing is live and people begin finding it.
+      There is nothing wrong.
+    </p>
+  </div>
+{% else %}
+
+  <section class="dir-dash__panel">
+    <h2>What the numbers say</h2>
+    <p class="dir-dash__diagnosis">{{ report.funnel.diagnosis }}</p>
+    <ul class="dir-funnel" role="list">
+      <li><span class="dir-funnel__value">{{ report.funnel.impressions }}</span> times you appeared in search results</li>
+      <li>
+        <span class="dir-funnel__value">{{ report.funnel.views }}</span> people opened your listing
+        {% if report.funnel.view_rate is not None %}<span class="dir-funnel__rate">({{ report.funnel.view_rate }}% of the above)</span>{% endif %}
+      </li>
+      <li>
+        <span class="dir-funnel__value">{{ report.funnel.contacts }}</span> revealed your contact details
+        {% if report.funnel.contact_rate is not None %}<span class="dir-funnel__rate">({{ report.funnel.contact_rate }}% of those who opened it)</span>{% endif %}
+      </li>
+    </ul>
+  </section>
+
+  <section class="dir-dash__panel">
+    <h2>Totals</h2>
+    <ul class="dir-stats" role="list">
+      {% for total in report.totals %}
+        <li class="dir-stats__item">
+          <span class="dir-stats__value">{{ total.value }}</span>
+          <span class="dir-stats__label">{{ total.label }}</span>
+          <span class="dir-stats__change dir-stats__change--{{ total.direction }}">
+            {% if total.direction == "flat" %}
+              No change on the {{ report.window_days }} days before
+            {% else %}
+              {{ total.change|stringformat:"+d" }}
+              {% if total.change_percent is not None %}({{ total.change_percent|stringformat:"+d" }}%){% endif %}
+              on the {{ report.window_days }} days before
+            {% endif %}
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="dir-dash__panel">
+    <h2>Day by day</h2>
+    <table class="dir-table dir-table--scroll">
+      <caption class="sr-only">Daily counts for the last {{ report.window_days }} days</caption>
+      <thead>
+        <tr>
+          <th scope="col">Day</th>
+          <th scope="col">In search</th>
+          <th scope="col">Views</th>
+          <th scope="col">Email</th>
+          <th scope="col">Phone</th>
+          <th scope="col">Website</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for point in report.points reversed %}
+          <tr>
+            <th scope="row">{{ point.day|date:"D j M" }}</th>
+            <td>{{ point.values.search_impressions }}</td>
+            <td>{{ point.values.profile_views }}</td>
+            <td>{{ point.values.email_reveals }}</td>
+            <td>{{ point.values.phone_reveals }}</td>
+            <td>{{ point.values.website_clicks }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+{% endif %}
+
+<section class="dir-dash__panel dir-dash__panel--neutral">
+  <h2>What these numbers are, and are not</h2>
+  <ul role="list" class="dir-dash__caveats">
+    {% for caveat in caveats %}<li>{{ caveat }}</li>{% endfor %}
+  </ul>
+</section>
+{% endblock %}

@@ -34,6 +34,14 @@ else:
     MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
     INTERNAL_IPS = ["127.0.0.1"]
 
+# No ClamAV daemon on a laptop, so uploads are accepted unscanned — and the
+# backend is named `skip` rather than defaulting quietly, so nobody can mistake a
+# development convenience for a control that is running. It logs a warning on
+# every call, and `config/settings/prod.py` deliberately does not set this at all:
+# production falls through to base.py's `reject`, which refuses uploads until a
+# scanner is actually configured.
+ANTIVIRUS_BACKEND = env("ANTIVIRUS_BACKEND", default="skip")
+
 # Evidence never leaves the box in development.
 STORAGES = {  # noqa: F405
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},

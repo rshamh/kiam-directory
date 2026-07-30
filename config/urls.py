@@ -33,6 +33,11 @@ urlpatterns = [
     path("", include("directory.urls")),
     # /search/ and its place-suggestion partial.
     path("", include("search.urls")),
+    # A practitioner's own listing. `can_use_dashboard` + `owns_practitioner` on
+    # every view, noindex, and Disallow-ed in robots.txt — it is somebody's
+    # personal data behind a login, and a robots directive should not be the only
+    # thing keeping it out of an index.
+    path("dashboard/", include("dashboard.urls")),
     # Staff only. Every view carries an accounts.access predicate and the 2FA
     # middleware gates the whole prefix; also Disallow-ed in robots.txt.
     path("backoffice/", include("backoffice.urls")),

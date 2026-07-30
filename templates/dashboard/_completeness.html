@@ -1,0 +1,42 @@
+{% comment %}
+The completeness meter and, next to it, exactly what to do next.
+
+Params: completeness (a directory.services.completeness.Report) · compact
+
+A percentage on its own is a guilt-trip. The number is only worth showing because
+the next click is beside it, which is why the score and the checklist come out of
+one walk of the same list (`directory/services/completeness.py`) and can never
+disagree.
+
+`<progress>` rather than a div with a width: it is announced as a progress bar,
+it carries its own value and maximum, and it needs no ARIA at all. The percentage
+is also written out as text, because a progress bar with no number is a shape.
+
+Missing items are ordered heaviest first, so the top line is the one that moves
+the number most rather than whichever comes first in the form.
+{% endcomment %}
+<div class="dir-meter">
+  <div class="dir-meter__head">
+    <label class="dir-meter__label" for="completeness-meter">How complete your listing is</label>
+    <p class="dir-meter__value">{{ completeness.score }}%</p>
+  </div>
+  <progress id="completeness-meter" class="dir-meter__bar" value="{{ completeness.score }}" max="100">
+    {{ completeness.score }}%
+  </progress>
+
+  {% if completeness.is_complete %}
+    <p class="dir-meter__done">Everything we ask for is filled in. Thank you.</p>
+  {% else %}
+    <h3 class="dir-meter__heading">What is left</h3>
+    <ul class="dir-meter__list" role="list">
+      {% for item in completeness.missing %}
+        <li class="dir-meter__item">
+          <a href="{% url item.requirement.editor %}">{{ item.text }}</a>
+          {% if item.requirement.because and not compact %}
+            <span class="dir-meter__because">{{ item.requirement.because }}</span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>

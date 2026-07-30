@@ -20,16 +20,16 @@ See `docs/multi-project-architecture.md` for how this sits alongside the main si
 
 Business logic lives in `<app>/services/`, not in views or models. Views stay thin.
 
-### What exists as of Phase 5
+### What exists as of Phase 6
 
 The table above is the intent. This is the repo.
 
 | App | Built | Empty until |
 |---|---|---|
-| `accounts` | `User`, `LoginToken`, `Invite`, `access.py`, `backends.py`, `services/{magic_link,passwords,ratelimit,two_factor}.py`, `middleware.py`, views, admin | — |
-| `directory` | full model set, `taxonomy.py`, `services/{verification,documents,lint,search_index,search,profile,metrics,images}.py`, `signals.py`, `factories.py`, admin, the public profile view + contact reveal, `seed_taxonomy` / `verification_sweep` / `rebuild_search_index` | — |
+| `accounts` | `User`, `LoginToken`, `Invite`, `UserSession`, `EmailChangeRequest`, `access.py`, `backends.py`, `services/{magic_link,passwords,ratelimit,two_factor,sessions,email_change}.py`, `middleware.py`, views, admin | — |
+| `directory` | full model set, `taxonomy.py`, `services/{verification,documents,lint,search_index,search,profile,metrics,images,completeness,antivirus}.py`, `signals.py`, `factories.py`, admin, the public profile view + contact reveal, `seed_taxonomy` / `verification_sweep` / `rebuild_search_index` | — |
 | `search` | `services/{params,geocode}.py`, the `/search/` view and its HTMX partials, `urls.py` | — |
-| `dashboard` | app config only | Phase 6 |
+| `dashboard` | `views.py`, `forms.py`, `urls.py`, `templatetags/`, `services/{overview,editing,insights}.py` — the practitioner's own editors, evidence upload, insights, security and one-click unpublish | — |
 | `backoffice` | invites, review queue, verification workbench, publication, concerns, audit log — `services/{invites,review,publication,concerns}.py`, views, forms | — |
 | `seo` | `jsonld.py`, `sitemaps.py`, `views.py` (robots, llms.txt, `/healthz`, 404/500 handlers), the `collectstatic` override | — |
 | `pages` | `nav.py` (kiam-ui chrome config), `content.py` (the static-page registry), `services/home.py`, the real home page, the eight Phase 3 static pages, `/report-a-concern/` | landing pages — Phase 7 |
@@ -88,7 +88,27 @@ The table above is the intent. This is the repo.
   asserts the destination. The `county` column is no help — the demo seed has Croydon in West
   Yorkshire, and nothing lints it.
 
-**Models:** `accounts.{User, LoginToken, Invite}` plus the full `directory` set — the four
+**Phase 6 additions in detail.**
+
+* `directory/services/completeness.py` — **the writer `Practitioner.completeness` never had.**
+  The column has been a ranking input since Phase 1 and the home-grid gate since Phase 5, and
+  nothing wrote it, so every real listing sat at 0. One writer, through a queryset `.update()` so
+  the signals that call it cannot recurse; `REQUIREMENTS` produces both the score and the
+  checklist, so the meter and the advice cannot disagree; weights sum to 100 and a test says so.
+* `dashboard/services/editing.py` — the controlled/safe split, derived from
+  `review.CONTROLLED_FIELDS` rather than restated. Owns the wording of what a save just did,
+  including the fact that a controlled edit keeps the listing **online** and takes the badge.
+* `directory/services/antivirus.py` — upload scanning with a fail-closed default (`reject`),
+  a pure-socket ClamAV INSTREAM client (no new dependency), and size/type limits. `skip` is
+  development-only and `prod.py` deliberately sets nothing.
+* `accounts.UserSession` / `accounts.EmailChangeRequest` — signed-in devices, and an email change
+  confirmed at **both** addresses. The two halves guard opposite failures: confirming only at the
+  new address lets an unattended session move the account away; only at the old one lets a typo
+  lock the owner out.
+* `backoffice/services/publication.py` — `withdraw_consent()` and `request_removal()`, each
+  closing every open `ConsentRecord` and changing publication state in one transaction.
+
+**Models:** `accounts.{User, LoginToken, Invite, UserSession, EmailChangeRequest}` plus the full `directory` set — the four
 taxonomy axes (`Profession`, `SpecialityCategory`/`Speciality`, `Approach`, `ClientGroup`), the
 flat vocabularies (`Language`, `FundingOption`, `SessionFormat`), `Practitioner`,
 `PractitionerLocation`, `Qualification`, `Registration`, `VerificationCheck`, `Document`,
@@ -127,6 +147,8 @@ then. The `directory` models (also authored) land in Phase 1.
 | `/accounts/two-factor/set-up/` | `accounts:two_factor_setup` | |
 | `/accounts/two-factor/set-up/qr.svg` | `accounts:two_factor_qr` | generated locally; the secret never leaves the host |
 | `/accounts/two-factor/` | `accounts:two_factor_verify` | |
+| `/dashboard/…` | `dashboard:*` | The practitioner's own listing — overview, six editors, evidence upload, insights, account & security, unpublish and removal. `can_use_dashboard` + `owns_practitioner` on every view, `noindex`, `never_cache`, `Disallow`-ed. **No route names a practitioner**; the listing comes from the session |
+| `/accounts/email/confirm/<token>/` | `accounts:email_change_confirm` | One half of an email change. Takes no session — the link sent to the NEW address goes to somebody who may not be signed in anywhere, which is the case it exists for |
 | `/backoffice/…` | `backoffice:*` | the whole Phase 2 staff area — invites, review queue, verification workbench, suspend, concerns, audit log. Every view carries an `accounts.access` predicate, the 2FA middleware gates the prefix, and `robots.txt` disallows it. See `backoffice/urls.py` |
 | `/backoffice/practitioners/<pk>/verification/verify-all/` | `backoffice:verification_verify_all` | POST. Records a verification decision against every required check at once. `can_view_evidence` only — the role that decides evidence is satisfactory must be the role allowed to look at it. Routed **before** the `<check_type>` route, which would otherwise swallow it |
 | `/<ADMIN_URL_PATH>/` | Django admin | default `staff-console/`, not `/admin/` |

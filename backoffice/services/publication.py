@@ -20,7 +20,9 @@ they must not be collapsed.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
+from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
@@ -191,3 +193,129 @@ def is_publicly_visible(practitioner) -> bool:
     must be indistinguishable from a listing that was never there.
     """
     return practitioner.status == PublicationStatus.PUBLISHED
+
+
+# ===========================================================================
+# Phase 6 additions — the practitioner takes their own listing down
+# ===========================================================================
+# `unpublish()` above already carries `withdrawn_by_practitioner`, and its
+# docstring says the Phase 6 dashboard "additionally writes
+# ConsentRecord.withdrawn_at". These two functions are that, and they are
+# functions rather than two lines in a view for one reason: consent is the lawful
+# basis for publishing this data, so an unpublish that forgets to record the
+# withdrawal is a GDPR failure that leaves the record saying the practitioner
+# still consents. Putting both writes inside one atomic function means they
+# cannot come apart.
+#
+# The brief: "withdrawal must be as easy as giving it. A single clear action,
+# confirmation, immediate effect... No 'contact us to be removed' anywhere."
+
+
+class ConsentError(Exception):
+    """The withdrawal cannot be applied."""
+
+
+@transaction.atomic
+def withdraw_consent(practitioner, *, actor, reason: str = ""):
+    """The practitioner withdraws consent. Listing down, consent record closed.
+
+    Not an enforcement action and not recorded as one: `unpublish()` is called
+    with `withdrawn_by_practitioner=True`, which is what distinguishes this in the
+    audit log from Kiam pulling a listing. Same visible outcome, different record,
+    different re-listing path — which is why `publication.unpublish` tracks the
+    difference at all.
+
+    **Every open consent row is closed, not just the newest.** A practitioner who
+    re-consented after a terms change has more than one, and leaving an earlier row
+    open would leave a live "yes" on the record after an explicit "no".
+
+    Idempotent. Pressing the button twice, or on an already-unpublished listing,
+    is not an error — it is somebody making sure.
+    """
+    withdrawn_at = timezone.now()
+
+    closed = practitioner.consents.filter(withdrawn_at__isnull=True).update(withdrawn_at=withdrawn_at)
+
+    if practitioner.status == PublicationStatus.PUBLISHED:
+        unpublish(
+            practitioner,
+            actor=actor,
+            reason=reason,
+            withdrawn_by_practitioner=True,
+        )
+    else:
+        # Already down. Still record the withdrawal — the consent record and the
+        # publication status answer different questions, and a draft listing whose
+        # owner has said "no" must not be publishable by a reviewer tomorrow.
+        practitioner.status = PublicationStatus.UNPUBLISHED
+        practitioner.save(update_fields=["status"])
+        bust_cache(practitioner)
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="consent.withdrawn",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={
+            "withdrawn_at": withdrawn_at.isoformat(),
+            "consent_records_closed": closed,
+            "reason": reason,
+        },
+    )
+    logger.info(
+        "publication.consent_withdrawn",
+        extra={"practitioner_id": str(practitioner.pk), "consent_records_closed": closed},
+    )
+    return practitioner
+
+
+@transaction.atomic
+def request_removal(practitioner, *, actor, reason: str = ""):
+    """Full removal: not listed, and not held for re-publication.
+
+    Stronger than `withdraw_consent()` and offered separately because they are
+    different asks. Withdrawal is "take my page down"; removal is "and stop
+    holding my evidence". Collapsing them would mean either that a practitioner
+    taking a break for a month loses their documents, or that somebody who wants
+    to be gone stays on file.
+
+    Sets `Document.delete_after` on every evidence file, which is what the nightly
+    job acts on. It does **not** delete anything here: `docs/verification-policy.md`
+    says the retention period balances due-diligence defence against data
+    minimisation and is "a solicitor question — do not pick a number in code
+    without that answer; leave it configurable". `EVIDENCE_RETENTION_DAYS` is that
+    setting, and it carries a TODO(sign-off) rather than a confident number.
+
+    Consent is withdrawn as part of this. Removal without withdrawal would leave a
+    consent record saying yes on an account that has asked to be erased.
+    """
+    withdraw_consent(practitioner, actor=actor, reason=reason)
+
+    delete_after = timezone.now() + timedelta(days=settings.EVIDENCE_RETENTION_DAYS)
+    scheduled = practitioner.documents.filter(delete_after__isnull=True).update(delete_after=delete_after)
+
+    practitioner.status = PublicationStatus.REMOVED
+    practitioner.save(update_fields=["status"])
+    bust_cache(practitioner)
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="practitioner.removal_requested",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={
+            "documents_scheduled": scheduled,
+            "delete_after": delete_after.isoformat(),
+            "retention_days": settings.EVIDENCE_RETENTION_DAYS,
+            "reason": reason,
+        },
+    )
+    logger.warning(
+        "publication.removal_requested",
+        extra={
+            "practitioner_id": str(practitioner.pk),
+            "documents_scheduled": scheduled,
+            "retention_days": settings.EVIDENCE_RETENTION_DAYS,
+        },
+    )
+    return practitioner

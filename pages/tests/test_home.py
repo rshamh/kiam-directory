@@ -86,7 +86,7 @@ def listings():
             full_name=f"Practitioner {index:02d}",
             display_title="Dr",
             specialities=[adhd],
-            completeness=90,
+            complete=True,
         )
         made.append(practitioner)
     return made
@@ -167,8 +167,20 @@ def test_the_grid_shows_twelve_of_fifteen(client, listings):
 
 
 def test_the_grid_excludes_listings_that_are_not_complete_enough(client):
-    PractitionerFactory(published=True, slug="thorough", full_name="Thorough Listing", completeness=70)
-    PractitionerFactory(published=True, slug="sparse", full_name="Sparse Listing", completeness=69)
+    """`complete=True` fills in the intro, photo, contact route, taxonomy and
+    credentials that make the score 100 — the factory makes the data, never the
+    number, since Phase 6 gave `completeness` one writer and a signal."""
+    from directory.services import completeness
+
+    thorough = PractitionerFactory(
+        published=True, slug="thorough", full_name="Thorough Listing", complete=True
+    )
+    sparse = PractitionerFactory(published=True, slug="sparse", full_name="Sparse Listing")
+
+    thorough.refresh_from_db()
+    sparse.refresh_from_db()
+    assert thorough.completeness >= completeness.report(thorough).score >= 70
+    assert sparse.completeness < 70
 
     body = client.get(URL).content.decode()
 
@@ -177,7 +189,7 @@ def test_the_grid_excludes_listings_that_are_not_complete_enough(client):
 
 
 def test_the_grid_never_shows_a_listing_that_is_not_published(client):
-    PractitionerFactory(slug="draft-one", full_name="Draft Listing", completeness=95)
+    PractitionerFactory(slug="draft-one", full_name="Draft Listing", complete=True)
 
     assert "Draft Listing" not in client.get(URL).content.decode()
 
@@ -264,7 +276,7 @@ def test_a_listing_with_no_renditions_still_renders_its_headshot(client, listing
 
 def test_the_empty_grid_says_so_rather_than_rendering_nothing(client):
     """Reachable with a real database: the grid needs completeness >= 70."""
-    PractitionerFactory(published=True, slug="sparse", completeness=10)
+    PractitionerFactory(published=True, slug="sparse")  # nothing filled in: scores 10
 
     body = client.get(URL).content.decode()
 

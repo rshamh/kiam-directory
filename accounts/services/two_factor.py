@@ -123,3 +123,29 @@ def _sync_flag(user, enabled: bool) -> None:
 
 def issuer() -> str:
     return getattr(settings, "OTP_TOTP_ISSUER", "Kiam Clinic Directory")
+
+
+# ===========================================================================
+# Phase 6 addition — turning it off again
+# ===========================================================================
+
+
+def disable(user) -> bool:
+    """Remove the user's device. Returns whether there was one.
+
+    Guarded by `accounts.access.can_disable_two_factor`, which is the caller's
+    job — this function does not decide policy. Staff may not: their requirement
+    belongs to the role, and an account that can switch it off makes
+    `requires_two_factor` advisory. A practitioner may, because it was optional
+    when they turned it on and an option you cannot reverse is a trap.
+
+    Deletes unconfirmed devices too. A half-finished enrolment left behind means
+    the next `start_enrolment()` reuses a secret the user has already scanned into
+    an app and then abandoned.
+    """
+    deleted, _ = TOTPDevice.objects.filter(user=user).delete()
+    _sync_flag(user, False)
+
+    if deleted:
+        logger.warning("two_factor.disabled", extra={"user_id": user.pk})
+    return bool(deleted)

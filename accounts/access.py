@@ -170,3 +170,69 @@ def can_suspend_listing(user) -> bool:
     is ever narrowed it should be narrowed here.
     """
     return can_review_submissions(user)
+
+
+# ===========================================================================
+# Phase 6 additions — two-factor for practitioners
+# ===========================================================================
+# The brief: "TOTP 2FA available to practitioners, mandatory for staff."
+#
+# Phase 0 built the enrolment and challenge flow but gated every entry point on
+# `requires_two_factor()`, which is role-based and staff-only — so a practitioner
+# could not enrol at all. Widening that predicate would have been wrong: it
+# answers "does this ROLE have to carry a device", it is what the OIDC migration
+# will re-map, and staff are still the only people who MUST.
+#
+# What was missing is a different question, and it gets its own name.
+
+
+def can_enrol_two_factor(user) -> bool:
+    """Whether this account may set up a TOTP device at all.
+
+    Anyone signed in. Staff have to; everyone else may. There is no role in this
+    project for whom a second factor would be inappropriate.
+    """
+    return bool(user and user.is_authenticated)
+
+
+def must_challenge_two_factor(user) -> bool:
+    """Whether THIS login has to answer a TOTP challenge before it is usable.
+
+    Two ways to be true, and the second is what makes voluntary enrolment mean
+    anything: staff by role, and anybody else who has chosen to enrol a device. A
+    second factor a practitioner opted into and is then never asked for is
+    decoration, and worse than none — they would believe they had it.
+
+    Reads `User.totp_enabled`, which `accounts.services.two_factor._sync_flag`
+    keeps truthful about whether a confirmed device exists. NOT `two_factor
+    .has_device()`: that module imports from this one, so this one must not
+    import from it, and the flag is on the model precisely so a role check does
+    not have to reach for a service.
+    """
+    if not (user and user.is_authenticated):
+        return False
+    return requires_two_factor(user) or bool(getattr(user, "totp_enabled", False))
+
+
+def can_disable_two_factor(user) -> bool:
+    """Whether this account may turn its own second factor off again.
+
+    Practitioners yes — it was optional, so it stays optional, and an option you
+    cannot reverse is a trap. Staff no: their requirement is the role's, not
+    theirs, and letting a staff account disable it would make
+    `requires_two_factor` advisory.
+    """
+    return bool(user and user.is_authenticated) and not requires_two_factor(user)
+
+
+def can_use_dashboard(user) -> bool:
+    """Whether this account has a practitioner dashboard to see.
+
+    A `practitioner` role with a profile attached. Staff are deliberately NOT
+    included: the back office is where they work, and a staff account wandering
+    into a practitioner's own editor would be editing somebody's listing through
+    a UI with no audit actor distinction and no review path. `can_edit_practitioner`
+    is the predicate for staff acting on a listing, and the back office is where
+    that happens.
+    """
+    return bool(user and user.is_authenticated and user.role == User.Role.PRACTITIONER)

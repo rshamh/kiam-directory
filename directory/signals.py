@@ -1,4 +1,4 @@
-"""Signals that keep the search index current.
+"""Signals that keep the derived columns current.
 
 TWO receivers, and the second is the one that matters.
 
@@ -20,7 +20,7 @@ from django.db.models.signals import m2m_changed, post_save, pre_save
 from django.dispatch import receiver
 
 from .models import Practitioner, SlugRedirect
-from .services import search_index
+from .services import completeness, search_index
 
 
 @receiver(post_save, sender=Practitioner, dispatch_uid="directory.rebuild_search_vector")
@@ -107,3 +107,71 @@ def write_slug_redirect(sender, instance, **kwargs):
     SlugRedirect.objects.filter(old_slug=instance.slug).delete()
 
     SlugRedirect.objects.update_or_create(old_slug=previous, defaults={"practitioner": instance})
+
+
+# ===========================================================================
+# Phase 6 additions — the completeness score
+# ===========================================================================
+#
+# `Practitioner.completeness` has been a ranking input since Phase 1 and the
+# home-page grid's gate since Phase 5, and NOTHING WROTE IT. Every real listing
+# would have sat at the default 0 — bottom of every ranking tie-break, and absent
+# from the front page, which requires 70. `seed_demo` hard-codes plausible values
+# and the test factory defaults to 80, which is precisely why a green suite and a
+# populated development database both looked right.
+#
+# Same two receivers as the search vector, for the same reason: an M2M change
+# writes no column on the practitioner row, so `post_save` alone would leave a
+# listing that has just chosen six specialities still scored as though it had
+# none. `completeness.recompute()` writes through `.update()`, so neither
+# receiver can recurse.
+#
+# The M2M receiver covers FOUR relations, not one. The search vector only cares
+# about specialities; the score also counts approaches, client groups and
+# languages, and a receiver registered for one `through` model hears nothing
+# about the others.
+
+
+@receiver(post_save, sender=Practitioner, dispatch_uid="directory.recompute_completeness")
+def recompute_completeness_on_save(sender, instance, **kwargs):
+    completeness.recompute(instance)
+
+
+def _recompute_completeness_m2m(instance, action, reverse, pk_set):
+    """Shared body for the four taxonomy relations.
+
+    Only the `post_*` actions: on `pre_add` the join rows are not written yet, so
+    the score would be computed against the state before the change and would
+    undo itself.
+
+    `reverse=True` means somebody did `speciality.practitioners.add(...)`, so
+    `instance` is the term and the affected practitioners come from `pk_set`.
+    """
+    if action not in {"post_add", "post_remove", "post_clear"}:
+        return
+
+    if not reverse:
+        completeness.recompute(instance)
+        return
+
+    for practitioner in Practitioner.objects.filter(pk__in=pk_set or []):
+        completeness.recompute(practitioner)
+
+
+for _relation in (
+    Practitioner.specialities,
+    Practitioner.approaches,
+    Practitioner.client_groups,
+    Practitioner.languages,
+):
+    receiver(
+        m2m_changed,
+        sender=_relation.through,
+        dispatch_uid=f"directory.recompute_completeness_{_relation.field.name}",
+    )(
+        lambda sender, instance, action, reverse, **kwargs: _recompute_completeness_m2m(
+            instance, action, reverse, kwargs.get("pk_set")
+        )
+    )
+
+del _relation

@@ -155,6 +155,14 @@ SERVICES = [
 WAITS = ["immediate", "short", "medium", "long", ""]
 
 
+def _fees(rng, *, omit: bool) -> dict:
+    """A coherent fee range, in pence, or none at all."""
+    if omit:
+        return {"fee_min": None, "fee_max": None}
+    low = rng.choice([6000, 8000, 9500, 12000, 18000])
+    return {"fee_min": low, "fee_max": low + rng.choice([3000, 6000, 12000])}
+
+
 class Command(BaseCommand):
     help = "Fill a DEVELOPMENT database with searchable demo practitioners."
 
@@ -260,8 +268,12 @@ class Command(BaseCommand):
             availability_note="New assessments open on the first Monday of each month."
             if index % 6 == 0
             else "",
-            fee_min=None if sparse or index % 8 == 6 else rng.choice([6000, 8000, 9500, 12000, 18000]),
-            fee_max=None if sparse or index % 8 == 6 else rng.choice([15000, 20000, 25000, 30000]),
+            # Both drawn from ONE ordered pair, not two independent choices. The
+            # two lists overlapped, so one demo practitioner in thirty came out
+            # with fee_min £180 and fee_max £150 — which the Phase 6 dashboard
+            # correctly refused to save, on a page where the practitioner had not
+            # touched the fees. Caught by driving the real form.
+            **_fees(rng, omit=sparse or index % 8 == 6),
             free_initial_call=index % 4 == 0,
             offers_sliding_scale=index % 6 == 2,
             completeness=45 if sparse else rng.choice([70, 80, 85, 90, 95, 100]),

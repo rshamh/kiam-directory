@@ -26,7 +26,7 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def cohort():
     """Twenty published listings, so a reshuffle has somewhere to move things to."""
-    return [PractitionerFactory(published=True, slug=f"g{index:02d}", completeness=90) for index in range(20)]
+    return [PractitionerFactory(published=True, slug=f"g{index:02d}", complete=True) for index in range(20)]
 
 
 # ---------------------------------------------------------------------------

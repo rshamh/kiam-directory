@@ -1,0 +1,55 @@
+{% comment %}
+One form field, with the marker that says what saving it will do.
+
+Params: field · (optional) wide
+
+**Ours rather than kiam-ui's `components/forms/field.html`**, and the reason is
+recorded as gaps 12 and 13 in docs/design-system.md: the packaged partial renders
+`{% if error %}{{ error }}{% else %}{{ help }}{% endif %}` into one
+`aria-describedby` target, so the hint disappears at the moment the reader is
+stuck and re-reading it — and its select renders a Python dict as the value of any
+falsy option. Both are raised upstream. Here, help text and errors are separate
+elements and both are in `aria-describedby`.
+
+The controlled marker is the point of this partial. The brief: "the practitioner
+should know before saving which kind of change they're making." A badge after the
+label, and the consequence spelled out in the help text, so it is answered at the
+field rather than in a paragraph at the top nobody reads twice.
+{% endcomment %}
+{% load dashboard %}
+<div class="dir-field{% if field.errors %} dir-field--error{% endif %}{% if wide %} dir-field--wide{% endif %}">
+  <label for="{{ field.id_for_label }}">
+    {{ field.label }}
+    {% if field.field.required %}<span class="dir-field__required">(required)</span>{% endif %}
+    {% if field|is_controlled %}
+      <span class="dir-field__controlled">We check this</span>
+    {% endif %}
+  </label>
+
+  {% comment %}
+  The SHORT consequence here, the full one once per page in the legend. The first
+  draft repeated the long version on every marked field, which on this editor meant
+  a screen reader read the identical two-line sentence between four inputs.
+  {% endcomment %}
+  {% if field|is_controlled %}
+    <p class="dir-field__consequence" id="{{ field.id_for_label }}-controlled">{{ controlled_consequence_short }}</p>
+  {% endif %}
+
+  {% if field.help_text %}
+    <p class="dir-field__help" id="{{ field.id_for_label }}-help">{{ field.help_text }}</p>
+  {% endif %}
+
+  {% comment %}
+  Errors BEFORE the control and help AFTER it, both referenced by
+  aria-describedby. A screen reader reaching the input hears the problem, then the
+  guidance that resolves it, then the control — which is the order somebody
+  actually needs them in.
+  {% endcomment %}
+  {% if field.errors %}
+    <p class="dir-field__error" id="{{ field.id_for_label }}-error">
+      {% for error in field.errors %}{{ error }}{% if not forloop.last %} {% endif %}{% endfor %}
+    </p>
+  {% endif %}
+
+  {{ field }}
+</div>

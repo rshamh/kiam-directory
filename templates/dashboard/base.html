@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% comment %}
+The practitioner's dashboard shell.
+
+Public-side rules apply here, not back-office ones: this is somebody being asked
+about their own credentials, and golden rule #3 (plain language, generous spacing,
+no time-limited interactions) is written for exactly this audience. The back
+office is dense on purpose; this is not.
+
+`noindex, nofollow` and `never_cache` on every view. It is behind a login, but a
+dashboard is somebody's personal data and neither a robots directive nor a shared
+proxy should be the only thing keeping it out of an index.
+{% endcomment %}
+
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block title %}{% block dash_title %}Your listing{% endblock %} · Kiam Directory{% endblock %}
+
+{% block content %}
+<div class="container section dir-dash">
+
+  {% comment %}
+  The status strip is on every page, not just the overview. "Is my listing live?"
+  is the question somebody has while they are editing, which is precisely when
+  they cannot see the overview.
+  {% endcomment %}
+  <div class="dir-dash__status dir-dash__status--{{ status.tone }}" role="status">
+    <p class="dir-dash__status-headline">{{ status.headline }}</p>
+    <p class="dir-dash__status-detail">{{ status.detail }}</p>
+    {% if status.is_public %}
+      <p class="dir-dash__status-link">
+        <a href="{% url 'directory:profile' practitioner.slug %}">View your listing as a client sees it</a>
+      </p>
+    {% endif %}
+  </div>
+
+  <nav class="dir-dash__nav" aria-label="Your listing">
+    <a href="{% url 'dashboard:home' %}"{% if request.resolver_match.url_name == 'home' %} aria-current="page"{% endif %}>Overview</a>
+    <a href="{% url 'dashboard:profile' %}"{% if request.resolver_match.url_name == 'profile' %} aria-current="page"{% endif %}>About you</a>
+    <a href="{% url 'dashboard:taxonomy' %}"{% if request.resolver_match.url_name == 'taxonomy' %} aria-current="page"{% endif %}>What you do</a>
+    <a href="{% url 'dashboard:locations' %}"{% if request.resolver_match.url_name in 'locations,location_add,location_edit' %} aria-current="page"{% endif %}>Where you work</a>
+    <a href="{% url 'dashboard:credentials' %}"{% if request.resolver_match.url_name == 'credentials' %} aria-current="page"{% endif %}>Credentials</a>
+    <a href="{% url 'dashboard:availability' %}"{% if request.resolver_match.url_name == 'availability' %} aria-current="page"{% endif %}>Availability &amp; fees</a>
+    <a href="{% url 'dashboard:documents' %}"{% if request.resolver_match.url_name == 'documents' %} aria-current="page"{% endif %}>Documents</a>
+    <a href="{% url 'dashboard:insights' %}"{% if request.resolver_match.url_name == 'insights' %} aria-current="page"{% endif %}>Insights</a>
+    <a href="{% url 'dashboard:security' %}"{% if request.resolver_match.url_name == 'security' %} aria-current="page"{% endif %}>Account &amp; security</a>
+  </nav>
+
+  {% if messages %}
+    {% comment %}
+    `role="status"`, not `aria-live` added after the fact: this region is in the
+    DOM on page load, which is when a message arrives — these come from a redirect
+    after a POST, so the message is present at first paint and a live region would
+    announce nothing.
+    {% endcomment %}
+    <div class="dir-dash__messages" role="status">
+      {% for message in messages %}
+        <p class="dir-dash__message dir-dash__message--{{ message.tags }}">{{ message }}</p>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% comment %}
+  A `<div>`, not a `<main>`. kiam-ui's base already wraps `{% block content %}` in
+  `<main id="main" tabindex="-1">`, so a second one here made two `main` landmarks
+  in one document — invalid HTML, and it breaks landmark navigation for exactly the
+  people who use it. Caught by reading the packaged base rather than the rendered
+  page, which looks identical either way.
+  {% endcomment %}
+  <div class="dir-dash__main">
+    {% block dash_content %}{% endblock %}
+  </div>
+
+</div>
+{% endblock %}
