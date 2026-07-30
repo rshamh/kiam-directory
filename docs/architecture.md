@@ -20,19 +20,19 @@ See `docs/multi-project-architecture.md` for how this sits alongside the main si
 
 Business logic lives in `<app>/services/`, not in views or models. Views stay thin.
 
-### What exists as of Phase 4
+### What exists as of Phase 5
 
 The table above is the intent. This is the repo.
 
 | App | Built | Empty until |
 |---|---|---|
 | `accounts` | `User`, `LoginToken`, `Invite`, `access.py`, `backends.py`, `services/{magic_link,passwords,ratelimit,two_factor}.py`, `middleware.py`, views, admin | — |
-| `directory` | full model set, `taxonomy.py`, `services/{verification,documents,lint,search_index,search,profile,metrics}.py`, `signals.py`, `factories.py`, admin, the public profile view + contact reveal, `seed_taxonomy` / `verification_sweep` / `rebuild_search_index` | — |
+| `directory` | full model set, `taxonomy.py`, `services/{verification,documents,lint,search_index,search,profile,metrics,images}.py`, `signals.py`, `factories.py`, admin, the public profile view + contact reveal, `seed_taxonomy` / `verification_sweep` / `rebuild_search_index` | — |
 | `search` | `services/{params,geocode}.py`, the `/search/` view and its HTMX partials, `urls.py` | — |
 | `dashboard` | app config only | Phase 6 |
 | `backoffice` | invites, review queue, verification workbench, publication, concerns, audit log — `services/{invites,review,publication,concerns}.py`, views, forms | — |
 | `seo` | `jsonld.py`, `sitemaps.py`, `views.py` (robots, llms.txt, `/healthz`, 404/500 handlers), the `collectstatic` override | — |
-| `pages` | `nav.py` (kiam-ui chrome config), `content.py` (the static-page registry), placeholder home, the eight Phase 3 static pages, `/report-a-concern/` | the real home — Phase 5; landing pages — Phase 7 |
+| `pages` | `nav.py` (kiam-ui chrome config), `content.py` (the static-page registry), `services/home.py`, the real home page, the eight Phase 3 static pages, `/report-a-concern/` | landing pages — Phase 7 |
 
 **Phase 3 additions in detail.**
 
@@ -51,6 +51,31 @@ The table above is the intent. This is the repo.
   `ConcernReport` from arrival to closure. `pages` imports it; nothing in `backoffice`
   knows about a view.
 
+**Phase 5 additions in detail.**
+
+* `pages/services/home.py` — the home page's three pieces: `hero()` (the context the shared
+  search-bar partial reads), `grid()` (twelve published listings, rotating daily) and
+  `browse_entry_points()` (by speciality category, by town). Nothing here takes a `request`,
+  which is what makes "do not cache anything user-specific" true by construction.
+  **What is cached is the SELECTION, not the rows and not the HTML** — twelve primary keys under
+  `homepage:grid`, re-read from the live table on every render. That costs two indexed queries
+  per page and buys three things: a stale cache cannot show a suspended listing (the hydration
+  query re-applies `status=PUBLISHED`), compliance copy is never a day out of date, and a
+  migration cannot turn Redis into a 500 the way a pickled model instance can. `homepage:browse`
+  joins `backoffice.services.publication.CACHE_KEY_PATTERNS` for the same reason the grid key is
+  in it.
+* `directory/services/images.py` — headshot renditions at 80/160/240 px, which is what finally
+  gives `_practitioner_card.html` a `srcset` (deferred there since Phase 3). Deterministic names
+  derived from the original's, so a replaced headshot gets new rendition names and there is
+  nothing to bust. All-or-nothing and never fatal: any failure returns `""` and the card falls
+  back to the plain `src`, because a `srcset` naming a rendition that does not exist is a broken
+  image. Built inside the cached grid path, so twelve conversions happen once a day rather than
+  on every render. Re-encoding drops EXIF, which takes the GPS coordinates out of a phone photo.
+* `directory/services/search.py` — `homepage_grid()` stopped being unused code, and its daily
+  seed moved from the UTC date to `timezone.localdate()` so it rotates at the same moment the
+  result shuffle does. `decorate_cards()` is a public seam onto `_decorate` so the grid can ask
+  for the same card decoration as a results page without reaching into a private function.
+
 **Models:** `accounts.{User, LoginToken, Invite}` plus the full `directory` set — the four
 taxonomy axes (`Profession`, `SpecialityCategory`/`Speciality`, `Approach`, `ClientGroup`), the
 flat vocabularies (`Language`, `FundingOption`, `SessionFormat`), `Practitioner`,
@@ -68,7 +93,7 @@ then. The `directory` models (also authored) land in Phase 1.
 
 | Path | Name | Notes |
 |---|---|---|
-| `/` | `pages:home` | placeholder; the real home is Phase 5 |
+| `/` | `pages:home` | hero search (a plain GET to `/search/`), a daily-rotating grid of twelve, the independence notice above the grid, browse entry points, cross-links to kiamclinic.com. `WebSite` + `Organization` JSON-LD. Indexable, priority 1.0 in the sitemap. The grid and the browse lists are cached for 24 h and busted by every publication change |
 | `/p/<slug>/` | `directory:profile` | public profile. PUBLISHED only — everything else 404s, including a suspension. Resolves one `SlugRedirect` hop with a 301 |
 | `/p/<slug>/contact/<channel>/` | `directory:contact_reveal` | **POST only.** `channel` ∈ `email` \| `phone` \| `website`, fixed by a URL converter. Returns a partial to HTMX and a whole page otherwise. `noindex, nofollow` + `X-Robots-Tag`. Rate limited per IP |
 | `/about/` | `pages:about` | |

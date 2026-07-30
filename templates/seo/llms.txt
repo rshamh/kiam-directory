@@ -41,19 +41,29 @@ has been verified.
 This directory is not an emergency or crisis service. In the UK, contact your GP,
 call 111 for urgent advice, or call 999 in an emergency. Samaritans: 116 123.
 
-## Key pages
+{% comment %}
+Markdown LINKS, not bare URLs. llmstxt.org's format is `- [Name](url): note`, and
+a file of bare URLs does not parse as a link list — Lighthouse's llms.txt audit
+reported "File does not appear to contain any links" at the Phase 5 gate, which
+means a consumer following the spec found nothing here to follow.
+{% endcomment %}## Key pages
 
-- {{ base_url }}/search/ — search and filter the directory by speciality,
-  approach, client group, language, location and radius, availability, fees and
-  accessibility. Works without JavaScript
-- {{ base_url }}/about/ — what this directory is, and what Kiam Clinic does and
-  does not do
-- {{ base_url }}/how-verification-works/ — what "Credentials checked" asserts,
-  and what it does not
-- {{ base_url }}/for-practitioners/ — how practitioners are listed
-- {{ base_url }}/report-a-concern/ — reporting a problem with a listing.
-  Complaints about a practitioner's care go to their regulator, not to Kiam
-- {{ base_url }}/p/&lt;name&gt;/ — an individual practitioner's listing
+- [Home]({{ base_url }}/): what the directory is, a search box, and a
+  daily-changing sample of listed practitioners
+- [Search]({{ base_url }}/search/): search and filter the directory by
+  speciality, approach, client group, language, location and radius,
+  availability, fees and accessibility. Works without JavaScript
+- [About]({{ base_url }}/about/): what this directory is, and what Kiam Clinic
+  does and does not do
+- [How verification works]({{ base_url }}/how-verification-works/): what
+  "Credentials checked" asserts, and what it does not
+- [For practitioners]({{ base_url }}/for-practitioners/): how practitioners are
+  listed
+- [Report a concern]({{ base_url }}/report-a-concern/): reporting a problem with
+  a listing. Complaints about a practitioner's care go to their regulator, not
+  to Kiam
+- [Sitemap]({{ base_url }}/sitemap.xml): every published page, including one
+  listing page per practitioner at /p/&lt;name&gt;/
 
 ## Status
 

@@ -483,6 +483,32 @@ component**; each is either configured around or built locally in `templates/com
     *Fix:* `{% comment %}` for anything over one line.
     `search/tests/test_search_view.py::test_no_template_comment_leaks_into_the_page` guards it.
 
+17. **The footer wordmark's accent fails AA: `--brand-primary` on `--surface-inverse` is
+    1.76:1.** `.brand-name-accent` is `--brand-primary` (green-600, `#1F7A5E`) everywhere, and the
+    footer surface is `--surface-inverse` (slate-900, `#3A4A50`). At 19px normal weight that needs
+    4.5:1. kiam-ui recolours the rest of the footer for this surface — `.site-footer .brand-name`
+    is white, `.site-footer a` is `#cdd6d6` at 6.23:1 — and misses the accent, so the second half
+    of the wordmark ("Kiam **Directory**") is effectively unreadable in the footer of every page.
+    Present since Phase 0; found at the Phase 5 gate, which is the first time an automated
+    contrast pass was run over a whole rendered page rather than reasoned about from tokens.
+    *Worked around locally:* `.site-footer .brand-name-accent { color: var(--mint-200) }` —
+    7.32:1 here, and still visibly an accent against the white "Kiam", which is the point of a
+    two-tone wordmark. Scoped to the footer; the header wordmark is on white, where green-600 is
+    fine. **The local override goes when the pin moves. Raise as a kiam-ui issue** — all three
+    sites have the same footer.
+
+18. **kiam-ui sizes NO heading except `.ds-section-head__title`.** `h1, h2, h3, h4` get weight,
+    family and line-height and no `font-size`, and Tailwind's preflight sets
+    `font-size: inherit` — so every plain heading in this repo renders at body size. Phase 4 hit
+    this on `.dir-practitioner__name` and patched two classes; the eight Phase 3 static pages had
+    `.prose h2` and `.prose h3` at 16px, identical to their body text, from Phase 3 until Phase 5.
+    *Worked around:* the Phase 5 block of `static/src/app.css` sizes `.prose h2/h3` and the
+    `dir-*` section headings together, rather than one class per phase.
+    **Consequence for the next component:** a new `dir-*` heading needs an explicit
+    `font-size`, or use `sections/section_head.html` — which gives every level
+    `--text-display-md`, so it is right for one h1 and flattens the hierarchy if used for every
+    section.
+
 > §5's row *"Footer link text on `--green-900` uses `--mint-100`"* does not match the shipped
 > v1.0.1 footer, which is `--surface-inverse` with `#cdd6d6` links. Both pass AA; the documented
 > pairing is simply not the one in the package. Re-check on the next pin bump.
@@ -499,7 +525,10 @@ The components listed in `CLAUDE.md` (`SearchBar`, `LocationInput`, `RadiusSelec
 - **Compose from kiam-ui primitives.** A `PractitionerCard` is `cards/card.html` plus a
   `dir-practitioner` modifier class and a body slot — not a new card.
 - **Follow the slot convention** (`*_template`), not a bespoke one.
-- **Take `heading_level` as a parameter** wherever the component renders a heading.
+- **Take `heading_level` as a parameter** wherever the component renders a heading, **and give
+  the heading an explicit `font-size`.** kiam-ui sizes only `.ds-section-head__title` and
+  Tailwind's preflight sets `font-size: inherit`, so a plain `<h2>` renders at body size — see
+  gap 18. Three phases in a row shipped a heading that looked like a paragraph.
 - **Namespace classes `dir-*`.** Never redefine a `ds-*` or chrome class.
 - **Reference tokens.** No hex, no font stacks, no spacing values in this repo's CSS.
 - **Document parameters in a `{% comment %}` at the top of the file**, matching kiam-ui's style —

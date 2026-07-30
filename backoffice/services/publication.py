@@ -38,6 +38,10 @@ CACHE_KEY_PATTERNS = (
     "practitioner:{slug}",
     "profile:{slug}",
     "homepage:grid",
+    # Phase 5. The home page's "by speciality" / "by town" links are counted from
+    # published listings, so a suspension that empties a town has to remove its
+    # link — otherwise the home page offers a browse route to nobody.
+    "homepage:browse",
     "search:facets",
 )
 

@@ -29,21 +29,33 @@
    Namespaced `dir-*` so nothing here can collide with a `ds-*` or chrome class.
    The components CLAUDE.md lists — SearchBar, PractitionerCard, VerifiedBadge
    and the rest — are built in templates/components/ from Phase 3 onward and
-   their styles land here. At Phase 0 there are only the three the placeholder
-   home and the auth pages need.
+   their styles land here. What is left in this first block is what the auth
+   pages need; `.dir-placeholder-note` went with the Phase 0 home page it was
+   written for.
    ------------------------------------------------------------ */
 
-.dir-placeholder-note {
-  margin-block-start: var(--space-6);
-  color: var(--text-secondary);
-}
+/* `list-style: decimal` is load-bearing, not decoration. Tailwind's preflight sets
+   `ol, ul, menu { list-style: none }`, so an <ol> outside `.prose` renders as three
+   unnumbered paragraphs — and in both places this class is used the sequence IS the
+   information (WCAG 1.3.1): the TOTP enrolment steps since Phase 0, and the home
+   page's find → contact → arrange since Phase 5.
 
+   It is on the component rather than on a containing `.prose`, because a numbered-
+   steps component that loses its numbers when somebody moves it is a component that
+   will lose them. Found by looking at the rendered page, not by reading the markup —
+   the same way Phase 3 found it on /for-practitioners/. */
 .dir-steps {
   margin-block: var(--space-6);
-  padding-inline-start: var(--space-6);
+  padding-inline-start: var(--space-7);
   display: grid;
   gap: var(--space-5);
   color: var(--text-primary);
+  list-style: decimal;
+}
+
+.dir-steps li::marker {
+  color: var(--text-secondary);
+  font-weight: var(--weight-semibold);
 }
 
 .dir-steps img {
@@ -862,16 +874,23 @@ html[data-contrast="high"] .dir-reveal:focus {
    text inputs the whole search depends on, so it is worked around locally now and
    the local override goes when the pin moves.
 
-   Scoped to the search page rather than global: this is a Phase 4 fix, and a
-   site-wide override of a packaged component belongs in the kiam-ui change. */
+   `.dir-hero` was added at Phase 5: the home page renders the SAME search bar, so
+   without it the three controls in the hero — the first thing a keyboard user
+   reaches on the site — had the 1.2:1 ring back. Still scoped rather than global,
+   because a site-wide override of a packaged component belongs in the kiam-ui
+   change; the scope list is what has to grow until the pin moves. */
 .dir-search .ds-control:focus-visible,
-.dir-search .ds-control:focus {
+.dir-search .ds-control:focus,
+.dir-hero .ds-control:focus-visible,
+.dir-hero .ds-control:focus {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
 html[data-contrast="high"] .dir-search .ds-control:focus-visible,
-html[data-contrast="high"] .dir-search .ds-control:focus {
+html[data-contrast="high"] .dir-search .ds-control:focus,
+html[data-contrast="high"] .dir-hero .ds-control:focus-visible,
+html[data-contrast="high"] .dir-hero .ds-control:focus {
   outline-width: 4px;
 }
 
@@ -976,4 +995,288 @@ html[data-contrast="high"] .dir-search .ds-control:focus {
    Hiding the direct children takes their descendants with them. */
 details.dir-filter-block:not([open]) > *:not(summary) {
   display: none;
+}
+
+/* ============================================================
+   Phase 5 — the home page: hero search, the rotating grid, the supporting
+   sections.
+
+   Same rules as the Phase 3 and 4 blocks: semantic token aliases only, no raw
+   swatches, no hex, no transitions and no animations.
+
+   HEADINGS ARE SIZED HERE, and that is not cosmetic. Tailwind's preflight sets
+   `h1..h6 { font-size: inherit; font-weight: inherit }` and kiam-ui sizes only
+   `.ds-section-head__title`, so a plain <h2> renders at body size — the same trap
+   Phase 4 hit on `.dir-practitioner__name`. Phase 4 patched two classes; this page
+   has seven sections of plain headings, and `.prose h2` / `.prose h3` on the eight
+   static pages have been unsized since Phase 3 for the same reason. Fixed here for
+   all of them, because three phases of patching one class at a time is how the next
+   one gets missed. Recorded against docs/design-system.md §7 gap 10.
+   ============================================================ */
+
+.prose h2,
+.dir-home__section > h2 {
+  font-size: var(--text-title-lg);
+  line-height: var(--line-height-heading);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+}
+
+/* kiam-ui resets `h1..h4 { margin: 0 }`, so a section heading sits flush against
+   whatever follows it. `.prose` sets its own heading margins; a section heading
+   outside `.prose` has none, which is how "Kiam Clinic" ended up touching its own
+   first paragraph. */
+.dir-home__section > h2 {
+  margin-block-end: var(--space-3);
+}
+
+.prose h3,
+.dir-browse__group > h3 {
+  font-size: var(--text-title-sm);
+  line-height: var(--line-height-heading);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+}
+
+/* ---------- the hero ----------
+
+   A tinted band rather than a photograph. A stock image of somebody looking
+   wistfully out of a window is the visual cliché of this sector, it says nothing
+   true about the listings, and — the reason that settles it — a full-width hero
+   image is the LCP element and the largest download on the page, on a subdomain
+   with a Core Web Vitals budget on throttled 4G (docs/seo.md). The LCP element
+   here is the h1, which is text and already in the HTML. */
+
+.dir-hero {
+  background: var(--surface-sunken);
+  border-block-end: 1px solid var(--border-hover);
+  /* Tighter on a phone. At `--space-16` top and bottom, plus the chrome, the first
+     search field started below a 375x812 viewport — and the search box is the point
+     of the page. */
+  padding-block: var(--space-8);
+}
+
+@media (min-width: 48rem) {
+  .dir-hero {
+    padding-block: var(--space-16);
+  }
+}
+
+.dir-hero__inner > .ds-section-head {
+  max-width: 62ch;
+}
+
+.dir-hero__form {
+  margin-block-start: var(--space-8);
+}
+
+/* The search card sits on the hero's tinted band, so it needs the card surface to
+   separate from it — `.dir-searchbar` already sets `--surface-card`, and
+   `--control-border` is the documented ≥3:1 boundary on both mint and white
+   (docs/design-system.md §5). Nothing to override; the note is here so the next
+   person does not "tidy" the band to `--surface-card` and lose the separation. */
+
+.dir-home__body {
+  padding-block: var(--space-16);
+}
+
+.dir-home__section {
+  margin-block-start: var(--space-16);
+}
+
+/* The first section under the independence notice keeps a normal gap; only a
+   section that is genuinely first in the body loses its top margin. */
+.dir-home__section--first {
+  margin-block-start: var(--space-12);
+}
+
+.dir-home__lede {
+  max-width: 68ch;
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* Body colour, not secondary: this is the paragraph that explains what the site is,
+   not a caption under a heading. */
+.dir-home__intro {
+  max-width: 68ch;
+  color: var(--text-primary);
+  font-size: var(--text-body-lg);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ---------- the grid ----------
+
+   `auto-fill` with a min track, not a fixed column count: twelve cards reflow from
+   one column to four with no breakpoint to keep in step with the card's own
+   content. `minmax(19rem, 1fr)` is the width at which a name, a profession, the
+   badge and three speciality pills still read as a card rather than as a column of
+   fragments. */
+
+.dir-home-grid {
+  list-style: none;
+  padding: 0;
+  margin-block-start: var(--space-6);
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+}
+
+/* The cards stretch to the row height so the grid does not look ragged, and the
+   card's own padding comes from `.dir-practitioner` in the Phase 4 block. */
+.dir-home-grid__item {
+  display: flex;
+}
+
+.dir-home-grid__item > .ds-card {
+  flex: 1;
+}
+
+.dir-home-grid__note {
+  margin-block-start: var(--space-6);
+  max-width: 68ch;
+  color: var(--text-secondary);
+  font-size: var(--text-body-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.dir-home-grid__note a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* ---------- how it works ---------- */
+
+.dir-home__steps {
+  max-width: 68ch;
+}
+
+.dir-home__steps strong {
+  color: var(--text-heading);
+  font-weight: var(--weight-semibold);
+}
+
+.dir-home__steps a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* ---------- the trust strip ---------- */
+
+.dir-trust {
+  margin-block-start: var(--space-5);
+  padding: var(--space-6);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: flex-start;
+}
+
+.dir-trust__icon {
+  color: var(--brand-primary-dark);
+  flex: 0 0 auto;
+}
+
+.dir-trust__body {
+  flex: 1 1 30ch;
+  max-width: 68ch;
+}
+
+/* ---------- browse ---------- */
+
+.dir-browse {
+  margin-block-start: var(--space-6);
+  display: grid;
+  gap: var(--space-8);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 60rem) {
+  .dir-browse {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.dir-browse__links {
+  list-style: none;
+  padding: 0;
+  margin-block-start: var(--space-4);
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* 44px of height clears WCAG 2.2 §2.5.8 without a bespoke hit area, and these are
+   the densest set of links on the page. */
+.dir-browse__links li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+  padding-block: var(--space-2);
+}
+
+.dir-browse__links a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* Not a link, and it must not look like one: the count is metadata. `--text-faint`
+   rather than `--slate-400`, which is ~2.9:1 and fails AA for text
+   (docs/design-system.md §5). */
+.dir-browse__count {
+  color: var(--text-faint);
+  font-size: var(--text-caption);
+}
+
+.dir-browse__group p {
+  margin-block-start: var(--space-4);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.dir-browse__group .btn {
+  margin-block-start: var(--space-4);
+}
+
+/* ---------- the crosslink and the CTA ---------- */
+
+.dir-home__crosslink {
+  max-width: 68ch;
+}
+
+.dir-home__cta {
+  padding-block-end: var(--space-16);
+}
+
+/* ============================================================
+   Phase 5 gate — one fix outside this phase's own surface.
+
+   A LOCAL OVERRIDE of a packaged chrome class, which docs/design-system.md §8
+   calls a last resort. This is the justification the rule requires, and the
+   override goes when the kiam-ui pin moves.
+   ============================================================ */
+
+/* The footer wordmark's accent is `--brand-primary` (green-600, #1F7A5E) on the
+   footer's `--surface-inverse` (slate-900, #3A4A50): measured 1.76:1 against a
+   4.5:1 requirement at 19px normal weight. WCAG 1.4.3 AA, in the chrome, on every
+   page of the site since Phase 0 — found by Lighthouse at the Phase 5 gate, which
+   is the first time this project ran an automated contrast pass over a full page.
+
+   kiam-ui already recolours the rest of the footer for this surface
+   (`.site-footer .brand-name` is white, `.site-footer a` is #cdd6d6 at 6.23:1);
+   `.brand-name-accent` is the one it missed. `--mint-200` measures 7.32:1 here and
+   is still visibly an accent against the white "Kiam" beside it — which is the
+   point of the two-tone wordmark, so this fixes the contrast without flattening
+   the brand.
+
+   Scoped to `.site-footer`: the header wordmark is on white, where green-600 is
+   fine, and a global override would recolour it for no reason.
+
+   Raise as a kiam-ui issue — it affects all three sites. */
+.site-footer .brand-name-accent {
+  color: var(--mint-200);
 }

@@ -194,10 +194,21 @@ change and bump the pin. A local override is a last resort and must be commented
 `CompletenessMeter`, `VerificationStatusPanel`.
 
 Built so far, in `templates/components/` and `templates/directory/`:
-`_independence_notice.html` (Phase 0), and from Phase 3 `_verified_badge.html`, `_tag_group.html`
+`_independence_notice.html` (Phase 0); from Phase 3 `_verified_badge.html`, `_tag_group.html`
 and the ContactRevealPanel set — `directory/_contact_panel.html`, `_contact_button.html`,
-`_contact_revealed.html`, `_contact_limited.html`. Their styles are the `Phase 3` block at the end
-of `static/src/app.css`, all `dir-*` and all referencing kiam-ui tokens.
+`_contact_revealed.html`, `_contact_limited.html`; from Phase 4 `_search_bar.html` (which is the
+SearchBar, LocationInput and RadiusSelect in one partial), `_filter_sidebar.html`,
+`_filter_group.html` and `_practitioner_card.html`. Their styles are the `Phase 3`, `Phase 4` and
+`Phase 5` blocks at the end of `static/src/app.css`, all `dir-*` and all referencing kiam-ui
+tokens.
+
+**Phase 5 reused rather than added.** The home page's hero is `_search_bar.html` and its grid is
+`_practitioner_card.html` — the same two components `/search/` uses, so the keyboard pattern, the
+verification badge with its mandatory "what this does and does not mean" link, the "Paid
+placement" label and the "no contact details on a card" rule are single-sourced. The card grew one
+parameter, `headshot_priority`, because a list below the fold must not claim
+`fetchpriority="high"`. `CompletenessMeter` and `VerificationStatusPanel` are still unbuilt —
+they belong to the Phase 6 dashboard.
 
 Build these as plain Django `{% include %}` partials in `templates/components/`, composed from
 `kiam-ui` primitives. Propose one upward to `kiam-ui` only if another project needs it.
@@ -477,15 +488,102 @@ The result count is a **persistent live region outside `#results`**, updated by
 `hx-swap-oob="innerHTML:#result-count"`. A live region that is itself replaced by the swap is not
 announced — the same lesson as the Phase 3 contact reveal.
 
+### The home page (Phase 5)
+
+`/` → `pages.views.home` → `pages/services/home.py`. Five things about it are decisions, not
+implementation.
+
+* **The hero search is the SAME component as `/search/`.** `components/_search_bar.html`, wrapped
+  in a plain `<form method="get" action="/search/">`. The brief calls the hero the most important
+  interaction on the site, and a second implementation of the query field, the location field's
+  native `<datalist>`, the radius `<select>` and the always-visible submit button would be a
+  second one to keep accessible. Only 4 tab stops before the grid, and the whole thing is a plain
+  GET with script off — `test_the_hero_search_works_completely_without_javascript` is this phase's
+  equivalent of the search page's non-negotiable test.
+* **The cache holds primary keys, not rows and not HTML.** `homepage:grid` stores twelve ids;
+  every render re-reads the rows and **re-applies `status=PUBLISHED`**. So a `bust_cache()` that
+  never fires still cannot leave a suspended listing on the busiest page on the site — the
+  reputational worst case in `docs/verification-policy.md`. It also means compliance copy is never
+  a day stale, and that a migration cannot turn Redis into a 500 the way a pickled model instance
+  can (the `FACET_CACHE_VERSION` lesson, one phase later). `homepage:browse` is in
+  `publication.CACHE_KEY_PATTERNS` for the same reason.
+* **The independence notice is ABOVE the grid.** The brief allowed "above the fold or immediately
+  below the grid"; above is strictly better, because the sentence a visitor needs before reading
+  twelve names and photographs on a Kiam-branded page cannot be below them.
+* **The hero lede is short on purpose.** The first draft put the whole plain-language explanation
+  there, and on a 375px viewport that was a nine-line serif paragraph between the visitor and the
+  search box. It is now one sentence — still the extractable AEO answer (`docs/seo.md`) — and the
+  fuller version is its own "What this directory is" section.
+* **Browse entry points are counted from live listings**, never from the taxonomy, and capped at
+  twelve each. They are `noindex, follow` facet URLs until Phase 7's curated landing pages replace
+  them; a home page fanning out into dozens of thin permutations is the doorway pattern
+  `docs/seo.md` forbids. A town needs **two** published practitioners before it is named, and
+  `is_public=False` addresses are excluded — naming the town of a single home office publishes it
+  by inference.
+
+**Headshot renditions arrived here**, not in Phase 3 where the card first wanted them:
+`directory/services/images.py`, 80/160/240px, built inside the cached grid path so twelve
+conversions happen once a day. Names are deterministic from the original's, so a replaced headshot
+gets new rendition names and there is nothing to bust. It is **all-or-nothing and never fatal** —
+any failure returns `""` and the card falls back to the plain `src`, because a `srcset` naming a
+rendition that does not exist is a broken image. Re-encoding drops EXIF, which takes the GPS
+coordinates out of a phone photo. `/search/` is unchanged: it builds no renditions, so it emits no
+`srcset`.
+
+### What the Phase 5 gate found by running the real thing
+
+Four defects, all fixed and covered. **None of them was visible to the test suite**, which is now
+the fifth and sixth entries in that list in `README.md`:
+
+* **`extra={"name": ...}` in a log call raises.** `name` is a reserved `LogRecord` attribute and
+  `Logger.makeRecord` raises `KeyError` on a collision — so the log line meant to *record* a
+  failure *became* the failure, and turned "a broken image never breaks the page" into a 500 on
+  the home page. The suite could not see it: `config/settings/test.py` sets the root logger to
+  CRITICAL, so `isEnabledFor` is False and `makeRecord` is never reached.
+  `test_the_logging_calls_are_actually_emittable` turns logging on for exactly this.
+* **Concurrent requests wrote duplicate renditions.** Django's storage never overwrites, so the
+  loser of a write race got a suffixed name nothing would ever request. Measured: five concurrent
+  cold-cache loads produced 111 orphans. `_write` now deletes the file it just lost with. There is
+  deliberately still no lock — see the module docstring for why.
+* **`.dir-steps` had no numbers.** Tailwind's preflight sets `ol { list-style: none }`, and this
+  class is used where the sequence *is* the information — WCAG 1.3.1, on the home page and on
+  `/two-factor/setup/` since Phase 0. Fixed on the component, not on a containing `.prose`.
+* **The footer wordmark accent measured 1.76:1.** `--brand-primary` on `--surface-inverse`, in the
+  chrome, on every page since Phase 0. Accessibility went 94 → 100. Recorded as design-system
+  gap 17, with gap 18 for the related "kiam-ui sizes no heading but
+  `.ds-section-head__title`" — which had left `.prose h2` at body size on eight static pages since
+  Phase 3.
+
+**Measured Core Web Vitals** (Lighthouse 13.4.1, production-like local server — `DEBUG` off so
+WhiteNoise serves the compressed static a visitor gets; 3 mobile runs, identical):
+
+| | Mobile, Slow 4G (1,638 Kbps, 150 ms RTT, 4× CPU) | Desktop |
+|---|---|---|
+| Performance | 89 | 99 |
+| LCP | 3.20 s | 0.77 s |
+| CLS | 0.000 | 0.014 |
+| TBT | 0 ms | 0 ms |
+| FCP | 2.60 s | 0.69 s |
+| Accessibility | 100 | 100 |
+| Weight | 201 KiB / 13 requests | 211 KiB / 19 requests |
+
+LCP is the only metric outside "good" and **it is not this page's markup**: 1,510 ms of it is
+render-blocking stylesheets, of which Google Fonts is 796 ms and 68 KiB. Blocking that origin
+takes mobile LCP to 1.84 s and the score to 98. That is design-system **gap 3** with a number on
+it, and it collides with golden rule #4 — the fix is self-hosting the two families upstream in
+`kiam-ui`, not here. The next item after it is the **HTML document, 81 KiB uncompressed**: nothing
+in the stack gzips a response body (`GZipMiddleware` is deliberately absent — BREACH), so that
+belongs to the reverse proxy or CDN at Phase 7 launch prep.
+
 ### Still to build
 
-Phases 5–7: the real home page, the practitioner dashboard, and insights / landing pages / launch
-prep. See `docs/roadmap.md`.
+Phases 6–7: the practitioner dashboard, and insights / landing pages / launch prep. See
+`docs/roadmap.md`.
 
 `directory/services/search.py` was recovered from the rooms repo at Phase 4
-(`git -C ../rooms show f49d0c2^:search.py`) and is now in this repo, reviewed and fixed. Its
-`homepage_grid()` is written and **unused until Phase 5** — the rotating grid of twelve. It has no
-tests yet for the same reason.
+(`git -C ../rooms show f49d0c2^:search.py`) and is now in this repo, reviewed and fixed.
+`homepage_grid()` is in use from Phase 5 and has tests; its daily seed moved from the UTC date to
+`timezone.localdate()` so it rotates when the result shuffle does.
 
 ---
 

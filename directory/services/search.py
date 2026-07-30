@@ -32,6 +32,9 @@ absorbed silently:
 6. **The text query FILTERS, not only ranks.** As authored, `q` annotated a rank
    and nothing else, so a search for "zzzznonsense" returned the entire
    directory and the empty state was unreachable from the search box.
+7. **`homepage_grid()` seeded its daily shuffle from the UTC date**, so for half
+   the year it rotated at 01:00 local while the result shuffle rotated at
+   midnight. Phase 5, when the grid stopped being unused code.
 """
 
 from dataclasses import dataclass, field
@@ -451,6 +454,18 @@ def _decorate(items, *, top_specialities: int, radius_miles: int | None = None) 
         item.top_specialities = by_practitioner.get(item.pk, [])
 
 
+def decorate_cards(items, *, radius_miles: int | None = None) -> None:
+    """Attach what ``_practitioner_card.html`` needs to an arbitrary list of rows.
+
+    A public seam onto ``_decorate``, added at Phase 5 because the home-page grid
+    renders the same card component from a different queryset and had no way to ask
+    for the same decoration without reaching into a private function. The cap on
+    speciality pills is applied here rather than passed in, so the card carries the
+    same number of pills wherever it appears.
+    """
+    _decorate(items, top_specialities=TOP_SPECIALITIES_ON_CARD, radius_miles=radius_miles)
+
+
 def wider_radius(current: int) -> int | None:
     """The next radius up, for the empty state's "search further out" link."""
     larger = [option for option in RADIUS_OPTIONS if option > current]
@@ -570,15 +585,33 @@ def weights() -> dict[str, float]:
     }
 
 
-def homepage_grid(limit: int = 12):
+#: A listing has to be this complete to appear in the home-page grid. The grid is
+#: the first twelve practitioners a stranger ever sees, and a listing with no
+#: intro, no specialities and no photo represents the directory badly on the one
+#: page with the most authority on the subdomain.
+HOMEPAGE_MIN_COMPLETENESS = 70
+
+
+def homepage_grid(limit: int = 12, *, day=None):
     """
     Rotates daily: cacheable for 24h, but not the same twelve faces forever.
     Featured listings take the first slots and are always labelled as such.
+
+    ``day`` exists so a test can assert the rotation without waiting a day, and so
+    two calls inside one request cannot straddle midnight.
+
+    ADOPTION CHANGE (7), Phase 5: the seed was ``timezone.now().date()``, which is
+    the UTC date. Between midnight and 01:00 British Summer Time that is
+    *yesterday*, so the grid rotated at 01:00 local for half the year while
+    ``search.services.params.daily_seed()`` — the equivalent seed for the result
+    shuffle — rotated at midnight. Same clock for both now.
     """
-    day_seed = timezone.now().date().isoformat()
+    day_seed = (day or timezone.localdate()).isoformat()
     now = timezone.now()
     return (
-        Practitioner.objects.filter(status=PublicationStatus.PUBLISHED, completeness__gte=70)
+        Practitioner.objects.filter(
+            status=PublicationStatus.PUBLISHED, completeness__gte=HOMEPAGE_MIN_COMPLETENESS
+        )
         .annotate(
             featured=Case(
                 When(featured_until__gt=now, then=Value(1)), default=Value(0), output_field=FloatField()
