@@ -1,0 +1,51 @@
+{% comment %}
+FilterGroup — one titled group of checkboxes inside the filter sidebar.
+
+  {% include "components/_filter_group.html" with legend="Approach" name="approach" options=facets.approaches selected=params.approaches %}
+
+Params:
+  legend    (required) the group's heading. Becomes a real <legend>.
+  name      (required) the GET parameter these checkboxes post under.
+  options   list of dicts, each {"value", "name"} — normalised by
+            `search.services.params.facets()` so this component has no key
+            bridging to do. It used to take either `slug` or `code` and pick with
+            `option.slug|default:option.code`, which raises: the `default` filter
+            resolves its argument eagerly, so an option with no `code` (every
+            client group) took the page down with a VariableDoesNotExist.
+  selected  list of currently-checked values.
+  help      optional explanatory line, wired to the fieldset by aria-describedby.
+
+A real <fieldset> with a real <legend>, which is the whole reason this is a
+component: a group of checkboxes whose only label is a styled <div> tells a screen
+reader nothing about what the options have in common, and a visitor arrowing
+through twenty checkboxes has no idea which ones are professions and which are
+approaches.
+
+No JavaScript anywhere in here. Each checkbox is a plain input inside the page's
+one form, so the sidebar submits with the button and works with script disabled;
+the HTMX `change` trigger on the form is what makes it feel live when script runs.
+{% endcomment %}
+{% if options %}
+<fieldset class="dir-filter-group"{% if help %} aria-describedby="filter-{{ name }}-help"{% endif %}>
+  <legend class="dir-filter-group__legend">{{ legend }}</legend>
+  {% if help %}
+    <p class="dir-filter-group__help" id="filter-{{ name }}-help">{{ help }}</p>
+  {% endif %}
+  <ul class="dir-filter-group__list" role="list">
+    {% for option in options %}
+      {% with value=option.value %}
+        <li class="dir-filter-group__item">
+          <label class="dir-filter-group__label" for="filter-{{ name }}-{{ value }}">
+            <input type="checkbox"
+                   id="filter-{{ name }}-{{ value }}"
+                   name="{{ name }}"
+                   value="{{ value }}"
+                   {% if value in selected %}checked{% endif %}>
+            <span>{{ option.name }}</span>
+          </label>
+        </li>
+      {% endwith %}
+    {% endfor %}
+  </ul>
+</fieldset>
+{% endif %}

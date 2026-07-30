@@ -7,11 +7,19 @@ The disallow list is the account area and the staff console. Faceted search URLs
 are NOT disallowed here: they must stay crawlable so their `noindex, follow` and
 their canonical to /search/ are actually read. Blocking them in robots.txt would
 stop the crawler ever seeing either, and Google would keep the URLs in the index
-with no idea what they are. That rule lands with the search view in Phase 4.
+with no idea what they are.
+
+`/search/places/` IS disallowed, and the distinction is the point. It returns
+head-less HTML — bare <option> elements for the location field's datalist — so it
+cannot carry a `noindex` meta tag, and `?near=` is unbounded, so it would be one
+thin URL per typed prefix. It also fronts an outbound call to postcodes.io, so a
+crawler walking prefixes would drive somebody else's rate limit. The view sets an
+`X-Robots-Tag` header too; this is the layer that stops the fetch happening at all.
 {% endcomment %}User-agent: *
 Disallow: /accounts/
 Disallow: /backoffice/
 Disallow: /staff-console/
 Disallow: /healthz
+Disallow: /search/places/
 
 Sitemap: {{ sitemap_url }}

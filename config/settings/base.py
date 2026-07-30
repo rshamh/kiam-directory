@@ -318,6 +318,44 @@ MEDIA_ROOT = BASE_DIR / "media"
 PRIVATE_DOCUMENT_URL_TTL_SECONDS = env("PRIVATE_DOCUMENT_URL_TTL_SECONDS")
 
 # ---------------------------------------------------------------------------
+# Geocoding — postcodes.io, keyless
+# ---------------------------------------------------------------------------
+# postcodes.io for postcode -> point, and its /places endpoint for place-name
+# autocomplete, which serves OS Open Names data. That is how this project gets OS
+# Open Names without an OS Data Hub key in the deployment and without a Google
+# Maps bill (CLAUDE.md, "Geocoding").
+
+GEOCODE_BASE_URL = env("GEOCODE_BASE_URL", default="https://api.postcodes.io")
+
+# A tight timeout, on purpose. This call sits in front of a search page with a
+# Core Web Vitals budget (docs/seo.md), and a slow third party must degrade to
+# "searched without a location" rather than hold the page open. (connect, read).
+GEOCODE_TIMEOUT_SECONDS = (
+    env.float("GEOCODE_CONNECT_TIMEOUT", default=1.5),
+    env.float("GEOCODE_READ_TIMEOUT", default=2.5),
+)
+
+#: A month. A postcode's coordinates do not move, and the point of caching this
+#: hard is that a busy search page makes almost no outbound calls.
+GEOCODE_CACHE_SECONDS = env.int("GEOCODE_CACHE_SECONDS", default=60 * 60 * 24 * 30)
+
+#: An hour. Long enough that a typo retried five times costs one call; short
+#: enough that a genuinely new postcode is not blacklisted for a month.
+GEOCODE_NEGATIVE_CACHE_SECONDS = env.int("GEOCODE_NEGATIVE_CACHE_SECONDS", default=60 * 60)
+
+#: postcodes.io asks for identification rather than a key. Being identifiable is
+#: also what gets us told about a problem instead of rate-limited for one.
+GEOCODE_USER_AGENT = env(
+    "GEOCODE_USER_AGENT", default="KiamClinicDirectory/1.0 (+https://directory.kiamclinic.com)"
+)
+
+# ---------------------------------------------------------------------------
+# Search
+# ---------------------------------------------------------------------------
+
+SEARCH_PAGE_SIZE = env.int("SEARCH_PAGE_SIZE", default=20)
+
+# ---------------------------------------------------------------------------
 # Submission lint
 # ---------------------------------------------------------------------------
 

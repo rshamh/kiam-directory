@@ -36,6 +36,6 @@ Canonicals stay inside this subdomain. Never point one at kiamclinic.com
 
 {% block jsonld %}{{ jsonld|default:"" }}{% endblock %}
 
-{# Our Tailwind build. Loaded after kiam-ui's layer so site CSS wins a genuine
-   collision — see docs/design-system.md §6. #}
+{% comment %} Our Tailwind build. Loaded after kiam-ui's layer so site CSS wins a genuine
+   collision — see docs/design-system.md §6. {% endcomment %}
 {% block site_css %}<link rel="stylesheet" href="{% static 'css/app.css' %}">{% endblock %}

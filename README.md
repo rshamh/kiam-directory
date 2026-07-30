@@ -6,9 +6,9 @@ directly.
 
 Django · PostgreSQL/PostGIS · Redis · Tailwind + HTMX + Alpine · [`kiam-ui`](#kiam-ui)
 
-**Phases 0–3 are built.** Foundation, data model and taxonomy, the admin back office, and the
-public profile with its static pages. Phase 4 (search) is next — there is **no `/search/` yet**,
-and no home page beyond a placeholder.
+**Phases 0–4 are built.** Foundation, data model and taxonomy, the admin back office, the public
+profile with its static pages, and search. Phase 5 (the real home page) is next — the home page is
+still a placeholder.
 
 ## Start here
 
@@ -195,7 +195,7 @@ docker compose build --ssh default  # the image is where the .env leak surfaced
 
 ## Testing
 
-~650 tests. Two conventions worth knowing before adding more:
+~825 tests. Two conventions worth knowing before adding more:
 
 - **Factories never write a verification field.** `PractitionerFactory(verified=True)` creates
   dated checks and calls `recompute()`, exactly as production does. A factory that set
@@ -205,6 +205,7 @@ docker compose build --ssh default  # the image is where the .env leak surfaced
   skips. Call syntax is the same either way.
 
 ```bash
+pytest directory/tests/test_search_minors_gate.py   # the Phase 4 gate: PROVISIONAL is not in minors results
 pytest directory/tests/test_profile_minor_gate.py   # the Phase 3 gate: minor groups are not in the HTML
 pytest directory/tests/test_verification.py         # the service that decides what the public sees
 pytest backoffice/tests/test_flow.py                # invite -> draft -> submit -> verify -> publish
@@ -219,6 +220,7 @@ pytest --create-db                                  # after a migration, or the 
 
 | Page | What it does |
 |---|---|
+| `/search/` | Filter sidebar and results. **Works completely without JavaScript** — one plain `<form>`, a visible submit button, full results in the body. HTMX swaps `#results` when it is available. Every faceted URL is `noindex, follow` with a canonical to the bare path |
 | `/p/<slug>/` | A practitioner's profile. **PUBLISHED only** — a draft, a suspension and a slug nobody has used all return the same 404, so a suspension is invisible rather than announced. Old slugs 301 to the current one |
 | `/p/<slug>/contact/<channel>/` | Reveals one contact detail. POST only, rate limited, `noindex`. Works without JavaScript as a whole page, and with HTMX as an in-place swap |
 | `/about/` · `/how-verification-works/` · `/for-practitioners/` · `/accessibility/` | Written content. The verification page states plainly what the badge does **not** mean |
@@ -340,14 +342,17 @@ Every role check in the project lives in `accounts/access.py`. Views and templat
 
 ## Things that are easy to get wrong
 
-**The under-18 gate has two halves and only one is built.** `Practitioner.can_show_minor_groups`
-and `visible_client_groups()` cover the profile side, and Phase 3 wired them up —
-`directory/tests/test_profile_minor_gate.py` asserts a `PROVISIONAL` practitioner's under-18 group
-name does not appear in the response body. The **search-queryset half is Phase 4 and does not
-exist yet**: whenever a search filters on a client group with `is_minors=True`, the queryset must
-also filter `minor_work_status=CLEARED`. Without it, a `PROVISIONAL` practitioner — live for adult
-work with a DBS still pending — is returned to somebody looking for a child therapist. This is the
-highest-severity thing in the project and it needs its own test.
+**The under-18 gate has two halves and both are load-bearing.** `visible_client_groups()` covers
+the profile; `filter(minor_work_status=CLEARED)` in `directory/services/search.py` covers search.
+Each has its own gate test, and the search one ends with a grep asserting both call sites still
+exist — because deleting either leaves the other's tests green. Without the search half, a
+`PROVISIONAL` practitioner — live for adult work with a DBS still pending — is returned to somebody
+looking for a child therapist.
+
+**Never add a second `.filter()` on `locations`.** Django resolves each one against its own join, so
+two calls ask two independent questions: "any location in range" and "any location step-free" is
+satisfied by a practitioner with an in-range office that has steps and a step-free office twenty
+miles away. `search._location_filter()` builds one `Q` for exactly this reason.
 
 **A suspended profile is a 404, not a page.** Phase 3 chose the 404 of the two options CLAUDE.md
 allows, because a distinct "not currently listed" page is itself a signal: it says a listing was

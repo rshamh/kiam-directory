@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% comment %}
+/search/ — the whole page on a normal GET, the #results fragment when HTMX asks.
+
+**ONE form wraps the search bar, the sidebar and the results.** Not three forms,
+and not inputs associated by the `form=` attribute: with JavaScript off, a visitor
+who has typed a location and then ticks "accepting new clients" must submit BOTH,
+and separate forms would silently drop whichever one they did not press. The
+layout is CSS grid inside a single form, so the markup order is the reading order
+and nothing depends on script to hold the state together.
+
+`#results` is inside that form on purpose too. It contains no inputs — the
+pagination links are real anchors — so the form serialises exactly the filters, and
+HTMX can swap the container without touching them.
+
+The result count lives OUTSIDE #results, and the fragment updates it with an
+out-of-band `innerHTML` swap. A live region that is itself replaced by the swap is
+not reliably announced; one that persists and has its contents changed is. Same
+lesson as the Phase 3 contact reveal.
+{% endcomment %}
+{% load static %}
+
+{% block content %}
+<div class="container section dir-search">
+
+  {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Search" title="Find an independent mental-health practitioner" description="Filter by what you need, then contact the practitioner directly." heading_level=1 %}
+
+  {% comment %}
+  Prose above the form, and it is here for a reason rather than for decoration.
+  The bare /search/ is the URL every faceted permutation canonicalises to, so it
+  is the one indexable search URL — and an indexable page whose body is a form and
+  a result list is the textbook thin internal-search page. This is also the
+  paragraph an answer engine can lift (docs/seo.md, "AEO / AI search"), so it says
+  what the directory lists, who is on it, and that they are independent of Kiam.
+  {% endcomment %}
+  <p class="dir-search__lede">
+    The Kiam Clinic Directory lists independent psychiatrists, psychologists,
+    psychotherapists, counsellors and allied mental-health professionals working in
+    the UK, in person and online. Search by what you need help with, filter by
+    location, availability, fees, language and accessibility, and contact the
+    practitioner directly — you do not need an account, and Kiam Clinic takes no
+    payment.
+  </p>
+
+  {% include "kiam_ui/components/feedback/disclaimer.html" with title="About the practitioners listed here" heading_level=2 body_template="components/_independence_notice.html" %}
+
+  {% comment %}
+  `hx-replace-url`, not `hx-push-url`. With `hx-trigger="…, change"` every ticked
+  checkbox pushed a history entry, so eight filters meant eight Back presses to
+  leave the page. Replacing keeps the URL shareable and the Back button meaning
+  "the page before this one".
+
+  `role="search"` is NOT on this form. It wraps the sidebar and twenty result
+  cards, so a landmark named "Search practitioners" would contain the whole page
+  body; it is on the search bar instead, where the controls are.
+  {% endcomment %}
+  <form method="get"
+        action="{% url 'search:search' %}"
+        class="dir-search__form"
+        hx-get="{% url 'search:search' %}"
+        hx-target="#results"
+        hx-replace-url="true"
+        hx-trigger="submit, change"
+        hx-indicator="#search-busy"
+        hx-sync="this:replace">
+
+    {% comment %}
+    A bypass past the filters (WCAG 2.4.1). Seeded with the real taxonomy the
+    sidebar is ~196 tab stops and ~8,000px tall, and the chrome's skip link lands
+    at #main, which is ABOVE it — so a sighted keyboard user had no way to reach the
+    results at all. A screen-reader user could jump by heading or landmark; they
+    could not.
+    {% endcomment %}
+    <p class="dir-search__skip"><a href="#results">Skip to results</a></p>
+
+    {% include "components/_search_bar.html" %}
+
+    <div class="dir-search__layout">
+      {% include "components/_filter_sidebar.html" %}
+
+      <div class="dir-search__main">
+
+        <div class="dir-search__status">
+          {% comment %}
+          Persistent live region. The fragment swaps its INNER HTML, so a filter
+          change announces "N practitioners" without the region being replaced.
+          {% endcomment %}
+          <p id="result-count" class="dir-search__count" role="status" aria-live="polite" aria-atomic="true">
+            {% include "search/partials/_result_count.html" %}
+          </p>
+          <p id="search-busy" class="dir-search__busy htmx-indicator" aria-hidden="true">Searching…</p>
+        </div>
+
+        {% comment %}
+        Ranking transparency. A per-item "Paid placement" pill satisfies CAP at the
+        point of display, but a ranked list where payment can affect POSITION also
+        needs the main ranking parameters stated somewhere a visitor can reach
+        (DMCCA 2024, in force April 2025). Written now, before anything is featured,
+        for the same reason the pill was: a disclosure added alongside the first sale
+        is a disclosure somebody has to remember.
+
+        Native <details>, so it costs nothing to ignore and needs no script.
+
+        TODO(sign-off): solicitor — the paid-placement wording, alongside the
+        Listing Agreement that has to cover the tier at all.
+        {% endcomment %}
+        <details class="dir-search__ordering">
+          <summary>How these results are ordered</summary>
+          <div class="prose">
+            <p>
+              Results are ordered by how well they match what you asked for. The
+              things that count, most first: how close the practitioner is to the
+              location you gave, how well their listing matches your words, how
+              complete their listing is, whether their credentials have been checked
+              and are in date, whether they are accepting new clients, and how
+              recently they updated their listing.
+            </p>
+            <p>
+              Practitioners with equally good matches are shuffled, and the shuffle
+              changes daily, so no one listing sits at the top permanently.
+            </p>
+            <p>
+              Practitioners can pay for a <strong>featured</strong> place near the top.
+              Featured listings are always labelled “Paid placement” where they
+              appear, and no more than {{ featured_cap }} can appear on a page.
+              Paying changes position only — it does not change whether somebody is
+              listed, and it has no effect at all on the verification checks.
+            </p>
+            <p>
+              Kiam Clinic does not rank practitioners by quality and does not
+              recommend one over another.
+              <a href="{% url 'pages:how_verification_works' %}">What the verification badge means</a>.
+            </p>
+          </div>
+        </details>
+
+        {% if active_filters %}
+          <div class="dir-search__chips">
+            <h2 class="sr-only">Filters you have applied</h2>
+            <ul class="dir-chips" role="list">
+              {% comment %}
+              A PLAIN navigation, deliberately — no `hx-get`.
+
+              With HTMX these swapped `#results` only, which left the chip itself
+              and the sidebar checkbox untouched: the filter looked removed, the
+              results changed, and the next `change` event re-serialised the still-
+              checked box and put it straight back. A control whose state disagrees
+              with the results is WCAG 4.1.2, and it is worst for somebody relying
+              on this row rather than scanning the sidebar.
+
+              A full navigation re-renders the chips, the checkboxes and the results
+              from one source of truth. "Clear all filters" was already a plain link
+              for the same reason; these now match it.
+              {% endcomment %}
+              {% for chip in active_filters %}
+                <li class="dir-chips__item">
+                  <a class="dir-chips__remove" href="{% url 'search:search' %}{{ chip.remove_url }}">
+                    {{ chip.label }}<span class="sr-only"> — remove this filter</span>
+                    {% include "kiam_ui/components/icon.html" with name="x" size=14 %}
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+            <p><a class="dir-search__clear" href="{% url 'search:search' %}">Clear all filters</a></p>
+          </div>
+        {% endif %}
+
+        <div id="results">
+          {% include "search/partials/_results.html" %}
+        </div>
+
+      </div>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

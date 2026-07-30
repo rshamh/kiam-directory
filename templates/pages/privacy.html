@@ -61,6 +61,19 @@ docs/verification-policy.md, "Retention".
         <strong>A practitioner can unpublish their own listing</strong> without
         asking anyone.
       </li>
+      <li>
+        {% comment %}
+        Art. 13(1)(e) — recipients have to be named, and this is a new processing
+        operation for the DPIA. The call is server-side, so the visitor's own IP
+        address is NOT disclosed and no cookie is involved; what is disclosed is the
+        text they typed, which is routinely a full postcode.
+        {% endcomment %}
+        <strong>If you type a location when searching, that text is sent to
+        postcodes.io</strong> (Ideal Postcodes Ltd) to turn it into a point on a map,
+        and to suggest place names as you type. Nothing else about your search is
+        sent, your own network address is not passed on, and no record of what you
+        searched for is kept against you.
+      </li>
     </ul>
   </div>
 

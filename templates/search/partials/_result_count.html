@@ -1,0 +1,25 @@
+{% comment %}
+The one sentence that says what just happened. Rendered into the persistent live
+region in search.html, and swapped into it out-of-band by _results.html.
+
+Plain language and no jargon: "24 practitioners" not "24 results matching your
+query". It is announced on every filter change, so it has to be short.
+
+**The location failure is announced HERE, and that is the point.** The visible
+notice for it lives inside #results, which means the swap CREATES it — and a live
+region that arrives with its content is not reliably announced, which is the exact
+trap search.html's own comment describes one element away. Worse, the only other
+signal was an absence: this sentence simply dropped its "within N miles of X"
+clause, so somebody using a screen reader heard "3 practitioners" and had no way
+to know their location had been ignored. Saying it in the region that IS announced
+is the fix (WCAG 4.1.3).
+{% endcomment %}
+{% if page.total %}
+  {{ page.total }} practitioner{{ page.total|pluralize }}
+  {% if location %}within {{ params.radius_miles }} mile{{ params.radius_miles|pluralize }} of {{ location.label }}{% endif %}
+  {% if location_failed %}· we didn't recognise that location, so these aren't narrowed by distance{% endif %}
+  {% if page.num_pages > 1 %}· page {{ page.page }} of {{ page.num_pages }}{% endif %}
+{% else %}
+  No practitioners match these filters yet
+  {% if location_failed %}· we didn't recognise that location either{% endif %}
+{% endif %}

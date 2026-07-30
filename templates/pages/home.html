@@ -24,14 +24,22 @@ trust strip — is Phase 5. Do not grow this one.
   {% include "kiam_ui/components/feedback/disclaimer.html" with title="About the practitioners listed here" heading_level=2 body_template="components/_independence_notice.html" %}
 
   {% comment %}
-  "Practitioner listings" came out of this sentence at Phase 3. Profiles are a
-  live, indexable page type now and every published one is in sitemap.xml, so the
-  priority-1.0 page telling a crawler they do not exist contradicted the sitemap
-  served from the same host. Search and browse genuinely are still to come.
+  This sentence has now been wrong twice, in the same way, one phase apart.
+
+  At Phase 3 it claimed practitioner listings did not exist while sitemap.xml
+  listed every published one. At Phase 4 it claimed search did not exist while
+  this page's own JSON-LD emitted a SearchAction pointing at /search/ — a
+  machine-readable and a human-readable claim contradicting each other on one
+  document, on the highest-authority page on the subdomain.
+
+  The lesson, for whoever writes the real home page in Phase 5: a placeholder that
+  enumerates what does NOT exist has to be edited every time something does. State
+  what IS there instead.
   {% endcomment %}
   <p class="dir-placeholder-note">
-    This directory is being built. Search and the browse pages are not available
-    yet.
+    <a href="{% url 'search:search' %}">Search the directory</a> to find an
+    independent practitioner by speciality, approach and location. The browse pages
+    are still being built.
   </p>
 
 </div>

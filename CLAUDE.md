@@ -101,21 +101,33 @@ implementation:
 `open_queue()` includes PUBLISHED for this reason — a listing whose badge has just been withdrawn
 must appear in a queue, or the practitioner waits for a re-check nobody can see they are owed.
 
-> **Only half of that gate exists today.** The profile half is done and live:
-> `Practitioner.can_show_minor_groups` and `Practitioner.visible_client_groups()` (Phase 1) are
-> now actually called, by `directory.services.profile.build()`, and
-> `directory/tests/test_profile_minor_gate.py` asserts a `PROVISIONAL` practitioner's under-18
-> group name is absent from the rendered HTML. **The search-queryset half is Phase 4 and does not
-> exist yet.** Building `/search/` without it is the single highest-severity way to break this
-> project: a `PROVISIONAL` practitioner would be returned to someone filtering for a child
-> therapist. The Phase 4 gate is `queryset.filter(minor_work_status=CLEARED)` whenever the
-> requested client groups include an `is_minors=True` term, and it needs its own test.
+> **Both halves now exist.** The profile half is `Practitioner.can_show_minor_groups` /
+> `visible_client_groups()`, called by `directory.services.profile.build()`. The search half is
+> `directory.services.search.build_queryset()`, which adds
+> `filter(minor_work_status=MinorWorkStatus.CLEARED)` whenever the requested client groups
+> include an `is_minors=True` term. Each has its own gate test —
+> `directory/tests/test_profile_minor_gate.py` and `directory/tests/test_search_minors_gate.py` —
+> and the second one ends with a grep asserting **both** call sites are still in the source,
+> because deleting either would leave the other's tests green.
 >
-> **Open question, raised at the Phase 3 gate and not decided.** Only *client groups* are gated.
-> A speciality with `implies_minors=True` — "Child & adolescent ADHD assessment" — still renders
-> on a `PROVISIONAL` listing. Gating it on the profile without the matching search filter would
-> recreate the one-sided leak this rule exists to prevent, so nothing was changed unilaterally.
-> Decide it before Phase 4 and change both halves together.
+> The trap the search half has and the profile half does not: `group=adults&group=adolescents` is
+> an OR over client groups, so a `PROVISIONAL` practitioner matches the adults half. Asking about
+> under-18s *at all* triggers the gate, not asking about them exclusively.
+
+> **Why it is two places and not one.** The profile gate stops somebody who is already looking at
+> a listing from seeing under-18 groups; the search gate stops the listing being offered to
+> somebody who asked for a child therapist. The second is the higher-severity of the two, and
+> neither substitutes for the other.
+>
+> **STILL OPEN, and now more exposed than it was.** Only *client groups* are gated. A speciality
+> with `implies_minors=True` — "Child & adolescent ADHD assessment" — is neither gated on the
+> profile nor gated in search, and a listing that tags one while selecting only adult client groups
+> never requires a DBS at all (`recompute()` derives the requirement from client groups alone).
+> Phase 4 makes this worse in two ways: a **free-text query** for "child adhd" matches that
+> speciality through the search vector, and a **speciality facet** matches it directly — neither of
+> which goes anywhere near the client-group gate. The one-line fix is in `recompute()` so all three
+> surfaces move together; it is a safeguarding decision and waits for **Dr. Abbass / CQC lead**.
+> `/how-verification-works/` is narrowed to claim only what is enforced in the meantime.
 
 ---
 
@@ -390,11 +402,90 @@ Phase 7.
 even with a correct facet filter. **The vector is not a second line of defence** — the
 `minor_work_status=CLEARED` filter has to do the work on its own.
 
-### Still to build, and where the source is
+### Search (Phase 4)
 
-`directory/services/search.py` (Phase 4) was authored and is **recoverable from the rooms repo's
-git history** — `git -C ../rooms show f49d0c2^:search.py`. It is not in this repo yet. Check there
-before writing a ranking algorithm from scratch.
+`/search/` → `search.views.search` → `search/services/params.py` (parsing) →
+`directory/services/search.py` (the query) → `search/services/geocode.py` (postcode → point).
+
+`directory/services/search.py` was **adopted from the rooms repo's history**, and its module
+docstring lists the five things that had to change. Four were bugs it shipped with; the tests that
+pin them are grouped under `ADOPTION FIX n` headings in
+`directory/tests/test_search_service.py`, so a "simplification" that reintroduces one fails a test
+that says why. The one worth knowing about:
+
+* **Location predicates are ANDed onto ONE relation.** Django resolves each `.filter()` on a
+  multi-valued relation against its own join, so `.filter(locations__geo__distance_lte=…)` and
+  `.filter(locations__step_free_access=True)` asked *two independent questions* — satisfied by a
+  practitioner with an in-range office that has steps and a step-free office twenty miles away.
+  Somebody who needs step-free access would have been sent to the wrong building.
+  `_location_filter()` builds one `Q`. Never add a second `.filter()` on `locations`.
+
+Other things that will bite:
+
+* **An accessibility filter turns off the "…or works online" fallback.** "Step-free access" cannot
+  describe a video call, so asking for one asks for a building
+  (`SearchParams.wants_physical_venue`). The sidebar says so, because otherwise the filter looks
+  broken.
+* **Distance is dropped when it falls outside the radius.** A practitioner matched *because they
+  work online* still has a nearest office; printing "14.8 miles away" on a five-mile search reads
+  as a broken filter. The card falls back to "Online".
+* **The shuffle seed is date-derived, not a session.** "Per session" would mean a session cookie
+  for every anonymous searcher, which would make `/cookies/` untrue. The seed rotates daily, is
+  stable across pagination and reloads, rides in pagination URLs, and is overridable with `?seed=`.
+* **The facet cache payload is versioned** (`FACET_CACHE_VERSION`). A deploy that changes the shape
+  otherwise reads the old shape back out of Redis and 500s until somebody flushes it — which is
+  exactly what happened while building this.
+* **`FEATURED_CAP_PER_PAGE` is now used.** Nothing is featured yet; the cap and the "Paid placement"
+  label exist before the first person pays, because undisclosed paid ranking breaches CAP rules
+  (`docs/content-compliance.md` §6). `results_page()` splits into two querysets, because "at most
+  three per page" is not something an `ORDER BY` can express.
+
+### What the Phase 4 gate reviews found
+
+Five defects, all fixed and covered. The first two are the shape of mistake most likely to recur:
+
+* **A closed `<details>` did not collapse.** An author `display: grid` on a list inside it
+  re-shows the content — Chrome reported `details.open === false` while the checkboxes inside
+  measured `offsetWidth: 18`. The filter sidebar had **317** tabbable controls instead of 35, all
+  of them in the accessibility tree, and collapsing the big group in the template had done nothing
+  at all. Green suite, correct-looking markup; only measuring the rendered page showed it.
+* **Four multi-line `{# … #}` comments rendered as page text**, one of them where the radius label
+  should have been. `{# #}` is single-line only in Django.
+* **A POM name reached `<title>` and `og:title`** — a search for a medicine name published it in
+  the field chat clients read to build a link preview. `docs/content-compliance.md` §1 names meta
+  titles, and this is authored markup, so the lint never sees it. The title is static now; the echo
+  into the input's `value` stays, because that is how a search box works.
+* **`/search/places/` was an indexable HTMX partial** — head-less HTML cannot carry a `noindex`
+  meta tag, and `?near=` is unbounded, so it was one thin URL per typed prefix. `X-Robots-Tag`
+  plus a `Disallow` now, and the reasoning that let it through ("no links to follow") tested the
+  wrong thing.
+* **`/search/` was declared indexable, in no sitemap, and linked from nowhere** — while the home
+  page said search did not exist and the same page's JSON-LD advertised a `SearchAction` for it.
+  Now in the nav, in the sitemap, and the home-page copy no longer contradicts it.
+
+Plus a fail-safe safeguarding interim: **an explicitly selected `implies_minors` speciality now
+triggers the under-18 gate** (`search._requests_minor_work`). Categories and free text deliberately
+do not — see the open question above and the docstring for why each would be too blunt.
+
+**HTMX and the no-JS path.** One `<form>` wraps the search bar, the sidebar *and* `#results`. Not
+three forms and not `form=` attributes: with script off, somebody who has typed a location and then
+ticks a filter must submit both. `#results` sits inside that form and contains no inputs, so the
+form serialises only the filters. `search/tests/test_search_view.py::test_search_works_completely_without_javascript`
+is the one that must never be allowed to fail.
+
+The result count is a **persistent live region outside `#results`**, updated by
+`hx-swap-oob="innerHTML:#result-count"`. A live region that is itself replaced by the swap is not
+announced — the same lesson as the Phase 3 contact reveal.
+
+### Still to build
+
+Phases 5–7: the real home page, the practitioner dashboard, and insights / landing pages / launch
+prep. See `docs/roadmap.md`.
+
+`directory/services/search.py` was recovered from the rooms repo at Phase 4
+(`git -C ../rooms show f49d0c2^:search.py`) and is now in this repo, reviewed and fixed. Its
+`homepage_grid()` is written and **unused until Phase 5** — the rotating grid of twelve. It has no
+tests yet for the same reason.
 
 ---
 

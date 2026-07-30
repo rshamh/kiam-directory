@@ -20,15 +20,15 @@ See `docs/multi-project-architecture.md` for how this sits alongside the main si
 
 Business logic lives in `<app>/services/`, not in views or models. Views stay thin.
 
-### What exists as of Phase 3
+### What exists as of Phase 4
 
 The table above is the intent. This is the repo.
 
 | App | Built | Empty until |
 |---|---|---|
 | `accounts` | `User`, `LoginToken`, `Invite`, `access.py`, `backends.py`, `services/{magic_link,passwords,ratelimit,two_factor}.py`, `middleware.py`, views, admin | — |
-| `directory` | full model set, `taxonomy.py`, `services/{verification,documents,lint,search_index,profile,metrics}.py`, `signals.py`, `factories.py`, admin, the public profile view + contact reveal, `seed_taxonomy` / `verification_sweep` / `rebuild_search_index` | `services/search.py` — Phase 4 |
-| `search` | app config only | Phase 4 |
+| `directory` | full model set, `taxonomy.py`, `services/{verification,documents,lint,search_index,search,profile,metrics}.py`, `signals.py`, `factories.py`, admin, the public profile view + contact reveal, `seed_taxonomy` / `verification_sweep` / `rebuild_search_index` | — |
+| `search` | `services/{params,geocode}.py`, the `/search/` view and its HTMX partials, `urls.py` | — |
 | `dashboard` | app config only | Phase 6 |
 | `backoffice` | invites, review queue, verification workbench, publication, concerns, audit log — `services/{invites,review,publication,concerns}.py`, views, forms | — |
 | `seo` | `jsonld.py`, `sitemaps.py`, `views.py` (robots, llms.txt, `/healthz`, 404/500 handlers), the `collectstatic` override | — |
@@ -77,7 +77,9 @@ then. The `directory` models (also authored) land in Phase 1.
 | `/accessibility/` | `pages:accessibility` | |
 | `/terms/` `/privacy/` `/cookies/` | `pages:terms` etc. | placeholders. `TODO(sign-off)` — solicitor |
 | `/report-a-concern/` | `pages:report_concern` | writes a `ConcernReport`. Accepts `?listing=<slug>` to prefill |
-| `/robots.txt` | `seo:robots` | this subdomain's own |
+| `/search/` | `search:search` | the search page. Whole page on a normal GET, `partials/_results.html` when `request.htmx` — **same URL**, so there is no fragment-only address to index. `noindex, follow` on any faceted query string; the canonical is the base template's request-derived one, which excludes the query string and so already points at the bare path |
+| `/search/places/` | `search:place_suggestions` | `<option>` elements for the location field's native `<datalist>`. No links, so nothing to crawl |
+| `/robots.txt` | `seo:robots` | this subdomain's own. Deliberately does **not** disallow `/search/` — the facet URLs must stay crawlable for their `noindex` to be read |
 | `/llms.txt` | `seo:llms` | this subdomain's own |
 | `/sitemap.xml` | — | `django.contrib.sitemaps`, `seo.sitemaps.SITEMAPS` — `static` (the `pages` registry) and `practitioners` (PUBLISHED only) |
 | `/healthz` | `seo:healthz` | app + DB + Redis; 503 when degraded |
@@ -174,6 +176,23 @@ Postgres full-text via `SearchVectorField` + `GinIndex`, weighted A–D (name / 
 synonyms / intro / services). Ranking and the banded shuffle live in
 `directory/services/search.py` with the weights as module constants so tuning is one edit and
 one test.
+
+Built at Phase 4. Four things about it are decisions rather than implementation:
+
+* **Every constraint on a practice address is ONE `Q` against ONE relation** (`_location_filter`).
+  Two `.filter()` calls on `locations` ask two independent questions and let "in range" and
+  "step-free" be satisfied by different buildings.
+* **An accessibility requirement implies in person**, so it switches off the "…or works online"
+  fallback (`SearchParams.wants_physical_venue`).
+* **The featured tier is capped per page and labelled** (`FEATURED_CAP_PER_PAGE`,
+  `results_page()`), before anything is featured, because undisclosed paid ranking breaches CAP
+  rules.
+* **The shuffle seed is date-derived, not session-derived**, so running a search sets no cookie.
+  It rides in pagination URLs and is overridable with `?seed=`.
+
+Geocoding is `search/services/geocode.py` — postcodes.io for postcode → point and its `/places`
+endpoint (OS Open Names data) for autocomplete, keyless, aggressively cached in Redis, and
+returning `None` on every failure so search runs without a location rather than erroring.
 
 ## Things deliberately not built yet
 

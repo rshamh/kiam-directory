@@ -44,9 +44,16 @@ def _urls() -> dict[str, str]:
 def nav_items(request):
     """The primary navigation.
 
-    Still thin at Phase 3 — Search and Browse arrive with the phases that build
-    them. About and For practitioners are here because they are the two questions
-    a stranger arrives with: what is this, and how do I get on it.
+    **Search is first after Home**, and it is here because Phase 4 built it. It
+    was missed at the Phase 4 gate until the SEO review pointed out the
+    consequence: `/search/` was declared indexable, was in no sitemap, and had not
+    one internal `<a href>` anywhere on the site, so a crawler could not reach it
+    and neither could a visitor who did not guess the URL. A page nothing links to
+    is not published, whatever the URLconf says.
+
+    Browse still arrives with Phase 7. About and For practitioners are here
+    because they are the two questions a stranger arrives with: what is this, and
+    how do I get on it.
 
     The cross-link back to the main site has been here from the start because it
     is how authority flows between the subdomains (docs/seo.md), and because a
@@ -55,6 +62,7 @@ def nav_items(request):
     """
     return [
         {"label": "Home", "url": reverse("pages:home")},
+        {"label": "Search", "url": reverse("search:search")},
         {"label": "About", "url": reverse("pages:about")},
         {"label": "For practitioners", "url": reverse("pages:for_practitioners")},
         {

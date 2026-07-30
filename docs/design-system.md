@@ -456,9 +456,32 @@ component**; each is either configured around or built locally in `templates/com
     or an explicit `{% if %}`.
 
 14. **`.ds-control:focus-visible` sets `outline: none` and replaces it with a ~1.2:1 ring.** The
-    box-shadow ring composites to a very pale tint on white, and the border colour change between
-    rest and focus is ~1.6:1. That is the entire focus indicator on every form field.
-    **Raise as a kiam-ui issue** — it affects every form on all three sites.
+    box-shadow ring composites to `#DAEAE8` — measured 1.24:1 on white and 1.22:1 on mint — and the
+    border colour change between rest and focus is 1.60:1. That is the entire focus indicator on
+    every form field, and its specificity (0,2,0) beats the package's own global
+    `:focus-visible { outline: 3px solid }`, so kiam-ui overrides itself.
+    `html[data-contrast="high"]` only widens `outline-width`, which does nothing to an outline of
+    `none`, so high-contrast users get nothing either.
+    *Worked around locally at Phase 4*, when this landed on six controls on `/search/` including
+    both text inputs the whole page depends on: `.dir-search .ds-control:focus` in
+    `static/src/app.css` restores a real 3px `--focus-ring` outline. **The local override goes when
+    the pin moves. Raise as a kiam-ui issue** — it affects every form on all three sites.
+
+15. **Author `display` rules defeat the collapse of a closed `<details>`.** Not a kiam-ui bug —
+    recorded here because it cost real time at Phase 4 and it will recur wherever a `ds-*` or
+    `dir-*` layout rule lands inside a disclosure. Setting `display: grid` on a list inside a
+    closed `<details>` re-shows it: Chrome reported `details.open === false` while the checkboxes
+    inside measured `offsetWidth: 18`. The filter sidebar therefore had **317** tabbable controls
+    instead of 35, with every one of them in the accessibility tree, and collapsing the group in
+    the template had no effect whatsoever. Neither the test suite nor reading the markup showed it.
+    *Fix:* `details.…:not([open]) > *:not(summary) { display: none }` at higher specificity than
+    the `display` rules it has to beat.
+
+16. **`{# … #}` is a SINGLE-LINE comment in Django templates.** A multi-line one is not a comment
+    at all — it renders as page text. Four crept in at Phase 4 and one landed where the radius
+    label should have been, on the live page, with a green suite.
+    *Fix:* `{% comment %}` for anything over one line.
+    `search/tests/test_search_view.py::test_no_template_comment_leaks_into_the_page` guards it.
 
 > §5's row *"Footer link text on `--green-900` uses `--mint-100`"* does not match the shipped
 > v1.0.1 footer, which is `--surface-inverse` with `#cdd6d6` links. Both pass AA; the documented
