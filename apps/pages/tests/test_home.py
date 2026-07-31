@@ -149,10 +149,22 @@ def test_the_location_field_keeps_its_autocomplete(client):
 
 def test_the_hero_search_is_the_shared_component_not_a_copy(client):
     """One implementation of the keyboard pattern. If the hero grows its own
-    markup, this fails and the a11y work has to be done twice."""
+    markup, this fails and the a11y work has to be done twice.
+
+    Phase 5b gave the partial a `variant`, so the hero and `/search/` now differ by
+    a modifier class and nothing else. The assertion is that BOTH are present: the
+    shared base class proves it is still the same partial, and the modifier proves
+    the hero asked for the pill rather than inheriting it by accident.
+    """
     body = client.get(URL).content.decode()
 
-    assert 'class="dir-searchbar" role="search"' in body
+    assert 'class="dir-searchbar dir-searchbar--hero" role="search"' in body
+
+    # The two variants are CSS. Anything the hero renders that /search/ does not
+    # is a second implementation starting to grow, which is what this guards.
+    hero_bar = body.split('class="dir-searchbar', 1)[1].split("</div>\n</div>", 1)[0]
+    for control in ('id="search-q"', 'id="search-near"', 'id="search-radius"', 'type="submit"'):
+        assert control in hero_bar, f"{control} is not in the hero's copy of the shared bar"
 
 
 # ---------------------------------------------------------------------------

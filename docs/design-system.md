@@ -573,6 +573,24 @@ component**; each is either configured around or built locally in `templates/com
     **Raise as a kiam-ui issue** — adding `"AUTH"` to `RESOLVABLE` would fix it upstream for any
     consumer with more than one kind of signed-in user, and costs the package nothing.
 
+25. **`.ds-control` cannot be un-styled without also un-styling its chevron.** Not a gap so much
+    as a trap, recorded because it cost a rebuild of the hero search bar half an hour and is
+    invisible to every test. `.ds-control--select` draws its own chevron with a
+    `background-image` data URI, so `background: transparent` — the obvious way to strip a control
+    back inside a segmented bar — resets it and the `<select>` renders as plain text with no
+    affordance that it opens anything.
+    *Fix:* `background-color`, never the shorthand, on anything carrying `.ds-control--select`.
+
+26. **Nothing in the package meets 3:1 as a control boundary over a tinted gradient.**
+    `--control-border` is documented at ~3.2:1 "on mint/white", which holds on the flat surfaces
+    the package ships. `.dir-hero`'s gradient put it at **2.96:1** at the search bar's own
+    y-offset, and `--border-default` at 2.79:1 — a WCAG 1.4.11 failure that no automated checker
+    samples for, because none of them evaluates a gradient at the position of the element drawn
+    on it.
+    *Worked around:* the gradient reaches a flat `--surface-page` before any control starts, so
+    every boundary in the hero sits on a known colour. If a future band puts a control over a
+    live gradient stop, measure it there rather than against the token's documented figure.
+
 > §5's row *"Footer link text on `--green-900` uses `--mint-100`"* does not match the shipped
 > v1.0.1 footer, which is `--surface-inverse` with `#cdd6d6` links. Both pass AA; the documented
 > pairing is simply not the one in the package. Re-check on the next pin bump.

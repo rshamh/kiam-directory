@@ -16,7 +16,7 @@ profile with its static pages, search, the home page, and the practitioner dashb
    and invariants that will otherwise bite you
 2. `docs/multi-project-architecture.md` — how this sits alongside the main site and rooms
 3. `docs/architecture.md` — apps, models, URLs, roles, as they actually are
-4. `docs/design-system.md` — what `kiam-ui` really exposes, and the twenty-four gaps
+4. `docs/design-system.md` — what `kiam-ui` really exposes, and the twenty-six gaps
 5. `docs/roadmap.md` — the eight build phases and their gates
 
 **Layout.** Every Django app lives under `apps/` — `apps/accounts/`, `apps/directory/`,

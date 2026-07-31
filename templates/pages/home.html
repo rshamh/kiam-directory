@@ -76,8 +76,64 @@ the Listing Agreement that has to cover a featured tier at all.
       {% include "kiam_ui/components/sections/section_head.html" with eyebrow="Kiam Clinic Directory" title="Find an independent mental-health practitioner" description="The Kiam Clinic Directory lists independent psychiatrists, psychologists, psychotherapists and counsellors across the UK, in person and online. You contact them directly." heading_level=1 %}
 
       <form method="get" action="{% url 'search:search' %}" class="dir-hero__form">
-        {% include "components/_search_bar.html" %}
+        {% include "components/_search_bar.html" with variant="hero" %}
       </form>
+
+      {% comment %}
+      Somewhere to start for a visitor who does not know what to type — the thing a
+      search box alone cannot offer. Plain links to `/search/`, not tabs and not a
+      scripted filter, so they work with scripting off and a crawler can follow
+      them; `noindex, follow` like every other facet URL on this page, because the
+      indexable surface is Phase 7's curated landing pages and not the facet engine
+      (docs/seo.md).
+
+      Counted from published listings in `pages.services.home._profession_links`,
+      never taken from the taxonomy, so a chip cannot promise a result set that is
+      empty. Four of them: enough to be a real choice, few enough that the row does
+      not become a horizontal scroller at 320px and does not swamp the four tab
+      stops the search bar itself needs.
+
+      An `<h2>` names the group rather than leaving four bare links after a form —
+      but a visually hidden one, because a visible heading here would put a third
+      block of text between the lede and the grid.
+      {% endcomment %}
+      {% if hero_professions %}
+        <nav class="dir-hero__chips" aria-labelledby="hero-chips-title">
+          <h2 class="sr-only" id="hero-chips-title">Start with a profession</h2>
+          <ul>
+            {% for profession in hero_professions %}
+              <li>
+                <a href="{{ profession.url }}" class="dir-chip">
+                  {{ profession.label }}
+                  <span class="dir-chip__count">{{ profession.count }}</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </nav>
+      {% endif %}
+
+      {% comment %}
+      The one claim this page can make without a sign-off, and the reason it is
+      worth making: a directory with no visible scale reads as an empty directory.
+
+      **It says "listed", not "checked".** Publication does not require
+      verification — `review.blocking_publication_reasons()` blocks only a
+      restricted title with no verified registration, `is_verified` is a separate
+      computed field, and a listing whose badge is withdrawn deliberately stays up.
+      Every other verification sentence on this page is conditional on the badge for
+      that reason (see the header comment), and this one avoids the subject
+      entirely. Do not "improve" it into "N verified practitioners".
+
+      The count comes from the same cached payload as the chips, so it cannot
+      disagree with them, and `publication.bust_cache()` drops both.
+      {% endcomment %}
+      {% if listing_count %}
+        <p class="dir-hero__scale">
+          <strong>{{ listing_count }}</strong> practitioner{{ listing_count|pluralize }} listed.
+          You contact them directly.
+        </p>
+      {% endif %}
 
     </div>
   </section>

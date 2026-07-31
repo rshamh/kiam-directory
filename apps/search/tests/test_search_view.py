@@ -673,7 +673,7 @@ def test_the_search_landmark_does_not_wrap_the_results(client, cohort):
     nobody navigating by landmark."""
     body = client.get(URL).content.decode()
 
-    assert 'class="dir-searchbar" role="search"' in body
+    assert 'class="dir-searchbar dir-searchbar--inline" role="search"' in body
     assert (
         '<form method="get"\n        action="/search/"\n        class="dir-search__form"\n        role="search"'
         not in body

@@ -228,7 +228,9 @@ Built so far, in `templates/components/` and `templates/directory/`:
 `_independence_notice.html` (Phase 0); from Phase 3 `_verified_badge.html`, `_tag_group.html`
 and the ContactRevealPanel set — `directory/_contact_panel.html`, `_contact_button.html`,
 `_contact_revealed.html`, `_contact_limited.html`; from Phase 4 `_search_bar.html` (which is the
-SearchBar, LocationInput and RadiusSelect in one partial), `_filter_sidebar.html`,
+SearchBar, LocationInput and RadiusSelect in one partial, and from Phase 5b takes a `variant` —
+`hero` for the home page's segmented pill, `inline` for the row above the search results),
+`_filter_sidebar.html`,
 `_filter_group.html` and `_practitioner_card.html`. Their styles are the `Phase 3`, `Phase 4` and
 `Phase 5` blocks at the end of `static/src/app.css`, all `dir-*` and all referencing kiam-ui
 tokens.
@@ -528,9 +530,10 @@ implementation.
   in a plain `<form method="get" action="/search/">`. The brief calls the hero the most important
   interaction on the site, and a second implementation of the query field, the location field's
   native `<datalist>`, the radius `<select>` and the always-visible submit button would be a
-  second one to keep accessible. Only 4 tab stops before the grid, and the whole thing is a plain
-  GET with script off — `test_the_hero_search_works_completely_without_javascript` is this phase's
-  equivalent of the search page's non-negotiable test.
+  second one to keep accessible. The whole thing is a plain GET with script off —
+  `test_the_hero_search_works_completely_without_javascript` is this phase's equivalent of the
+  search page's non-negotiable test. **Phase 5b gave the partial a `variant`** — see below; the
+  two surfaces still differ by a modifier class and nothing else.
 * **The cache holds primary keys, not rows and not HTML.** `homepage:grid` stores twelve ids;
   every render re-reads the rows and **re-applies `status=PUBLISHED`**. So a `bust_cache()` that
   never fires still cannot leave a suspended listing on the busiest page on the site — the
@@ -676,6 +679,71 @@ that belongs to the reverse proxy or CDN at Phase 7 launch prep.
 **Lighthouse and axe both scored the page 100 on accessibility while it had two AA failures.**
 Worth remembering before the Phase 7 audit: neither tests reflow at 320px, focus-indicator
 contrast, nor 2.5.8's spacing exception, and those are where both blockers lived.
+
+### The hero search bar, rebuilt (Phase 5b)
+
+Requested as "more authentic and professional, especially the search box", against a
+segmented-pill reference. What it replaced measured **576px on a 375×812 phone** — 71% of the
+viewport, Search button below the fold — with 55 words of grey help text inside the box. It
+worked; it read as an admin form on a homepage. It is **281px** now, and the whole bar including
+its button is above the fold on that phone.
+
+Five things are decisions:
+
+* **One markup, two layouts.** `_search_bar.html` takes `variant="hero"`; the elements, ids, names
+  and DOM order are identical either way and only CSS differs. The single-implementation rule
+  exists so there is one keyboard pattern to keep accessible, and a "hero version" of the search
+  box would have quietly ended that.
+* **The CELL carries the boundary, not the input.** One surface, one border, hairline dividers,
+  and every input inside loses its own border and background. That single change is most of why it
+  stops reading as a form. Two consequences worth knowing: the boundary that has to meet WCAG
+  1.4.11 is now the bar and the dividers (`--control-border`, 3.21:1 and 3.28:1 measured), and the
+  focus ring is the only thing identifying *which* control has focus, so it is pulled tight rather
+  than left to the packaged style.
+* **The radius moved inside the location cell.** "Where" and "how far" are one question; asking
+  them as two produced a label — "Within (distance from you)" — that wrapped to three lines and was
+  wider than its own select. The visible word is now "Within" with the rest of the accessible name
+  in `.sr-only`, which keeps 2.4.6 and satisfies 2.5.3 (the visible text is the first word of the
+  accessible name). `/search/` got the same fix for free.
+* **The hint is one line, revealed by `:focus-within` in CSS.** Not script: a JS version needs an
+  inline script to avoid a flash of the un-enhanced layout, and this is the component whose whole
+  point is that it works with scripting off. Every hint is still its field's `aria-describedby`
+  target, so screen-reader behaviour is byte-identical to when all three were stacked; the visible
+  resting line is `aria-hidden` and there is **no `aria-live`**, because announcing a description
+  that is already exposed is the Phase 3 contact-reveal mistake in a new place.
+* **The submit button keeps the word "Search".** The reference uses an icon-only circle. With
+  scripting off this button is the only way to run a search, and for an audience with a high rate
+  of anxiety and neurodevelopmental conditions an icon anyone has to interpret is a worse control
+  than a word anyone can read.
+
+**Four things were only findable by rendering it**, which is the recurring lesson and now has four
+more instances:
+
+* **`background: transparent` erased the select's chevron.** The shorthand resets
+  `background-image`, and kiam-ui draws the chevron with one — so `<select>` rendered as plain text
+  with no affordance that it opened anything. Measured `backgroundImage: "none"`.
+* **`position: relative` on a cell put its own hint on top of the location input.** Relative
+  positioning makes the cell the containing block for everything absolute inside it, including the
+  hint that is supposed to be anchored to the foot of the bar. The divider is a `background-image`
+  gradient now, which needs no positioning context.
+* **The reserved hint row was one line too short**, so on a phone the tallest hint grew *upwards*
+  and rendered underneath the Search button. Fixed twice over: the row is anchored to its **top**,
+  so any overflow goes downward past the bar's edge where it cannot cover a control, and its height
+  is `calc(var(--text-caption) * 1.35 * 3)` rather than a fixed `rem` — because at a fixed size it
+  spilled 8px under `html[data-font-size="larger"]`, i.e. it degraded in exactly the mode somebody
+  turns on because they are struggling to read. Same shape as Phase 5's focus ring getting *worse*
+  in high contrast.
+* **The gradient's stops are a contrast result, not a taste one.** With the first draft's stops the
+  backdrop behind the bar computed to #EDF4F2, where `--control-border` is 2.96:1 and
+  `--border-default` is 2.79:1 — both under 1.4.11's 3:1, and invisible to every automated checker
+  because none samples a gradient at an element's own y-offset. The stops reach `--surface-page` by
+  52%, so every control in the hero sits on a flat known colour.
+
+**The chips and the count are counted from published listings**, never from `taxonomy.py` — the
+same rule as the browse links, and `homepage:hero` is in `publication.CACHE_KEY_PATTERNS` so a
+suspension that empties a profession removes its chip within seconds. The scale line says
+"listed", never "checked": publication does not require verification, and a test asserts the word
+stays out. Tab stops before the grid went from 4 to 8 (4 controls, then 4 chips).
 
 ### The practitioner dashboard (Phase 6)
 

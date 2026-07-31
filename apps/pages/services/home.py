@@ -64,7 +64,13 @@ from django.core.cache import cache
 from django.db.models import Count
 from django.urls import reverse
 
-from apps.directory.models import Practitioner, PractitionerLocation, PublicationStatus, SpecialityCategory
+from apps.directory.models import (
+    Practitioner,
+    PractitionerLocation,
+    Profession,
+    PublicationStatus,
+    SpecialityCategory,
+)
 from apps.directory.services import images
 from apps.directory.services import search as search_service
 from apps.search.services import params as params_service
@@ -78,6 +84,7 @@ logger = logging.getLogger("pages.home")
 #: list.
 GRID_CACHE_KEY = "homepage:grid"
 BROWSE_CACHE_KEY = "homepage:browse"
+HERO_CACHE_KEY = "homepage:hero"
 
 #: 24 hours, matching the rotation. A shorter TTL would rebuild the same twelve;
 #: a longer one would outlive the seed that chose them.
@@ -90,9 +97,22 @@ CACHE_SECONDS = 60 * 60 * 24
 #: 2: Phase 5 gate. ``count_label`` added to the browse dicts, and the grid
 #:    selection began applying ``FEATURED_CAP_PER_PAGE`` and excluding listings that
 #:    advertise under-18 work without a cleared DBS.
-CACHE_VERSION = 2
+#: 3: The hero gained its own cached payload — the profession chips and the
+#:    "N practitioners listed" count.
+CACHE_VERSION = 3
 
 GRID_SIZE = 12
+
+#: Profession chips under the hero search bar. Four, because the row has to stay on
+#: one line at 320px without becoming a scroller, and because four is what the
+#: lede already names.
+#:
+#: They are counted from PUBLISHED LISTINGS, never taken from ``taxonomy.py`` — the
+#: same rule as the browse links and for the same reason. The taxonomy has 29
+#: professions; picking four of them by hand would put "Music Therapist" on the
+#: front page of a directory that has none listed, and every chip has to land on a
+#: result set that is not empty.
+HERO_PROFESSION_LIMIT = 4
 
 #: How many browse links each group offers. A cap rather than "all of them"
 #: because every one of these is a `noindex, follow` facet URL until Phase 7
@@ -127,7 +147,65 @@ def hero() -> dict:
         "near": "",
         "location": None,
         "location_failed": False,
+        **_hero_extras(),
     }
+
+
+def _hero_extras() -> dict:
+    """The chips under the bar and the count under them. Cached together.
+
+    Both answer the same question — "is there anything here for me, and can I start
+    without typing" — and both are counted from published listings, so they live in
+    one payload under one key that ``publication.bust_cache()`` clears.
+    """
+    payload = cache.get(HERO_CACHE_KEY)
+    if isinstance(payload, dict) and payload.get("version") == CACHE_VERSION:
+        return payload["data"]
+
+    data = {
+        "hero_professions": _profession_links(),
+        "listing_count": Practitioner.objects.filter(status=PublicationStatus.PUBLISHED).count(),
+    }
+    cache.set(HERO_CACHE_KEY, {"version": CACHE_VERSION, "data": data}, timeout=CACHE_SECONDS)
+    return data
+
+
+def _profession_links() -> list[dict]:
+    """The four professions with the most published listings.
+
+    **Ordered by how many people are actually listed, not by the taxonomy's
+    ``sort_order``.** A chip is a promise that clicking it returns something, and
+    the ordering that keeps that promise strongest is the one that puts the fullest
+    result set first.
+
+    ``noindex, follow`` like every other facet URL on this page (``seo.views``
+    handles that for ``/search/``), and capped at four rather than "all with
+    listings" for the doorway-pattern reason in ``BROWSE_LIMIT``'s docstring.
+
+    **No under-18 gate needed here, and that is a fact about professions rather
+    than luck.** The gate exists because a *speciality* can carry
+    ``implies_minors`` and a *client group* can carry ``is_minors``; a profession
+    carries neither, and the destination is ``/search/``, which applies both halves
+    of the gate to whatever the visitor asked for. A chip labelled "Child &
+    Adolescent Psychiatrist" would be a different question — it does not appear
+    here because it is a profession slug, and if the taxonomy ever gives
+    ``Profession`` an ``implies_minors`` flag this function has to grow the same
+    exclusion ``search._ungated_minor_work_ids`` applies to the grid.
+    """
+    professions = (
+        Profession.objects.filter(active=True, practitioners__status=PublicationStatus.PUBLISHED)
+        .annotate(listed=Count("practitioners", distinct=True))
+        .order_by("-listed", "name")
+        .values("slug", "name", "listed")[:HERO_PROFESSION_LIMIT]
+    )
+    return [
+        {
+            "label": row["name"],
+            "count": row["listed"],
+            "url": _search_url(profession=row["slug"]),
+        }
+        for row in professions
+    ]
 
 
 # ---------------------------------------------------------------------------

@@ -44,6 +44,9 @@ CACHE_KEY_PATTERNS = (
     # published listings, so a suspension that empties a town has to remove its
     # link — otherwise the home page offers a browse route to nobody.
     "homepage:browse",
+    # The hero's profession chips and its "N practitioners listed" line are counted
+    # the same way, and the count is a claim on the busiest page on the subdomain.
+    "homepage:hero",
     "search:facets",
 )
 
