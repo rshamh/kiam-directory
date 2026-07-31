@@ -357,7 +357,7 @@ component**; each is either configured around or built locally in `templates/com
    `DISCLAIMER_TEMPLATE`, no local partial, nothing forked.
    **This does not touch `docs/content-compliance.md` §7.** Crisis signposting is a separate
    obligation with a separate home — the footer of every public page, via `pages.nav.footer` —
-   and `pages/tests/test_chrome.py` asserts that turning the bar off did not quietly take it with
+   and `apps/pages/tests/test_chrome.py` asserts that turning the bar off did not quietly take it with
    it. **`TODO(sign-off)` — Dr. Abbass on the §7 crisis wording as rendered.**
 
 3. **Fonts are loaded from Google Fonts by default.** `{% block fonts %}` emits `preconnect` +
@@ -413,7 +413,7 @@ component**; each is either configured around or built locally in `templates/com
    destination sits outside `static/` precisely so `collectstatic` cannot sweep it up — the same
    reasoning applies to the package's own `css/src/`, which was not moved.
 
-   *Worked around:* `seo/management/commands/collectstatic.py` subclasses the command and adds
+   *Worked around:* `apps/seo/management/commands/collectstatic.py` subclasses the command and adds
    `src` to the default ignore patterns, so it works without anyone remembering a flag. This
    requires `LOCAL_APPS` to precede `django.contrib.staticfiles` in `INSTALLED_APPS`, because
    Django resolves a management-command name collision in favour of the app listed *earlier* —
@@ -481,7 +481,7 @@ component**; each is either configured around or built locally in `templates/com
     at all — it renders as page text. Four crept in at Phase 4 and one landed where the radius
     label should have been, on the live page, with a green suite.
     *Fix:* `{% comment %}` for anything over one line.
-    `search/tests/test_search_view.py::test_no_template_comment_leaks_into_the_page` guards it.
+    `apps/search/tests/test_search_view.py::test_no_template_comment_leaks_into_the_page` guards it.
 
 17. **The footer wordmark's accent fails AA: `--brand-primary` on `--surface-inverse` is
     1.76:1.** `.brand-name-accent` is `--brand-primary` (green-600, `#1F7A5E`) everywhere, and the
@@ -555,9 +555,23 @@ component**; each is either configured around or built locally in `templates/com
     own generated ids use `{auto_id}_helptext` where a hand-written template is likely to
     emit `{auto_id}-help`.
     *Fix:* build the whole attribute at render time from `auto_id`, where the errors are
-    known — `dashboard/templatetags/dashboard.py::described` — and branch the label/legend
+    known — `apps/dashboard/templatetags/dashboard.py::described` — and branch the label/legend
     on `BoundField.use_fieldset`, which is Django's own answer to "does this widget need a
     group wrapper".
+
+24. **`KIAM_UI["AUTH"]` is not resolvable per request, so the header's "Dashboard" link is one
+    URL for every signed-in account.** `conf.RESOLVABLE` is `{"NAV_ITEMS", "CONTACT", "FOOTER"}` —
+    `AUTH` is not in it, so `DASHBOARD_URL` and `DASHBOARD_LABEL` cannot be a
+    `callable(request)` the way nav items can. On a site with two audiences behind one login
+    (practitioners have `/dashboard/`, staff have `/backoffice/`) that means half the signed-in
+    users are shown a link to a page that is not theirs. Here it was a 404 on every admin's own
+    header.
+    *Worked around:* `/dashboard/` redirects staff to `backoffice:dashboard`
+    (`apps/dashboard/views.py::practitioner_view`), guarded by the same predicate that guards the
+    destination. The label still reads "Dashboard" for a staff account, which is wrong but
+    harmless.
+    **Raise as a kiam-ui issue** — adding `"AUTH"` to `RESOLVABLE` would fix it upstream for any
+    consumer with more than one kind of signed-in user, and costs the package nothing.
 
 > §5's row *"Footer link text on `--green-900` uses `--mint-100`"* does not match the shipped
 > v1.0.1 footer, which is `--surface-inverse` with `#cdd6d6` links. Both pass AA; the documented

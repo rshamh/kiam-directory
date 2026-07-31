@@ -137,7 +137,7 @@ Search engines treat subdomains as **separate sites**. So:
 
 - Each project has its **own** `robots.txt`, `sitemap.xml`, and `llms.txt`.
 - Each emits its own `MedicalClinic`/`LocalBusiness` or `Organization` JSON-LD with the same
-  NAP (13 Worple Road, Epsom, Surrey KT18 5EP · 01372 660580 · enquiries@kiamclinic.com).
+  NAP (13 Worple Road, Epsom, Surrey KT18 5EP · 01372 660580 · info@kiamclinic.com).
 - **Cross-link deliberately**: main site → rooms and directory from the relevant service
   pages; both back to the main site. This is how authority flows between them.
 - Canonicals point within the subdomain that owns the content — never across.

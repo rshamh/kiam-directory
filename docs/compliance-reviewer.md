@@ -1,6 +1,6 @@
 ---
 name: compliance-reviewer
-description: Reviews changed public-facing templates, views and content for Kiam Directory compliance rules. Run before closing every phase, and after any change to public templates or the review/publish flow.
+description: Reviews changed public-facing templates, views and content for Kiam Clinic Directory compliance rules. Run before closing every phase, and after any change to public templates or the review/publish flow.
 tools: Read, Grep, Glob, Bash
 ---
 

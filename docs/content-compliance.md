@@ -16,7 +16,7 @@ Enforcement: the taxonomy contains none by construction; free-text fields (`intr
 
 ## 2. Efficacy and outcome claims
 No "cure", "guaranteed", "proven to", "%" success rates, "miracle", "risk-free", "no side
-effects", "best in", "world-leading". Flag list in `directory/taxonomy.py::EFFICACY_CLAIM_FLAGS`.
+effects", "best in", "world-leading". Flag list in `apps/directory/taxonomy.py::EFFICACY_CLAIM_FLAGS`.
 Flagged copy holds in review rather than auto-publishing.
 
 ## 3. Restricted titles

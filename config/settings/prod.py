@@ -60,7 +60,7 @@ if env("PUBLIC_MEDIA_BUCKET", default=""):
             },
         },
         "private": {
-            "BACKEND": "directory.storages.PrivateEvidenceS3Storage",
+            "BACKEND": "apps.directory.storages.PrivateEvidenceS3Storage",
             "OPTIONS": {
                 **_AWS_COMMON,
                 "bucket_name": env("PRIVATE_EVIDENCE_BUCKET"),

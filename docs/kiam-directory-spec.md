@@ -51,7 +51,7 @@ practices.
 | Templates | Tailwind + **HTMX** + Alpine.js | Same as main site. |
 | Components | Plain Django `{% include %}` partials in `templates/components/` | No component library, per the main-site decision — keeps a clean path to Django 6 native template partials. |
 | DB | PostgreSQL + **PostGIS** (GeoDjango) | Radius search in miles, ordered by true distance, GiST index. `D(mi=10)` works natively. |
-| Auth | Email magic link, thin custom `User` | Own user table. Role checks live only in `accounts/access.py`. |
+| Auth | Email magic link, thin custom `User` | Own user table. Role checks live only in `apps/accounts/access.py`. |
 | Search | `django.contrib.postgres.search` + `pg_trgm` | Correct for hundreds–low thousands of listings. Do not add Meilisearch/Typesense until latency demands it. |
 | Files | Two storages | Public: headshots. Private: verification evidence, signed URLs, access logged. |
 | Geocoding | `postcodes.io` + OS Open Names | UK postcode → point, and place autocomplete. No Google Maps billing. |
@@ -98,7 +98,7 @@ projects is clinic admin — a handful of people — so SSO isn't worth a hard r
 
 What this project does to keep Option B (main site as OIDC provider) cheap later: the `User` model
 is **thin** (email as identifier, no business data — everything about a practitioner lives on
-`Practitioner`), every role check sits in `accounts/access.py`, and nothing anywhere assumes a
+`Practitioner`), every role check sits in `apps/accounts/access.py`, and nothing anywhere assumes a
 user id matches across projects.
 
 Session cookies stay **host-only**. Do not set `SESSION_COOKIE_DOMAIN=.kiamclinic.com` — that is
@@ -374,7 +374,7 @@ Anyone browsing a mental-health directory may be in crisis. A persistent, non-al
 | 2 | Enhanced DBS for under-18 work | Required — provisional listing permitted for **adult work only**, 56-day window (§8.2.1) |
 | 3 | Client reviews & ratings | Permanently out, all phases (§9.6) |
 | 4 | Subdomain vs subfolder | Settled by `docs/multi-project-architecture.md` — subdomain, deliberately. SEO ramp is an accepted cost. |
-| 5 | Shared login across the three projects | Option A: separate auth per project. Thin `User`, checks in `accounts/access.py`, OIDC later if overlap grows. |
+| 5 | Shared login across the three projects | Option A: separate auth per project. Thin `User`, checks in `apps/accounts/access.py`, OIDC later if overlap grows. |
 | 6 | Component authoring | Plain `{% include %}` partials, matching the main site. |
 
 | 7 | `kiam-ui` | Available and pinned at `v1.0.1`. Upgrade deliberately; never track a branch. |

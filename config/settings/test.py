@@ -51,7 +51,7 @@ CSRF_COOKIE_SECURE = False
 STORAGES = {  # noqa: F405
     "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
     "private": {
-        "BACKEND": "directory.storages.PrivateEvidenceStorage",
+        "BACKEND": "apps.directory.storages.PrivateEvidenceStorage",
         "OPTIONS": {"location": str(BASE_DIR / ".pytest-private-media"), "base_url": None},
     },
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},

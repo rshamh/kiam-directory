@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from django.core.cache import cache
 
-from accounts.models import User
+from apps.accounts.models import User
 
 
 @pytest.fixture(autouse=True)

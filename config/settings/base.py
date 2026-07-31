@@ -84,20 +84,25 @@ THIRD_PARTY_APPS = [
     "kiam_ui",
 ]
 
+# Every app lives under `apps/`. The dotted path changed; the app LABEL did not —
+# Django takes the label from the last component, so `apps.accounts` is still
+# `accounts`. That is what AUTH_USER_MODEL, every migration dependency and every
+# `apps.get_model()` call resolve against, which is why the move needed no
+# migration. See apps/__init__.py.
 LOCAL_APPS = [
-    "accounts",
-    "directory",
-    "search",
-    "dashboard",
-    "backoffice",
-    "seo",
-    "pages",
+    "apps.accounts",
+    "apps.directory",
+    "apps.search",
+    "apps.dashboard",
+    "apps.backoffice",
+    "apps.seo",
+    "apps.pages",
 ]
 
 # LOCAL_APPS come FIRST, which is not the usual ordering and is deliberate.
 # Django's get_commands() walks the app registry in REVERSE and lets later
 # updates win, so the app listed EARLIER in INSTALLED_APPS wins a management-
-# command name collision. That is what lets seo/management/commands/
+# command name collision. That is what lets apps/seo/management/commands/
 # collectstatic.py override the one in django.contrib.staticfiles — see the
 # docstring there for why it has to. None of these apps ships templates of its
 # own (they all render from the project-level templates/ directory), so nothing
@@ -117,11 +122,11 @@ MIDDLEWARE = [
     # Must sit after OTPMiddleware: it reads the verified-device state that
     # middleware attaches. Keeps a half-authenticated staff session on the
     # challenge page instead of bouncing it off a 403.
-    "accounts.middleware.TwoFactorEnforcementMiddleware",
+    "apps.accounts.middleware.TwoFactorEnforcementMiddleware",
     # Records which devices are signed in, for the dashboard's security page.
     # Anonymous requests fall straight through, and it is cache-throttled to one
     # write per session every five minutes — see the class docstring.
-    "accounts.middleware.SessionActivityMiddleware",
+    "apps.accounts.middleware.SessionActivityMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
@@ -198,7 +203,7 @@ AUTH_USER_MODEL = "accounts.User"
 # normalize_email() lowercases only the DOMAIN, so a stored address can carry a
 # capital in its local part — and ModelBackend's lookup is an exact match, which
 # would reject the right password for "Nadia@example.com". See accounts/backends.py.
-AUTHENTICATION_BACKENDS = ["accounts.backends.CaseInsensitiveEmailBackend"]
+AUTHENTICATION_BACKENDS = ["apps.accounts.backends.CaseInsensitiveEmailBackend"]
 
 # Passwords are OPTIONAL and sit alongside the magic link — an account is still
 # created without one (accounts.models.UserManager calls set_unusable_password),
@@ -317,7 +322,7 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "private": {
-        "BACKEND": "directory.storages.PrivateEvidenceStorage",
+        "BACKEND": "apps.directory.storages.PrivateEvidenceStorage",
         "OPTIONS": {"location": str(BASE_DIR / "private-media"), "base_url": None},
     },
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
@@ -429,12 +434,24 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # this repo restates them. See docs/design-system.md for the full key reference.
 
 KIAM_UI = {
-    "SITE_NAME": "Kiam Directory",
+    # The site's actual name, and the one `seo/jsonld.py` has always emitted as
+    # `DIRECTORY_NAME`. The chrome said "Kiam Directory" from Phase 0 until this
+    # was corrected, so the <title> and og:site_name a visitor saw disagreed with
+    # the WebSite entity a crawler read on the same page.
+    "SITE_NAME": "Kiam Clinic Directory",
+    # Set explicitly rather than derived. kiam-ui splits SITE_NAME on the FIRST
+    # space to build the wordmark, which would give "Kiam" + "Clinic Directory"
+    # and put the publisher's own name in the accent colour. The distinction this
+    # site has to make visible is that it is the *directory* — so "Kiam Clinic"
+    # is the prefix and "Directory" is the accent (CLAUDE.md, independence:
+    # "branding stays clearly related to Kiam but visibly distinct").
+    "BRAND_PREFIX": "Kiam Clinic",
+    "BRAND_ACCENT": "Directory",
     # Drives `site-header--directory`, so the chrome is visibly related to Kiam
     # but distinct — a hard requirement, not styling (CLAUDE.md, independence).
     "SITE_KIND": "directory",
     "HOME_URL": "/",
-    "NAV_ITEMS": "pages.nav.nav_items",
+    "NAV_ITEMS": "apps.pages.nav.nav_items",
     # No PRIMARY_CTA: the directory does not book anything. Kiam takes no
     # payment and manages no appointments (CLAUDE.md, "What this project is").
     "PRIMARY_CTA": None,
@@ -458,7 +475,12 @@ KIAM_UI = {
         "postcode": "KT18 5EP",
         "phone": "01372 660580",
         "phone_e164": "+441372660580",
-        "email": "enquiries@kiamclinic.com",
+        # The directory's published contact address. Deliberately NOT the main
+        # site's enquiries@ inbox: an enquiry about a listed practitioner is not
+        # a clinic enquiry, and routing one to the clinic's clinical inbox is the
+        # first step towards Kiam looking like the person you contact about care
+        # (CLAUDE.md, "What this project is").
+        "email": "info@kiamclinic.com",
     },
     # Trailing slashes on purpose: docs/seo.md asks for deliberate cross-linking to
     # the main site by name, and `https://kiamclinic.com` costs a redirect hop on
@@ -476,7 +498,7 @@ KIAM_UI = {
         "DASHBOARD_URL": "dashboard:home",
         "DASHBOARD_LABEL": "Dashboard",
     },
-    "FOOTER": "pages.nav.footer",
+    "FOOTER": "apps.pages.nav.footer",
     # English only, LTR only. False also means the switcher is never rendered,
     # so django.conf.urls.i18n is not needed. See docs/design-system.md, Gap 1.
     "SHOW_LANGUAGE_SWITCHER": False,

@@ -2,7 +2,7 @@
 description: Scaffold a new public page wired identically to the SEO base, JSON-LD and sitemap
 ---
 
-Scaffold a new public page for the Kiam Directory. Ask for the URL path, page type and purpose if
+Scaffold a new public page for the Kiam Clinic Directory. Ask for the URL path, page type and purpose if
 not given as `$ARGUMENTS`.
 
 Read `docs/seo.md` and `docs/content-compliance.md` first.

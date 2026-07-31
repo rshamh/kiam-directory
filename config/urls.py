@@ -15,39 +15,39 @@ from django.contrib import admin
 from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 
-from seo.sitemaps import SITEMAPS
+from apps.seo.sitemaps import SITEMAPS
 
 ADMIN_PATH = settings.ADMIN_URL_PATH.strip("/")
 
 urlpatterns = [
     # robots.txt, llms.txt and /healthz live at the root.
-    path("", include("seo.urls")),
+    path("", include("apps.seo.urls")),
     path(
         "sitemap.xml",
         sitemap,
         {"sitemaps": SITEMAPS},
         name="django.contrib.sitemaps.views.sitemap",
     ),
-    path("accounts/", include("accounts.urls")),
+    path("accounts/", include("apps.accounts.urls")),
     # Public practitioner profiles at /p/<slug>/.
-    path("", include("directory.urls")),
+    path("", include("apps.directory.urls")),
     # /search/ and its place-suggestion partial.
-    path("", include("search.urls")),
+    path("", include("apps.search.urls")),
     # A practitioner's own listing. `can_use_dashboard` + `owns_practitioner` on
     # every view, noindex, and Disallow-ed in robots.txt — it is somebody's
     # personal data behind a login, and a robots directive should not be the only
     # thing keeping it out of an index.
-    path("dashboard/", include("dashboard.urls")),
+    path("dashboard/", include("apps.dashboard.urls")),
     # Staff only. Every view carries an accounts.access predicate and the 2FA
     # middleware gates the whole prefix; also Disallow-ed in robots.txt.
-    path("backoffice/", include("backoffice.urls")),
+    path("backoffice/", include("apps.backoffice.urls")),
     path(f"{ADMIN_PATH}/", admin.site.urls),
     # Last: `pages` owns the bare root path.
-    path("", include("pages.urls")),
+    path("", include("apps.pages.urls")),
 ]
 
-handler404 = "seo.views.not_found"
-handler500 = "seo.views.server_error"
+handler404 = "apps.seo.views.not_found"
+handler500 = "apps.seo.views.server_error"
 
 if settings.DEBUG:
     # Serve uploaded media in development only.

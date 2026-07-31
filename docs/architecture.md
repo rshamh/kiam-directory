@@ -8,6 +8,20 @@ See `docs/multi-project-architecture.md` for how this sits alongside the main si
 
 ## Apps
 
+**Every app lives under `apps/`.** `apps/accounts/`, `apps/directory/` and so on; `config/` (the
+settings, root URLconf, WSGI/ASGI), `templates/`, `static/`, `ops/` and `docs/` stay at the
+repository root. `apps/` is a container package — it ships no models, no migrations and no
+`AppConfig`, and `INSTALLED_APPS` names its children (`"apps.accounts"`), never it.
+
+The app **labels** did not change and could not: Django takes a label from the last component of
+the dotted path, so `apps.accounts` is still `accounts`. `AUTH_USER_MODEL = "accounts.User"`, every
+migration dependency, every `ContentType` row and every `apps.get_model("directory", …)` call
+resolve against the label, which is why the move needed no migration and touched no data.
+
+Prose in the repo names modules **app-relative** — a docstring saying
+`directory.services.verification` means `apps/directory/services/verification.py`. Imports,
+settings paths and anything meant to be pasted into a shell are fully qualified.
+
 | App | Responsibility |
 |---|---|
 | `accounts` | Thin `User` (email identifier, no business data), magic-link auth, `Invite`, and **all** role predicates in `access.py` |
@@ -36,24 +50,24 @@ The table above is the intent. This is the repo.
 
 **Phase 3 additions in detail.**
 
-* `directory/services/profile.py` — slug resolution (including one hop through
+* `apps/directory/services/profile.py` — slug resolution (including one hop through
   `SlugRedirect`), the read-only view model, and the under-18 gate. `CHANNELS` describes the
   three contact channels *without* their values, so the profile template cannot leak one.
-* `directory/services/metrics.py` — `DailyMetric` increments, done with `F()` inside a
+* `apps/directory/services/metrics.py` — `DailyMetric` increments, done with `F()` inside a
   queryset update. Counters only: no IP, no session, no user agent.
-* `directory/signals.py` — two more receivers, `capture_previous_slug` (pre_save) and
+* `apps/directory/signals.py` — two more receivers, `capture_previous_slug` (pre_save) and
   `write_slug_redirect` (post_save). Split because pre_save is the last moment the old slug
   is readable and post_save is the first moment the new one is known to have committed.
-* `pages/content.py` — one row per static page: URL, name, title, meta description,
-  template, sitemap priority. `pages/urls.py` and `seo/sitemaps.py` both read it, so a page
+* `apps/pages/content.py` — one row per static page: URL, name, title, meta description,
+  template, sitemap priority. `apps/pages/urls.py` and `apps/seo/sitemaps.py` both read it, so a page
   cannot be added without a description and cannot be added and forgotten by the sitemap.
-* `backoffice/services/concerns.py` — gained `submit()`, so one module owns a
+* `apps/backoffice/services/concerns.py` — gained `submit()`, so one module owns a
   `ConcernReport` from arrival to closure. `pages` imports it; nothing in `backoffice`
   knows about a view.
 
 **Phase 5 additions in detail.**
 
-* `pages/services/home.py` — the home page's three pieces: `hero()` (the context the shared
+* `apps/pages/services/home.py` — the home page's three pieces: `hero()` (the context the shared
   search-bar partial reads), `grid()` (twelve published listings, rotating daily) and
   `browse_entry_points()` (by speciality category, by town). Nothing here takes a `request`,
   which is what makes "do not cache anything user-specific" true by construction.
@@ -64,14 +78,14 @@ The table above is the intent. This is the repo.
   migration cannot turn Redis into a 500 the way a pickled model instance can. `homepage:browse`
   joins `backoffice.services.publication.CACHE_KEY_PATTERNS` for the same reason the grid key is
   in it.
-* `directory/services/images.py` — headshot renditions at 80/160/240 px, which is what finally
+* `apps/directory/services/images.py` — headshot renditions at 80/160/240 px, which is what finally
   gives `_practitioner_card.html` a `srcset` (deferred there since Phase 3). Deterministic names
   derived from the original's, so a replaced headshot gets new rendition names and there is
   nothing to bust. All-or-nothing and never fatal: any failure returns `""` and the card falls
   back to the plain `src`, because a `srcset` naming a rendition that does not exist is a broken
   image. Built inside the cached grid path, so twelve conversions happen once a day rather than
   on every render. Re-encoding drops EXIF, which takes the GPS coordinates out of a phone photo.
-* `directory/services/search.py` — `homepage_grid()` stopped being unused code, and its daily
+* `apps/directory/services/search.py` — `homepage_grid()` stopped being unused code, and its daily
   seed moved from the UTC date to `timezone.localdate()` so it rotates at the same moment the
   result shuffle does. `decorate_cards()` is a public seam onto `_decorate` so the grid can ask
   for the same card decoration as a results page without reaching into a private function. Two
@@ -80,7 +94,7 @@ The table above is the intent. This is the repo.
   listings had taken the first four of twelve slots, under a disclosure promising three), and
   `_ungated_minor_work_ids()` keeps listings that advertise under-18 work without a cleared DBS
   out of the selection. The second is **not** a third under-18 gate — see
-  `pages/tests/test_home_minors_gate.py`.
+  `apps/pages/tests/test_home_minors_gate.py`.
 * **Town browse links centre on an outward code, not a town name.** `?near=Croydon` resolved to
   Croydon *Cambridgeshire* — `geocode.places()` takes the first OS Open Names match with no
   importance ranking, and three of ten links led to the wrong county. `?near=CR0` goes through
@@ -90,22 +104,22 @@ The table above is the intent. This is the repo.
 
 **Phase 6 additions in detail.**
 
-* `directory/services/completeness.py` — **the writer `Practitioner.completeness` never had.**
+* `apps/directory/services/completeness.py` — **the writer `Practitioner.completeness` never had.**
   The column has been a ranking input since Phase 1 and the home-grid gate since Phase 5, and
   nothing wrote it, so every real listing sat at 0. One writer, through a queryset `.update()` so
   the signals that call it cannot recurse; `REQUIREMENTS` produces both the score and the
   checklist, so the meter and the advice cannot disagree; weights sum to 100 and a test says so.
-* `dashboard/services/editing.py` — the controlled/safe split, derived from
+* `apps/dashboard/services/editing.py` — the controlled/safe split, derived from
   `review.CONTROLLED_FIELDS` rather than restated. Owns the wording of what a save just did,
   including the fact that a controlled edit keeps the listing **online** and takes the badge.
-* `directory/services/antivirus.py` — upload scanning with a fail-closed default (`reject`),
+* `apps/directory/services/antivirus.py` — upload scanning with a fail-closed default (`reject`),
   a pure-socket ClamAV INSTREAM client (no new dependency), and size/type limits. `skip` is
   development-only and `prod.py` deliberately sets nothing.
 * `accounts.UserSession` / `accounts.EmailChangeRequest` — signed-in devices, and an email change
   confirmed at **both** addresses. The two halves guard opposite failures: confirming only at the
   new address lets an unattended session move the account away; only at the old one lets a typo
   lock the owner out.
-* `backoffice/services/publication.py` — `withdraw_consent()` and `request_removal()`, each
+* `apps/backoffice/services/publication.py` — `withdraw_consent()` and `request_removal()`, each
   closing every open `ConsentRecord` and changing publication state in one transaction.
 
 **Models:** `accounts.{User, LoginToken, Invite, UserSession, EmailChangeRequest}` plus the full `directory` set — the four
@@ -115,7 +129,7 @@ flat vocabularies (`Language`, `FundingOption`, `SessionFormat`), `Practitioner`
 `DocumentAccessLog`, `ConsentRecord`, `ReviewRequest`, `AuditLog`, `ConcernReport`,
 `SlugRedirect`, `TaxonomyRequest`, `DailyMetric`.
 
-`accounts/models.py` and `accounts/access.py` are **authored elsewhere and adopted verbatim** —
+`apps/accounts/models.py` and `apps/accounts/access.py` are **authored elsewhere and adopted verbatim** —
 `models.py` is byte-identical, and `access.py` has the Phase 0 two-factor helpers appended below
 the authored block, which is unchanged. `Invite` therefore lands in Phase 0 because it is in that
 file; only the issue/accept *flow* waits for Phase 2, and the admin registers it read-only until
@@ -149,13 +163,13 @@ then. The `directory` models (also authored) land in Phase 1.
 | `/accounts/two-factor/` | `accounts:two_factor_verify` | |
 | `/dashboard/…` | `dashboard:*` | The practitioner's own listing — overview, six editors, evidence upload, insights, account & security, unpublish and removal. `can_use_dashboard` + `owns_practitioner` on every view, `noindex`, `never_cache`, `Disallow`-ed. **No route names a practitioner**; the listing comes from the session |
 | `/accounts/email/confirm/<token>/` | `accounts:email_change_confirm` | One half of an email change. Takes no session — the link sent to the NEW address goes to somebody who may not be signed in anywhere, which is the case it exists for |
-| `/backoffice/…` | `backoffice:*` | the whole Phase 2 staff area — invites, review queue, verification workbench, suspend, concerns, audit log. Every view carries an `accounts.access` predicate, the 2FA middleware gates the prefix, and `robots.txt` disallows it. See `backoffice/urls.py` |
+| `/backoffice/…` | `backoffice:*` | the whole Phase 2 staff area — invites, review queue, verification workbench, suspend, concerns, audit log. Every view carries an `accounts.access` predicate, the 2FA middleware gates the prefix, and `robots.txt` disallows it. See `apps/backoffice/urls.py` |
 | `/backoffice/practitioners/<pk>/verification/verify-all/` | `backoffice:verification_verify_all` | POST. Records a verification decision against every required check at once. `can_view_evidence` only — the role that decides evidence is satisfactory must be the role allowed to look at it. Routed **before** the `<check_type>` route, which would otherwise swallow it |
 | `/<ADMIN_URL_PATH>/` | Django admin | default `staff-console/`, not `/admin/` |
 
 **Management commands:** `seed_taxonomy` (idempotent vocabulary load),
 `verification_sweep` (nightly, 03:00), `rebuild_search_index` (nightly, 03:30),
-`collectstatic` (overridden — see `seo/management/commands/`). Schedule in `ops/crontab`.
+`collectstatic` (overridden — see `apps/seo/management/commands/`). Schedule in `ops/crontab`.
 
 **Migrations:** `directory.0001_extensions` creates `postgis` and `pg_trgm` and is kept separate
 so a restricted-role deployment can `--fake` just that one; `0002_initial` is the model set,
@@ -163,12 +177,12 @@ including the GIN index on `Practitioner.search_vector` and the GiST index on
 `PractitionerLocation.geo`.
 
 **Roles:** all four exist as `accounts.models.User.Role`, and every predicate lives in
-`accounts/access.py`. Two things the matrix below does not spell out:
+`apps/accounts/access.py`. Two things the matrix below does not spell out:
 
 * `can_manage_taxonomy` is **`admin` + `superadmin` only** — narrower than `is_staff_role`. A
   verifier checks documents; they do not curate the vocabulary.
 * **Two-factor is not a capability predicate.** `access.py` answers "does this role have this
-  permission"; `accounts/middleware.py` answers "is this session fully authenticated", and
+  permission"; `apps/accounts/middleware.py` answers "is this session fully authenticated", and
   refuses to let an unverified staff session reach any page but the challenge. Keeping them apart
   means a future predicate cannot forget to check 2FA — a whitelist, not a checklist.
 
@@ -218,7 +232,7 @@ listings. Plus flat vocabularies: `Language`, `FundingOption`, `SessionFormat`.
 Deliberately, `admin` cannot open someone's passport scan — approving profile copy and inspecting
 identity documents are different jobs. Every evidence access is logged (`DocumentAccessLog`).
 
-All predicates live in `accounts/access.py`. Views and templates never inspect `user.role`
+All predicates live in `apps/accounts/access.py`. Views and templates never inspect `user.role`
 directly. That is what makes the later OIDC migration a one-file change.
 
 ## Storage
@@ -233,7 +247,7 @@ Two separate backends, never merged:
 GeoDjango `PointField(geography=True)` with a GiST index; radius in miles via `D(mi=n)`.
 Postgres full-text via `SearchVectorField` + `GinIndex`, weighted A–D (name / specialities +
 synonyms / intro / services). Ranking and the banded shuffle live in
-`directory/services/search.py` with the weights as module constants so tuning is one edit and
+`apps/directory/services/search.py` with the weights as module constants so tuning is one edit and
 one test.
 
 Built at Phase 4. Four things about it are decisions rather than implementation:
@@ -249,7 +263,7 @@ Built at Phase 4. Four things about it are decisions rather than implementation:
 * **The shuffle seed is date-derived, not session-derived**, so running a search sets no cookie.
   It rides in pagination URLs and is overridable with `?seed=`.
 
-Geocoding is `search/services/geocode.py` — postcodes.io for postcode → point and its `/places`
+Geocoding is `apps/search/services/geocode.py` — postcodes.io for postcode → point and its `/places`
 endpoint (OS Open Names data) for autocomplete, keyless, aggressively cached in Redis, and
 returning `None` on every failure so search runs without a location rather than erroring.
 
