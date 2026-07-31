@@ -1,6 +1,6 @@
 ---
 name: seo-reviewer
-description: Reviews new or changed pages for SEO and AI-search readiness on the Kiam Directory subdomain. Run before closing every phase and after adding any public URL.
+description: Reviews new or changed pages for SEO and AI-search readiness on the Kiam Clinic Directory subdomain. Run before closing every phase and after adding any public URL.
 tools: Read, Grep, Glob, Bash
 ---
 

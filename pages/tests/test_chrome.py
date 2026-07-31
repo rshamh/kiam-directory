@@ -129,9 +129,14 @@ def test_turning_the_bar_off_does_not_remove_the_crisis_signposting(client):
 def test_the_chrome_never_calls_the_directory_a_clinic(client):
     body = client.get(reverse("pages:home")).content.decode()
 
-    assert "Kiam Directory" in body
-    # The brand wordmark is the directory's, not the clinic's.
-    assert '<span class="brand-name">Kiam <span class="brand-name-accent">Directory</span>' in body
+    assert "Kiam Clinic Directory" in body
+    # The wordmark names the publisher and accents what distinguishes this site
+    # from it. kiam-ui would otherwise split SITE_NAME on the first space and
+    # accent "Clinic Directory", which highlights the wrong half — so
+    # BRAND_PREFIX/BRAND_ACCENT are set explicitly in settings and this pins it.
+    assert '<span class="brand-name">Kiam Clinic <span class="brand-name-accent">Directory</span>' in body
+    # "Kiam Clinic" may name the publisher; it may never name this site alone.
+    assert "Kiam Clinic</title>" not in body
 
 
 # ---------------------------------------------------------------------------

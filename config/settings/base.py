@@ -429,7 +429,19 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # this repo restates them. See docs/design-system.md for the full key reference.
 
 KIAM_UI = {
-    "SITE_NAME": "Kiam Directory",
+    # The site's actual name, and the one `seo/jsonld.py` has always emitted as
+    # `DIRECTORY_NAME`. The chrome said "Kiam Directory" from Phase 0 until this
+    # was corrected, so the <title> and og:site_name a visitor saw disagreed with
+    # the WebSite entity a crawler read on the same page.
+    "SITE_NAME": "Kiam Clinic Directory",
+    # Set explicitly rather than derived. kiam-ui splits SITE_NAME on the FIRST
+    # space to build the wordmark, which would give "Kiam" + "Clinic Directory"
+    # and put the publisher's own name in the accent colour. The distinction this
+    # site has to make visible is that it is the *directory* — so "Kiam Clinic"
+    # is the prefix and "Directory" is the accent (CLAUDE.md, independence:
+    # "branding stays clearly related to Kiam but visibly distinct").
+    "BRAND_PREFIX": "Kiam Clinic",
+    "BRAND_ACCENT": "Directory",
     # Drives `site-header--directory`, so the chrome is visibly related to Kiam
     # but distinct — a hard requirement, not styling (CLAUDE.md, independence).
     "SITE_KIND": "directory",
@@ -458,7 +470,12 @@ KIAM_UI = {
         "postcode": "KT18 5EP",
         "phone": "01372 660580",
         "phone_e164": "+441372660580",
-        "email": "enquiries@kiamclinic.com",
+        # The directory's published contact address. Deliberately NOT the main
+        # site's enquiries@ inbox: an enquiry about a listed practitioner is not
+        # a clinic enquiry, and routing one to the clinic's clinical inbox is the
+        # first step towards Kiam looking like the person you contact about care
+        # (CLAUDE.md, "What this project is").
+        "email": "info@kiamclinic.com",
     },
     # Trailing slashes on purpose: docs/seo.md asks for deliberate cross-linking to
     # the main site by name, and `https://kiamclinic.com` costs a redirect hop on

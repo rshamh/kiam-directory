@@ -1,6 +1,6 @@
 ---
 name: a11y-reviewer
-description: WCAG 2.2 AA review of new or changed UI for the Kiam Directory. Run before closing every phase and after any template or interactive component change.
+description: WCAG 2.2 AA review of new or changed UI for the Kiam Clinic Directory. Run before closing every phase and after any template or interactive component change.
 tools: Read, Grep, Glob, Bash
 ---
 

@@ -33,6 +33,7 @@ from django.views.decorators.http import require_http_methods
 
 from accounts.access import (
     can_disable_two_factor,
+    can_review_submissions,
     can_use_dashboard,
     owns_practitioner,
 )
@@ -60,14 +61,27 @@ def practitioner_view(view):
     """Resolve the signed-in practitioner's own listing, or 404.
 
     A 404 rather than a 403 for an account with no listing: "you may not see this"
-    tells somebody there is something there. A staff account gets the same 404 —
-    the back office is where staff act on a listing, with an audit trail and a
-    review path, and this UI has neither.
+    tells somebody there is something there.
+
+    **Staff are redirected to the back office, not 404ed.** They still may not use
+    this UI — `can_use_dashboard` is unchanged and staff are still outside it,
+    because acting on somebody's listing here would have no audit actor and no
+    review path. But a 404 was the wrong way to say so: kiam-ui renders a single
+    "Dashboard" link in the header from `KIAM_UI["AUTH"]["DASHBOARD_URL"]`, which
+    is one fixed URL for every signed-in account, so every admin who clicked their
+    own header hit a dead page. Nothing is disclosed by the redirect — a staff
+    account already knows the back office exists, and `can_review_submissions` is
+    the same predicate that guards its front door, so the destination cannot 403.
+
+    The 404 is kept for the case it was written for: an account with no listing.
     """
 
     @wraps(view)
     @never_cache
     def wrapped(request, *args, **kwargs):
+        if can_review_submissions(request.user):
+            return redirect("backoffice:dashboard")
+
         if not can_use_dashboard(request.user):
             raise Http404
 

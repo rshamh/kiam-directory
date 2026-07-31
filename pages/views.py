@@ -130,7 +130,7 @@ def report_concern(request):
             form.add_error(
                 None,
                 "We've had several reports from your connection in the last hour. "
-                "Please try again later, or email enquiries@kiamclinic.com.",
+                "Please try again later, or email info@kiamclinic.com.",
             )
         else:
             concerns_service.submit(

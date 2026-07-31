@@ -77,6 +77,48 @@ def test_no_staff_role_has_a_practitioner_dashboard(admin_user, verifier, supera
         assert can_use_dashboard(user) is False, f"{user.role} should have no dashboard"
 
 
+def test_a_staff_account_is_sent_to_the_back_office_rather_than_a_dead_page(client, admin_user, verified_2fa):
+    """The header's "Dashboard" link is ONE url for every signed-in account.
+
+    kiam-ui renders it from `KIAM_UI["AUTH"]["DASHBOARD_URL"]`, which is static
+    configuration and cannot vary by role without forking the package. So every
+    admin who clicked their own header got a 404 — the predicate above was doing
+    the right thing and saying it the wrong way.
+
+    Staff are still outside this UI. They are redirected, not admitted, and
+    `can_use_dashboard` is untouched.
+    """
+    from django_otp.plugins.otp_totp.models import TOTPDevice
+
+    device = TOTPDevice.objects.create(user=admin_user, confirmed=True, name="default")
+    client.force_login(admin_user)
+    session = client.session
+    session["otp_device_id"] = device.persistent_id
+    session.save()
+
+    response = client.get(reverse("dashboard:home"))
+
+    assert response.status_code == 302
+    assert response["Location"] == reverse("backoffice:dashboard")
+
+
+@pytest.mark.parametrize("name", PAGES)
+def test_no_dashboard_page_renders_for_a_staff_account(client, admin_user, name):
+    """Every page, not just the overview — a redirect on the front door and a
+    rendered editor two clicks in would be worse than the 404 it replaced."""
+    from django_otp.plugins.otp_totp.models import TOTPDevice
+
+    device = TOTPDevice.objects.create(user=admin_user, confirmed=True, name="default")
+    client.force_login(admin_user)
+    session = client.session
+    session["otp_device_id"] = device.persistent_id
+    session.save()
+
+    response = client.get(reverse(name))
+
+    assert response.status_code != 200, f"{name} rendered for a staff account"
+
+
 @pytest.mark.parametrize("name", PAGES)
 def test_a_practitioner_with_no_listing_gets_a_404(client, name):
     """A 404, not a 403: "you may not see this" tells somebody there is something
