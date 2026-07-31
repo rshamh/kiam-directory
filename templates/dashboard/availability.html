@@ -1,0 +1,66 @@
+{% extends "dashboard/base.html" %}
+{% comment %}
+Availability and fees. Nothing here is controlled — every field publishes
+immediately — and the page says that plainly, because a practitioner who is full
+needs to be able to say so in ten seconds without wondering whether it will take
+their listing down.
+{% endcomment %}
+{% block dash_title %}Availability &amp; fees{% endblock %}
+
+{% block dash_content %}
+<h1>Availability &amp; fees</h1>
+
+<div class="dir-dash__legend dir-dash__legend--safe">
+  <p><strong>{{ safe_consequence }}</strong></p>
+  <p>
+    Nothing on this page is re-checked, so you can update your waiting time or
+    close your books whenever you need to.
+  </p>
+</div>
+
+<form method="post" class="dir-dash__form" novalidate>
+  {% csrf_token %}
+
+  {% comment %}
+  Non-field errors are where the publication gate speaks. Without this the edit is
+  correctly refused and rolled back, and the practitioner is shown the form again
+  with no indication why — which is worse than either outcome on its own.
+  {% endcomment %}
+  {% if form.non_field_errors %}
+    <div class="dir-field__error" role="status">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>How you see clients</legend>
+    {% include "dashboard/_field.html" with field=form.delivery_mode %}
+    {% include "dashboard/_field.html" with field=form.offers_online %}
+    {% include "dashboard/_field.html" with field=form.online_coverage %}
+  </fieldset>
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>Taking on clients</legend>
+    {% include "dashboard/_field.html" with field=form.accepting_new_clients %}
+    {% include "dashboard/_field.html" with field=form.typical_wait %}
+    {% include "dashboard/_field.html" with field=form.evening_appointments %}
+    {% include "dashboard/_field.html" with field=form.weekend_appointments %}
+    {% include "dashboard/_field.html" with field=form.availability_note wide=True %}
+  </fieldset>
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>Fees</legend>
+    <p class="dir-dash__lede">
+      In pounds. Clients pay you directly — Kiam Clinic takes no payment and no
+      commission, so this is between you and them.
+    </p>
+    {% include "dashboard/_field.html" with field=form.fee_min %}
+    {% include "dashboard/_field.html" with field=form.fee_max %}
+    {% include "dashboard/_field.html" with field=form.free_initial_call %}
+    {% include "dashboard/_field.html" with field=form.offers_sliding_scale %}
+  </fieldset>
+
+  {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Save" %}
+</form>
+{% endblock %}

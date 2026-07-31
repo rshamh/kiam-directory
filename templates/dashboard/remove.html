@@ -1,0 +1,40 @@
+{% extends "dashboard/base.html" %}
+{% comment %}
+TODO(sign-off): solicitor — the retention sentence describes EVIDENCE_RETENTION_DAYS,
+which is a placeholder awaiting the same sign-off as the setting itself.
+{% endcomment %}
+{% block dash_title %}Remove me from the directory{% endblock %}
+
+{% block dash_content %}
+<h1>Remove me from the directory</h1>
+
+<div class="dir-dash__legend dir-dash__legend--controlled">
+  <p>This takes effect immediately, and it does two things:</p>
+  <ul role="list">
+    <li>your listing stops being public, and stops appearing anywhere in the directory</li>
+    <li>
+      the {{ documents }} document{{ documents|pluralize }} you have sent us
+      {{ documents|pluralize:"is,are" }} scheduled for deletion
+    </li>
+  </ul>
+  <p>
+    We do not delete the documents the same day. We hold them for a set period so
+    that we can answer a complaint or a regulator's question about a listing we
+    published, and after that they are deleted automatically by a nightly job.
+    If you want to know the exact period, ask us and we will tell you.
+  </p>
+  <p>
+    <strong>If you only want your page taken down</strong>, and might want it back,
+    <a href="{% url 'dashboard:unpublish' %}">take your listing down</a> instead —
+    that keeps everything.
+  </p>
+</div>
+
+<form method="post" class="dir-dash__form" novalidate>
+  {% csrf_token %}
+  {% include "dashboard/_field.html" with field=form.confirm %}
+  {% include "dashboard/_field.html" with field=form.reason wide=True %}
+  {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Remove me from the directory" %}
+  <p><a href="{% url 'dashboard:home' %}">Cancel and go back</a></p>
+</form>
+{% endblock %}

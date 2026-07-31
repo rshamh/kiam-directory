@@ -115,8 +115,17 @@ the Listing Agreement that has to cover a featured tier at all.
     {% comment %} ---------- the grid ---------- {% endcomment %}
     <section class="dir-home__section">
       <h2>Some of the practitioners listed here</h2>
+      {% comment %}
+      The count comes from the grid, not from the constant. It said "Twelve" until
+      the Phase 6 SEO review pointed out that Phase 5 could never have seen the
+      claim fail: `completeness` had no writer, so in production `homepage_grid()`
+      matched nothing and this page rendered its empty state. Now the gate really
+      bites and returns UP TO twelve — a launching directory with six complete
+      listings would have printed "Twelve listings" above six cards.
+      {% endcomment %}
       <p class="dir-home__lede">
-        Twelve listings from the directory. Which twelve changes every day, so this
+        {{ grid|length }} listing{{ grid|length|pluralize }} from the directory, and
+        which {{ grid|length|pluralize:"one,ones" }} you see changes every day. This
         is a sample rather than a ranking — it is not a shortlist and it is not a
         recommendation.
       </p>

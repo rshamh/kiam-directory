@@ -6,9 +6,9 @@ directly.
 
 Django · PostgreSQL/PostGIS · Redis · Tailwind + HTMX + Alpine · [`kiam-ui`](#kiam-ui)
 
-**Phases 0–5 are built.** Foundation, data model and taxonomy, the admin back office, the public
-profile with its static pages, search, and the home page. Phase 6 (the practitioner dashboard) is
-next.
+**Phases 0–6 are built.** Foundation, data model and taxonomy, the admin back office, the public
+profile with its static pages, search, the home page, and the practitioner dashboard. Phase 7
+(insights rollups, landing pages, launch prep) is next.
 
 ## Start here
 
@@ -220,7 +220,7 @@ used; see `docs/roadmap.md` for the numbers it produced.
 
 ## Testing
 
-~960 tests. Two conventions worth knowing before adding more:
+~1,040 tests. Two conventions worth knowing before adding more:
 
 - **Factories never write a verification field.** `PractitionerFactory(verified=True)` creates
   dated checks and calls `recompute()`, exactly as production does. A factory that set
@@ -237,6 +237,7 @@ pytest backoffice/tests/test_flow.py                # invite -> draft -> submit 
 pytest pages/tests/test_home.py                     # the Phase 5 gate: the hero works with no JavaScript
 pytest pages/tests/test_home_service.py             # the grid rotates daily, caches, and cannot show a suspension
 pytest pages/tests/test_home_minors_gate.py         # the Phase 5 gate: no un-cleared child work on the front page
+pytest dashboard/tests/test_gate.py                 # the Phase 6 gate: controlled vs safe edits, and one-click unpublish
 pytest --create-db                                  # after a migration, or the reused DB will lie
 ```
 
@@ -266,6 +267,21 @@ Two rules run through all of it. Client groups render through
 absent from the HTML rather than hidden in it. And contact details are never in the profile's
 context at all — the reveal endpoint fetches them — so the page cannot leak one by accident, and
 neither can its JSON-LD.
+
+### Practitioner dashboard — `/dashboard/` (the practitioner's own listing)
+
+Overview, six editors, evidence upload, insights, account & security, and one-click unpublish.
+Every view is gated by `can_use_dashboard` **and** `owns_practitioner`, and **no URL names a
+practitioner** — the listing comes from the session, so there is no per-view authorisation
+decision for a future view to forget.
+
+The thing worth understanding before changing anything here: **a controlled-field edit keeps the
+listing online and takes the badge off.** Name, title, post-nominals, profession, registrations,
+qualifications and client groups are checked against a document, so changing one reopens that
+check and `recompute()` drops `is_verified`. Everything else — intro, services, photo, fees,
+availability — publishes the moment they press Save. The UI says which is which *before* they
+save, at the field, because a practitioner who thinks a correction will take their page down will
+not make the correction.
 
 ### Back office — `/backoffice/` (staff only)
 

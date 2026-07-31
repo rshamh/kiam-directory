@@ -1,0 +1,78 @@
+{% extends "dashboard/base.html" %}
+{% comment %}
+About you — the section with most of the controlled fields in it.
+
+The explanation of what "we check this" means is at the top AND on each marked
+field. Repetition is right here: somebody arriving from a completeness-checklist
+link lands part-way down the form, and the rule they need is the one next to the
+field they came to change.
+{% endcomment %}
+{% block dash_title %}About you{% endblock %}
+
+{% block dash_content %}
+<h1>About you</h1>
+
+<div class="dir-dash__legend">
+  <p><strong>Most changes here go live as soon as you save.</strong></p>
+  <p>
+    A few fields are ones we have checked against a document — your name, your
+    title, your letters and your profession. Those are marked
+    <span class="dir-field__controlled">We check this</span>.
+    {{ controlled_consequence }}
+  </p>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="dir-dash__form" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="dir-field__error" role="status">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>Your name</legend>
+    {% include "dashboard/_field.html" with field=form.full_name %}
+    {% include "dashboard/_field.html" with field=form.display_title %}
+    {% include "dashboard/_field.html" with field=form.post_nominals %}
+    {% include "dashboard/_field.html" with field=form.pronouns %}
+    {% include "dashboard/_field.html" with field=form.gender %}
+  </fieldset>
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>Your profession</legend>
+    {% include "dashboard/_field.html" with field=form.profession %}
+    {% include "dashboard/_field.html" with field=form.years_experience %}
+    {% include "dashboard/_field.html" with field=form.qualified_since %}
+  </fieldset>
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>Your photo</legend>
+    {% if practitioner.headshot %}
+      <img class="dir-dash__headshot" src="{{ practitioner.headshot.url }}"
+           alt="Your current listing photo" width="120" height="120" decoding="async">
+    {% endif %}
+    {% include "dashboard/_field.html" with field=form.headshot %}
+  </fieldset>
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>What you write about yourself</legend>
+    {% include "dashboard/_field.html" with field=form.intro wide=True %}
+    {% include "dashboard/_field.html" with field=form.services wide=True %}
+  </fieldset>
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>How clients reach you</legend>
+    <p class="dir-dash__lede">
+      These are never printed on your page. A client has to click to reveal them,
+      which keeps them away from address harvesters. You need at least one.
+    </p>
+    {% include "dashboard/_field.html" with field=form.public_email %}
+    {% include "dashboard/_field.html" with field=form.public_phone %}
+    {% include "dashboard/_field.html" with field=form.public_website %}
+  </fieldset>
+
+  {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Save" %}
+</form>
+{% endblock %}

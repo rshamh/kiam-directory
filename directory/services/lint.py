@@ -64,6 +64,42 @@ HOLD = "hold"
 #: text rather than a line in this tuple. Raised at the Phase 3 gate.
 LINTED_FIELDS = ("intro", "services", "availability_note", "online_coverage")
 
+#: Free text on RELATED models, as ``(source_label, form_field, text)``.
+#:
+#: The Phase 3 carry-forward, closed at Phase 6. ``LINTED_FIELDS`` reads attributes
+#: off the ``Practitioner`` row, so a practice address labelled "methylphenidate
+#: clinic" or a qualification titled "Diploma in methylphenidate prescribing" was
+#: never scanned — both render on the public profile
+#: (``templates/directory/profile.html``), and until Phase 6 only staff could write
+#: them. The practitioner dashboard made both self-service and immediate, which is
+#: what turned a known gap into a route.
+#:
+#: ``field`` is the name a dashboard form knows them by, so a finding can be
+#: attached to the control that caused it rather than to the page in general.
+RELATED_TEXT_SOURCES = (
+    ("locations", ("label", "days_at_site"), "Practice address"),
+    ("qualifications", ("title", "institution"), "Qualification"),
+)
+
+
+def related_texts(practitioner):
+    """Yield ``(source_label, field_name, text)`` for related-model free text.
+
+    Tolerant of an unsaved practitioner: a ModelForm lints ``self.instance``
+    before it has a primary key on a first save, and a reverse accessor on an
+    unsaved row raises rather than returning nothing.
+    """
+    if practitioner.pk is None:
+        return
+
+    for accessor, field_names, label in RELATED_TEXT_SOURCES:
+        for row in getattr(practitioner, accessor).all():
+            for field_name in field_names:
+                text = (getattr(row, field_name, "") or "").strip()
+                if text:
+                    yield label, field_name, text
+
+
 #: Additionally scanned for RESTRICTED TITLES only.
 #:
 #: §3 scopes the restricted-title rule to `Profession`, but `post_nominals` and
@@ -196,9 +232,22 @@ class ImproperlyConfiguredPOMDictionary(RuntimeError):
 def _check_pom(practitioner) -> list[Finding]:
     """§1 — no prescription-only medicine named in public copy. BLOCKS."""
     pattern = _pattern(pom_terms())
+    message = (
+        "This names a prescription-only medicine, which UK advertising rules "
+        "do not allow on a public page. Please describe the service instead — "
+        "for example “medication management”, “prescribing”, “titration and "
+        "review” or “shared care”."
+    )
     findings = []
     for field_name in LINTED_FIELDS:
         matches = _find(getattr(practitioner, field_name, "") or "", pattern)
+        if matches:
+            findings.append(
+                Finding(rule="pom", severity=BLOCK, field=field_name, matches=matches, message=message)
+            )
+
+    for label, field_name, text in related_texts(practitioner):
+        matches = _find(text, pattern)
         if matches:
             findings.append(
                 Finding(
@@ -206,12 +255,7 @@ def _check_pom(practitioner) -> list[Finding]:
                     severity=BLOCK,
                     field=field_name,
                     matches=matches,
-                    message=(
-                        "This names a prescription-only medicine, which UK advertising rules "
-                        "do not allow on a public page. Please describe the service instead — "
-                        "for example “medication management”, “prescribing”, “titration and "
-                        "review” or “shared care”."
-                    ),
+                    message=f"{label}: {message}",
                 )
             )
     return findings
@@ -220,9 +264,20 @@ def _check_pom(practitioner) -> list[Finding]:
 def _check_efficacy(practitioner) -> list[Finding]:
     """§2 — no cure, guarantee or outcome claims. HOLDS."""
     pattern = _pattern(EFFICACY_CLAIM_FLAGS)
+    message = (
+        "This reads as a claim about outcomes. Wording like this needs a "
+        "reviewer to look at it before the listing goes live."
+    )
     findings = []
     for field_name in LINTED_FIELDS:
         matches = _find(getattr(practitioner, field_name, "") or "", pattern)
+        if matches:
+            findings.append(
+                Finding(rule="efficacy", severity=HOLD, field=field_name, matches=matches, message=message)
+            )
+
+    for label, field_name, text in related_texts(practitioner):
+        matches = _find(text, pattern)
         if matches:
             findings.append(
                 Finding(
@@ -230,10 +285,7 @@ def _check_efficacy(practitioner) -> list[Finding]:
                     severity=HOLD,
                     field=field_name,
                     matches=matches,
-                    message=(
-                        "This reads as a claim about outcomes. Wording like this needs a "
-                        "reviewer to look at it before the listing goes live."
-                    ),
+                    message=f"{label}: {message}",
                 )
             )
     return findings
@@ -252,9 +304,21 @@ def _check_child_work(practitioner) -> list[Finding]:
         return []
 
     pattern = _pattern(CHILD_WORK_FLAGS)
+    message = (
+        "This describes work with under-18s, but this listing is not cleared "
+        "for under-18 work (enhanced DBS not verified). A reviewer must check "
+        "it before it goes live."
+    )
     findings = []
     for field_name in LINTED_FIELDS:
         matches = _find(getattr(practitioner, field_name, "") or "", pattern)
+        if matches:
+            findings.append(
+                Finding(rule="child_work", severity=HOLD, field=field_name, matches=matches, message=message)
+            )
+
+    for label, field_name, text in related_texts(practitioner):
+        matches = _find(text, pattern)
         if matches:
             findings.append(
                 Finding(
@@ -262,11 +326,7 @@ def _check_child_work(practitioner) -> list[Finding]:
                     severity=HOLD,
                     field=field_name,
                     matches=matches,
-                    message=(
-                        "This describes work with under-18s, but this listing is not cleared "
-                        "for under-18 work (enhanced DBS not verified). A reviewer must check "
-                        "it before publication."
-                    ),
+                    message=f"{label}: {message}",
                 )
             )
     return findings

@@ -24,3 +24,15 @@ PATH=/usr/local/bin:/usr/bin:/bin
 # thing that picks up a synonym added to taxonomy.py (which changes the
 # Speciality row, not the Practitioner, so nothing signals).
 30 3 * * * cd /app && python manage.py rebuild_search_index >> /var/log/kiam/search_index.log 2>&1
+
+# 04:00 — delete evidence whose retention period has elapsed.
+#
+# `Document.delete_after` is set by publication.request_removal() when a
+# practitioner asks to be removed, and the dashboard tells them the documents are
+# deleted automatically after a period. This is what makes that true. Runs AFTER
+# the verification sweep and the reindex: a document disappearing mid-sweep would
+# make the sweep's own reasoning about evidence wrong.
+#
+# The retention period itself is EVIDENCE_RETENTION_DAYS and is a solicitor
+# question — see docs/verification-policy.md and the TODO(sign-off) in base.py.
+0 4 * * * cd /app && python manage.py purge_expired_evidence >> /var/log/kiam/retention.log 2>&1

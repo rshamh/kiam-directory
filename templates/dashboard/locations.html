@@ -1,0 +1,47 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}Where you work{% endblock %}
+
+{% block dash_content %}
+<h1>Where you work</h1>
+
+<div class="dir-dash__legend dir-dash__legend--safe">
+  <p><strong>{{ safe_consequence }}</strong></p>
+  <p>
+    We place each address on the map from its postcode, which is how people
+    searching near you find you. If you work from home you can be findable in your
+    area without publishing the address.
+  </p>
+</div>
+
+{% if locations %}
+  <ul class="dir-places" role="list">
+    {% for location in locations %}
+      <li class="dir-places__item">
+        <div>
+          <p class="dir-places__name">
+            {{ location.label|default:location.city }}
+            {% if location.is_primary %}<span class="dir-places__tag">Main</span>{% endif %}
+            {% if not location.is_public %}<span class="dir-places__tag">Address hidden</span>{% endif %}
+          </p>
+          <p class="dir-places__address">
+            {% if location.is_public and location.address_line1 %}{{ location.address_line1 }}, {% endif %}{{ location.city }}{% if location.postcode %}, {{ location.postcode }}{% endif %}
+          </p>
+          {% if location.days_at_site %}<p class="dir-places__days">{{ location.days_at_site }}</p>{% endif %}
+        </div>
+        <div class="dir-places__actions">
+          <a href="{% url 'dashboard:location_edit' location.pk %}">Edit</a>
+          <form method="post" action="{% url 'dashboard:location_delete' location.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="dir-linkbutton">Remove<span class="sr-only"> {{ location.label|default:location.city }}</span></button>
+          </form>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="dir-dash__lede">You have not added anywhere yet.</p>
+{% endif %}
+
+{% url 'dashboard:location_add' as add_url %}
+{% include "kiam_ui/components/core/button.html" with variant="primary" label="Add a place you work" href=add_url %}
+{% endblock %}

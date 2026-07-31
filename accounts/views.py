@@ -20,13 +20,13 @@ from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 
-from .access import requires_two_factor
+from .access import can_enrol_two_factor, must_challenge_two_factor
 from .forms import MagicLinkRequestForm, SetPasswordForm, TOTPCodeForm
-from .services import magic_link, passwords, ratelimit, two_factor
+from .services import email_change, magic_link, passwords, ratelimit, two_factor
 
 
 def _post_login_redirect(user) -> str:
-    if requires_two_factor(user):
+    if must_challenge_two_factor(user):
         target = (
             "accounts:two_factor_setup" if two_factor.needs_enrolment(user) else "accounts:two_factor_verify"
         )
@@ -170,8 +170,14 @@ def logout_view(request):
 @never_cache
 @require_http_methods(["GET", "POST"])
 def two_factor_setup_view(request):
-    """Enrol a TOTP device. Reachable only by a role that requires one."""
-    if not request.user.is_authenticated or not requires_two_factor(request.user):
+    """Enrol a TOTP device.
+
+    Phase 6 widened this from "a role that requires one" to anyone signed in.
+    Staff must carry a device; a practitioner may choose to, and until this changed
+    there was no route for them to — the brief's "available to practitioners,
+    mandatory for staff" was half built.
+    """
+    if not can_enrol_two_factor(request.user):
         raise Http404
 
     if two_factor.has_device(request.user):
@@ -205,8 +211,13 @@ def two_factor_setup_view(request):
 @never_cache
 @require_http_methods(["GET", "POST"])
 def two_factor_verify_view(request):
-    """Answer the TOTP challenge for this session."""
-    if not request.user.is_authenticated or not requires_two_factor(request.user):
+    """Answer the TOTP challenge for this session.
+
+    `must_challenge_two_factor`, not `can_enrol_two_factor`: somebody with no
+    device has nothing to answer with, and showing them a code box they can never
+    satisfy is a dead end rather than a security measure.
+    """
+    if not must_challenge_two_factor(request.user):
         raise Http404
 
     if two_factor.needs_enrolment(request.user):
@@ -229,7 +240,7 @@ def two_factor_qr_view(request):
     Rendered here rather than linked to a third-party chart API — the image URL
     would carry the TOTP secret to someone else's server.
     """
-    if not request.user.is_authenticated or not requires_two_factor(request.user):
+    if not can_enrol_two_factor(request.user):
         raise Http404
 
     device = two_factor.get_device(request.user) or two_factor.start_enrolment(request.user)
@@ -246,3 +257,83 @@ def two_factor_qr_view(request):
     response = HttpResponse(buffer.getvalue(), content_type="image/svg+xml")
     response["Cache-Control"] = "no-store"
     return response
+
+
+# ===========================================================================
+# Phase 6 addition — confirming an email change
+# ===========================================================================
+
+
+@never_cache
+@require_http_methods(["GET", "POST"])
+def email_change_confirm_view(request, token: str):
+    """Record one half of an email change. **The GET shows a button; the POST acts.**
+
+    **Takes no session, deliberately.** The link sent to the NEW address goes to
+    somebody who may not be signed in anywhere — that is rather the point of
+    confirming there — and requiring a login would make the new-address half
+    unusable for the exact case it protects against.
+
+    **It was a GET that confirmed, and that was wrong.** The argument for it was
+    that a page with a button is what a prefetching mail client would show instead
+    of a confirmation — which is exactly backwards: that is the desired outcome.
+    Corporate mail gateways fetch every URL in a message to scan it (Defender
+    SafeLinks, Proofpoint URL Defense, Mimecast), so a confirming GET recorded the
+    confirmation with no human involved. With both mailboxes behind such a gateway
+    the sign-in credential moved with **zero human action**, which defeats the
+    control this module exists for — see its docstring on the unattended session.
+
+    Note the asymmetry with `magic_link_consume_view`, which is also a
+    token-consuming GET: a prefetch there fails SAFE (the token burns, nobody is
+    signed in, the user asks for another). This one failed OPEN. Same shape, and
+    only one of them could be left alone.
+
+    The token still travels in the path rather than a query string, so it stays out
+    of `document.referrer`, and the POST target is the same URL.
+    """
+    if request.method == "GET":
+        pending = email_change.peek(token)
+        if pending is None:
+            return render(request, "accounts/email_change_result.html", {"state": "invalid"}, status=400)
+        return render(
+            request,
+            "accounts/email_change_result.html",
+            {
+                "state": "confirm",
+                "new_email": pending.new_email,
+                "current_email": pending.user.email,
+                "meta_title": "Confirm your new email address",
+            },
+        )
+
+    result = email_change.confirm(token)
+
+    if result is None:
+        return render(
+            request,
+            "accounts/email_change_result.html",
+            {"state": "invalid", "meta_title": "That link is no longer valid"},
+            status=400,
+        )
+
+    if result.is_fully_confirmed and result.completed_at:
+        state = "done"
+    elif result.is_fully_confirmed:
+        # Both sides in but not applied: the address was taken in between.
+        state = "taken"
+    else:
+        state = "half"
+
+    return render(
+        request,
+        "accounts/email_change_result.html",
+        {
+            "state": state,
+            "new_email": result.new_email,
+            "meta_title": {
+                "done": "Your email address has been changed",
+                "half": "Thank you — one more to go",
+                "taken": "We could not make that change",
+            }[state],
+        },
+    )

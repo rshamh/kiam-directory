@@ -1,0 +1,44 @@
+{% extends "dashboard/base.html" %}
+{% block dash_title %}{% if location %}Edit a place{% else %}Add a place{% endif %}{% endblock %}
+
+{% block dash_content %}
+<h1>{% if location %}Edit this place{% else %}Add a place you work{% endif %}</h1>
+
+<form method="post" class="dir-dash__form" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="dir-field__error" role="status">{{ form.non_field_errors }}</div>{% endif %}
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>The address</legend>
+    {% include "dashboard/_field.html" with field=form.label %}
+    {% include "dashboard/_field.html" with field=form.address_line1 %}
+    {% include "dashboard/_field.html" with field=form.address_line2 %}
+    {% include "dashboard/_field.html" with field=form.city %}
+    {% include "dashboard/_field.html" with field=form.county %}
+    {% include "dashboard/_field.html" with field=form.postcode %}
+  </fieldset>
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>How it appears</legend>
+    {% include "dashboard/_field.html" with field=form.is_public %}
+    {% include "dashboard/_field.html" with field=form.is_primary %}
+    {% include "dashboard/_field.html" with field=form.days_at_site %}
+  </fieldset>
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>Getting in</legend>
+    <p class="dir-dash__lede">
+      People filter on these and travel on the strength of them, so please only
+      tick what is true of this address.
+    </p>
+    {% include "dashboard/_field.html" with field=form.step_free_access %}
+    {% include "dashboard/_field.html" with field=form.wheelchair_access %}
+    {% include "dashboard/_field.html" with field=form.parking_available %}
+    {% include "dashboard/_field.html" with field=form.hearing_loop %}
+    {% include "dashboard/_field.html" with field=form.near_public_transport %}
+  </fieldset>
+
+  {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Save this place" %}
+  <p><a href="{% url 'dashboard:locations' %}">Cancel</a></p>
+</form>
+{% endblock %}

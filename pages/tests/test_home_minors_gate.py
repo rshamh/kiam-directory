@@ -83,7 +83,7 @@ def test_a_provisional_dbs_keeps_a_child_speciality_off_the_front_page(child_spe
         slug="provisional-child-work",
         specialities=[child_speciality],
         provisional_dbs=True,
-        completeness=90,
+        complete=True,
     )
     practitioner.refresh_from_db()
     assert practitioner.minor_work_status == MinorWorkStatus.PROVISIONAL
@@ -99,7 +99,7 @@ def test_a_blocked_dbs_keeps_a_child_speciality_off_the_front_page(child_special
         slug="blocked-child-work",
         specialities=[child_speciality],
         provisional_dbs=True,
-        completeness=90,
+        complete=True,
     )
     Practitioner.objects.filter(pk=practitioner.pk).update(minor_work_status=MinorWorkStatus.BLOCKED)
 
@@ -120,7 +120,7 @@ def test_the_open_question_case_is_excluded_too(child_speciality):
         specialities=[child_speciality],
         client_groups=[ClientGroupFactory(slug="adults", name="Adults", is_minors=False)],
         verified=True,
-        completeness=90,
+        complete=True,
     )
     practitioner.refresh_from_db()
     assert practitioner.minor_work_status == MinorWorkStatus.NOT_APPLICABLE
@@ -137,7 +137,7 @@ def test_a_cleared_dbs_is_still_eligible(child_speciality):
         slug="cleared-child-work",
         specialities=[child_speciality],
         dbs_cleared=True,
-        completeness=90,
+        complete=True,
     )
     practitioner.refresh_from_db()
     assert practitioner.minor_work_status == MinorWorkStatus.CLEARED
@@ -152,7 +152,7 @@ def test_an_adult_only_listing_is_untouched(adult_speciality):
         published=True,
         slug="adults-only",
         specialities=[adult_speciality],
-        completeness=90,
+        complete=True,
     )
 
     assert practitioner.pk in in_grid()
@@ -178,14 +178,14 @@ def test_no_child_speciality_pill_reaches_the_home_page_without_a_cleared_dbs(
         full_name="Provisional Practitioner",
         specialities=[child_speciality],
         provisional_dbs=True,
-        completeness=90,
+        complete=True,
     )
     PractitionerFactory(
         published=True,
         slug="adults-only",
         full_name="Adults Only Practitioner",
         specialities=[adult_speciality],
-        completeness=90,
+        complete=True,
     )
 
     body = client.get("/").content.decode()

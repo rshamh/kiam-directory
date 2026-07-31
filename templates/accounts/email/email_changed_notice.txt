@@ -1,0 +1,21 @@
+{% comment %}
+Sent to the OLD address after the change has already happened.
+
+It cannot be cancelled from here and it deliberately does not offer a one-click
+undo — an undo link in an email to an address that may itself be compromised is
+another credential. What it does is make sure the change cannot happen silently:
+this is the message that reaches somebody whose account was taken, at the address
+the person who took it no longer controls.
+{% endcomment %}Hello,
+
+The email address on your Kiam Clinic Directory account has been changed from
+{{ previous_email }} to {{ new_email }}.
+
+Both addresses confirmed the change, so no further action is needed if this was
+you.
+
+If it was not you, contact us straight away by replying to this email. Do not use
+any link in a message you were not expecting.
+
+--
+Kiam Clinic Directory

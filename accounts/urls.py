@@ -24,4 +24,8 @@ urlpatterns = [
     path("two-factor/set-up/", views.two_factor_setup_view, name="two_factor_setup"),
     path("two-factor/set-up/qr.svg", views.two_factor_qr_view, name="two_factor_qr"),
     path("two-factor/", views.two_factor_verify_view, name="two_factor_verify"),
+    # Confirming an email change. Reached from a link in one of the two
+    # confirmation emails, so it takes no session — the person clicking the link
+    # sent to the NEW address may not be signed in anywhere.
+    path("email/confirm/<str:token>/", views.email_change_confirm_view, name="email_change_confirm"),
 ]

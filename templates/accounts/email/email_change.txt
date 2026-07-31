@@ -1,0 +1,31 @@
+{% comment %}
+One of the two confirmation emails for an email-address change. The same template
+serves both halves — `which` says which address this copy went to — because the
+two messages have to describe the same change, and two templates would drift.
+
+Plain text, like the magic link, and for the same reasons.
+
+The raw token appears here and nowhere else.
+{% endcomment %}Hello,
+
+{% if which == "current" %}Someone has asked to change the email address on your Kiam Clinic Directory
+account from {{ current_email }} to {{ new_email }}.
+
+If that was you, open this and press the confirm button:{% else %}Someone has asked to use this address for a Kiam Clinic Directory account that
+currently signs in as {{ current_email }}.
+
+If that was you, open this and press the confirm button:{% endif %}
+
+{{ url }}
+
+This link works once and expires in {{ hours }} hours.
+
+The change only happens once BOTH addresses have confirmed — this one and
+{% if which == "current" %}{{ new_email }}{% else %}{{ current_email }}{% endif %}. That is deliberate: it stops anyone moving an account
+to an address its owner cannot reach, and it stops a typo locking you out.
+
+If this wasn't you, ignore this email and nothing will change. It would be worth
+signing in and checking the devices listed on your security page.
+
+--
+Kiam Clinic Directory

@@ -118,6 +118,10 @@ MIDDLEWARE = [
     # middleware attaches. Keeps a half-authenticated staff session on the
     # challenge page instead of bouncing it off a 403.
     "accounts.middleware.TwoFactorEnforcementMiddleware",
+    # Records which devices are signed in, for the dashboard's security page.
+    # Anonymous requests fall straight through, and it is cache-throttled to one
+    # write per session every five minutes — see the class docstring.
+    "accounts.middleware.SessionActivityMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
@@ -265,6 +269,15 @@ OTP_TOTP_ISSUER = "Kiam Clinic Directory"
 # `.kiamclinic.com` would share the session across all three subdomains, which
 # requires a shared user table and defeats project isolation
 # (docs/multi-project-architecture.md §3 Option C, §4). Do not add it.
+# Messages go in the SESSION, not in a cookie.
+#
+# Django's default FallbackStorage writes them to a client-side cookie when they
+# fit. The dashboard puts an uploaded evidence filename ("DBS-certificate.pdf")
+# and email addresses into messages, and a signed-but-not-encrypted cookie is not
+# where somebody's document names belong — it is readable by anyone with the
+# device and travels on every request. Sessions are server-side here.
+MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
+
 SESSION_COOKIE_NAME = "kiamdir_sessionid"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
@@ -358,6 +371,33 @@ SEARCH_PAGE_SIZE = env.int("SEARCH_PAGE_SIZE", default=20)
 # ---------------------------------------------------------------------------
 # Submission lint
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Evidence — virus scanning and retention (Phase 6)
+# ---------------------------------------------------------------------------
+
+#: How uploaded evidence is scanned before it is stored. FAILS CLOSED: the default
+#: refuses every upload, because a scanner that silently switches itself off when
+#: it cannot be reached is not a control. See directory/services/antivirus.py.
+#:
+#:   clamav — talk to a ClamAV daemon. Production.
+#:   reject — refuse every upload. The default, and what an unconfigured box does.
+#:   skip   — accept without scanning. DEVELOPMENT ONLY, and prod.py must never
+#:            select it; a test asserts that.
+ANTIVIRUS_BACKEND = env("ANTIVIRUS_BACKEND", default="reject")
+CLAMAV_HOST = env("CLAMAV_HOST", default="127.0.0.1")
+CLAMAV_PORT = env.int("CLAMAV_PORT", default=3310)
+CLAMAV_TIMEOUT_SECONDS = env.float("CLAMAV_TIMEOUT_SECONDS", default=30.0)
+
+# TODO(sign-off): solicitor — how long evidence is kept after a listing is
+# removed. docs/verification-policy.md: "The period is a solicitor question — it
+# balances due-diligence defence against data minimisation. Do not pick a number
+# in code without that answer; leave it configurable."
+#
+# 365 days is a PLACEHOLDER chosen to be long enough to answer a complaint and
+# short enough not to be indefensible. It is not an answer, and it is here rather
+# than in the code so changing it is a config edit rather than a deploy.
+EVIDENCE_RETENTION_DAYS = env.int("EVIDENCE_RETENTION_DAYS", default=365)
 
 #: Prescription-only medicine blocklist, checked against practitioner free text
 #: at submission (docs/content-compliance.md §1). Held OUTSIDE the code so it can

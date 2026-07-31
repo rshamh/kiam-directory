@@ -162,11 +162,46 @@ def test_a_returning_staff_member_gets_the_challenge_not_enrolment(client, admin
     assert response.url == reverse("accounts:two_factor_verify")
 
 
-def test_a_practitioner_cannot_reach_the_two_factor_pages(client, practitioner):
+def test_a_practitioner_may_enrol_but_is_not_challenged_until_they_do(client, practitioner):
+    """Phase 6 reversed half of this test, deliberately.
+
+    It used to assert that a practitioner could reach neither page — Phase 0 gated
+    both on `requires_two_factor`, which is staff-only, so the brief's "TOTP 2FA
+    available to practitioners, mandatory for staff" was half built. Enrolment is
+    now open to anyone signed in.
+
+    The challenge page is NOT: somebody with no device has nothing to answer with,
+    and a code box they can never satisfy is a dead end rather than a security
+    measure. That is `must_challenge_two_factor`, which becomes true for a
+    practitioner the moment they enrol.
+    """
     _sign_in(client, practitioner)
 
-    assert client.get(reverse("accounts:two_factor_setup")).status_code == 404
+    assert client.get(reverse("accounts:two_factor_setup")).status_code == 200
     assert client.get(reverse("accounts:two_factor_verify")).status_code == 404
+
+
+def test_a_practitioner_who_enrols_is_then_challenged(client, practitioner):
+    """A second factor somebody opted into and is never asked for is decoration —
+    and worse than none, because they believe they have it."""
+    from accounts.access import must_challenge_two_factor
+
+    assert must_challenge_two_factor(practitioner) is False
+
+    practitioner.totp_enabled = True
+    practitioner.save(update_fields=["totp_enabled"])
+
+    assert must_challenge_two_factor(practitioner) is True
+
+
+def test_a_practitioner_can_turn_two_factor_off_again_and_staff_cannot(practitioner, admin_user):
+    """It was optional when they turned it on, so it stays optional. Staff may not:
+    their requirement belongs to the role, and an account that can switch it off
+    makes `requires_two_factor` advisory."""
+    from accounts.access import can_disable_two_factor
+
+    assert can_disable_two_factor(practitioner) is True
+    assert can_disable_two_factor(admin_user) is False
 
 
 def test_the_qr_view_serves_an_svg_and_is_never_cached(client, admin_user):

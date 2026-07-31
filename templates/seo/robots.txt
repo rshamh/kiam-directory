@@ -3,7 +3,8 @@ This subdomain's OWN robots.txt. Never shared with kiamclinic.com or
 rooms.kiamclinic.com — search engines treat subdomains as separate sites
 (docs/seo.md, docs/multi-project-architecture.md §5).
 
-The disallow list is the account area and the staff console. Faceted search URLs
+The disallow list is the account area, the practitioner dashboard and the staff
+console. Faceted search URLs
 are NOT disallowed here: they must stay crawlable so their `noindex, follow` and
 their canonical to /search/ are actually read. Blocking them in robots.txt would
 stop the crawler ever seeing either, and Google would keep the URLs in the index
@@ -17,6 +18,7 @@ crawler walking prefixes would drive somebody else's rate limit. The view sets a
 `X-Robots-Tag` header too; this is the layer that stops the fetch happening at all.
 {% endcomment %}User-agent: *
 Disallow: /accounts/
+Disallow: /dashboard/
 Disallow: /backoffice/
 Disallow: /staff-console/
 Disallow: /healthz

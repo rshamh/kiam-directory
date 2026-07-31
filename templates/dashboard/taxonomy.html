@@ -1,0 +1,86 @@
+{% extends "dashboard/base.html" %}
+{% comment %}
+What you work with, how, and who with.
+
+Structured pickers, because the controlled vocabulary is what search matches on.
+The "other" boxes write a TaxonomyRequest for an admin rather than adding a term
+nobody can search for — and the help text says so, because a practitioner who
+types something and never sees it appear will type it again.
+
+"Who you work with" is the controlled one, and it is the one that decides whether
+an enhanced DBS is required at all.
+{% endcomment %}
+{% load dashboard %}
+{% block dash_title %}What you do{% endblock %}
+
+{% block dash_content %}
+<h1>What you do</h1>
+
+<div class="dir-dash__legend">
+  <p>
+    These are what people search on, so the more accurate they are the better your
+    listing is matched. Everything here goes live as soon as you save, except
+    <span class="dir-field__controlled">We check this</span> — {{ controlled_consequence }}
+  </p>
+</div>
+
+{% if pending_requests %}
+  <div class="dir-dash__panel dir-dash__panel--neutral">
+    <h2>Terms you have suggested</h2>
+    <p class="dir-dash__lede">We are looking at these. They are not on your listing yet.</p>
+    <ul role="list">
+      {% for request in pending_requests %}<li>{{ request.proposed_term }} ({{ request.axis }})</li>{% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<form method="post" class="dir-dash__form" novalidate>
+  {% csrf_token %}
+
+  {% comment %}
+  Non-field errors are where the publication gate speaks. Without this the edit is
+  correctly refused and rolled back, and the practitioner is shown the form again
+  with no indication why — which is worse than either outcome on its own.
+  {% endcomment %}
+  {% if form.non_field_errors %}
+    <div class="dir-field__error" role="status">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+
+  {% for group in form.visible_fields %}
+    {% if group.name|slice:":6" != "other_" %}
+      <fieldset class="dir-dash__fieldset dir-dash__fieldset--choices">
+        <legend>
+          {{ group.label }}
+          {% if group|is_controlled %}<span class="dir-field__controlled">We check this</span>{% endif %}
+        </legend>
+        {% comment %}
+        The consequence paragraph needs an `id`, or the `described` filter points at
+        nothing. This is the field that decides whether an enhanced DBS is required
+        at all, so its "changing this withdraws your badge" warning is the one that
+        must not be sighted-only — and it was, on all ten checkboxes, until the
+        Phase 6 accessibility review.
+
+        Errors go in a <div>: Django renders an <ul class="errorlist">, which is
+        invalid inside <p> and gets auto-closed by the parser.
+        {% endcomment %}
+        {% if group|is_controlled %}<p class="dir-field__consequence" id="{{ group.auto_id }}-controlled">{{ controlled_consequence_short }}</p>{% endif %}
+        {% if group.errors %}<div class="dir-field__error" id="{{ group.auto_id }}-error">{{ group.errors }}</div>{% endif %}
+        <div class="dir-choices">{{ group|described }}</div>
+      </fieldset>
+    {% endif %}
+  {% endfor %}
+
+  <fieldset class="dir-dash__fieldset">
+    <legend>Anything we are missing</legend>
+    {% include "dashboard/_field.html" with field=form.other_speciality %}
+    {% include "dashboard/_field.html" with field=form.other_approach %}
+    {% include "dashboard/_field.html" with field=form.other_language %}
+    {% include "dashboard/_field.html" with field=form.other_funding %}
+  </fieldset>
+
+  {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Save" %}
+</form>
+{% endblock %}

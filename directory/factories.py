@@ -15,6 +15,11 @@ Two things they deliberately do NOT do:
 * **No factory guesses at taxonomy.** The vocabulary comes from
   ``seed_taxonomy``; these factories create the minimum terms a test needs, keyed
   on slug so they compose with a seeded database rather than duplicating it.
+* **No factory writes ``completeness`` either**, for the same reason and since
+  Phase 6, which gave that column a single writer and a ``post_save`` signal.
+  ``PractitionerFactory(completeness=90)`` would be silently overwritten on save;
+  ``PractitionerFactory(complete=True)`` fills in the intro, the photo, the
+  contact route, the taxonomy and the credentials that make the score 100.
 """
 
 from __future__ import annotations
@@ -208,7 +213,6 @@ class PractitionerFactory(DjangoModelFactory):
     services = "Assessment, review, and ongoing support."
     offers_online = True
     accepting_new_clients = True
-    completeness = 80
 
     # -- M2M -----------------------------------------------------------------
 
@@ -262,6 +266,68 @@ class PractitionerFactory(DjangoModelFactory):
         if not self.locations.exists():
             PractitionerLocationFactory(practitioner=self)
         PractitionerLocationFactory(practitioner=self, guildford=True)
+
+    @factory.post_generation
+    def complete(self, create, extracted, **kwargs):
+        """Fill in everything `directory.services.completeness` scores.
+
+        Phase 6 made `completeness` a computed column with one writer and a
+        `post_save` signal, so `PractitionerFactory(completeness=90)` is now
+        overwritten the moment the row is saved — which is correct, and is exactly
+        the same rule the verification traits already follow: **a factory makes the
+        data that produces the derived value, never the derived value.** A test
+        that set the number directly was asserting against a listing production
+        would score at 10.
+
+        This trait produces a listing that genuinely scores 100, which is what a
+        test needing a home-page-grid-eligible practitioner actually means.
+        """
+        if not create or not extracted:
+            return
+
+        from directory.services import completeness
+
+        self.intro = (
+            "I am an independent practitioner working with adults across a range of "
+            "difficulties, including anxiety, low mood and the after-effects of "
+            "difficult experiences. My work is collaborative: we start by getting a "
+            "clear picture of what is going on for you, agree what would be most "
+            "useful, and go at a pace that suits you. I have worked in both NHS and "
+            "private settings and I see people online and in person."
+        )
+        self.services = (
+            "Initial assessment, individual therapy, and review appointments. "
+            "Sessions run for fifty minutes, usually weekly to begin with."
+        )
+        self.public_email = self.public_email or f"{self.slug}@example.com"
+        self.online_coverage = self.online_coverage or "UK-wide"
+        self.fee_min = self.fee_min or 9000
+        self.typical_wait = self.typical_wait or models.WaitTime.SHORT
+        self.headshot = self.headshot or "headshots/test.jpg"
+        self.save()
+
+        if not self.specialities.exists():
+            self.specialities.add(SpecialityFactory())
+        if not self.approaches.exists():
+            self.approaches.add(ApproachFactory())
+        if not self.client_groups.exists():
+            self.client_groups.add(ClientGroupFactory())
+        if not self.languages.exists():
+            self.languages.add(LanguageFactory())
+
+        if not self.qualifications.exists():
+            models.Qualification.objects.create(
+                practitioner=self, title="MSc Psychology", institution="A university", year=2015
+            )
+        if not self.registrations.exists():
+            models.Registration.objects.create(practitioner=self, body="BACP", registration_no="123456")
+        # Deliberately NO location. `online_coverage` already satisfies the
+        # "where you work is clear" requirement, so adding one would be a side
+        # effect this trait does not need — and it would put an Epsom address on
+        # every complete practitioner, quietly dominating any test that groups by
+        # town. A trait should do the minimum that makes its claim true.
+
+        completeness.recompute(self)
 
     @factory.post_generation
     def verified(self, create, extracted, **kwargs):

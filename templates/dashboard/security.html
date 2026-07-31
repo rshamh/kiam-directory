@@ -1,0 +1,135 @@
+{% extends "dashboard/base.html" %}
+{% comment %}
+Account and security.
+
+The order is by how urgently somebody might need it: signed-in devices first,
+because that is the page you come to when you think something is wrong.
+
+Taking the listing down is at the bottom, in its own section, and it is a link to
+a confirmation page rather than a button here — but it IS here, plainly worded,
+with no "contact us" anywhere. Consent is the lawful basis for publishing this
+data, so withdrawing it has to be at least as easy as giving it.
+{% endcomment %}
+{% block dash_title %}Account &amp; security{% endblock %}
+
+{% block dash_content %}
+<h1>Account &amp; security</h1>
+
+<section class="dir-dash__panel">
+  <h2>Devices signed in</h2>
+  {% if sessions %}
+    <ul class="dir-sessions" role="list">
+      {% for session in sessions %}
+        <li class="dir-sessions__item">
+          <div>
+            <p class="dir-sessions__device">
+              {{ session.device }}
+              {% if session.is_current %}<span class="dir-places__tag">This device</span>{% endif %}
+            </p>
+            <p class="dir-sessions__meta">
+              {% if session.ip %}From {{ session.ip }} · {% endif %}
+              Last used {{ session.last_seen_at|date:"j F Y, H:i" }}
+            </p>
+          </div>
+          {% if not session.is_current %}
+            <form method="post" action="{% url 'dashboard:revoke_session' %}">
+              {% csrf_token %}
+              <input type="hidden" name="session_key" value="{{ session.session_key }}">
+              {% comment %}
+              The device string alone does not disambiguate — three "Unknown
+              device" rows produced three identically named buttons. The timestamp
+              is already on screen and is what tells them apart.
+              {% endcomment %}
+              <button type="submit" class="dir-linkbutton">Sign this one out<span class="sr-only"> — {{ session.device }}, last used {{ session.last_seen_at|date:"j F Y, H:i" }}</span></button>
+            </form>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+
+    {% if sessions|length > 1 %}
+      <form method="post" action="{% url 'dashboard:revoke_other_sessions' %}">
+        {% csrf_token %}
+        {% include "kiam_ui/components/core/button.html" with variant="ghost" type="submit" label="Sign out everywhere except this device" %}
+      </form>
+    {% endif %}
+  {% else %}
+    <p class="dir-dash__lede">Only this device.</p>
+  {% endif %}
+</section>
+
+<section class="dir-dash__panel">
+  <h2>Two-factor authentication</h2>
+  {% if has_two_factor %}
+    <p>Two-factor authentication is <strong>on</strong>. You are asked for a code from your authenticator app when you sign in.</p>
+    {% if can_disable_two_factor %}
+      <form method="post" action="{% url 'dashboard:disable_two_factor' %}">
+        {% csrf_token %}
+        <button type="submit" class="dir-linkbutton">Turn two-factor authentication off</button>
+      </form>
+    {% endif %}
+  {% else %}
+    <p>
+      Two-factor authentication is <strong>off</strong>. Turning it on means that
+      even somebody who can read your email cannot sign in as you.
+    </p>
+    {% url 'accounts:two_factor_setup' as setup_url %}
+    {% include "kiam_ui/components/core/button.html" with variant="ghost" label="Set up two-factor authentication" href=setup_url %}
+  {% endif %}
+</section>
+
+<section class="dir-dash__panel">
+  <h2>How you sign in</h2>
+  <p class="dir-dash__lede">
+    You can always sign in with a link emailed to you. A password is optional —
+    it just saves waiting for the email.
+  </p>
+  {% url 'accounts:set_password' as password_url %}
+  {% include "kiam_ui/components/core/button.html" with variant="ghost" label=has_password|yesno:"Change or remove your password,Set a password" href=password_url %}
+</section>
+
+<section class="dir-dash__panel">
+  <h2>Your email address</h2>
+  <p class="dir-dash__lede">You sign in as <strong>{{ practitioner.user.email }}</strong>.</p>
+
+  {% if pending_email_change %}
+    <div class="dir-dash__panel dir-dash__panel--warning">
+      <p>
+        There is a change to <strong>{{ pending_email_change.new_email }}</strong> waiting.
+        It happens once both addresses have confirmed
+        ({% if pending_email_change.confirmed_current_at %}this one has{% else %}this one has not{% endif %};
+        {% if pending_email_change.confirmed_new_at %}the new one has{% else %}the new one has not{% endif %}).
+      </p>
+      <form method="post" action="{% url 'dashboard:cancel_email_change' %}">
+        {% csrf_token %}
+        <button type="submit" class="dir-linkbutton">Cancel that change</button>
+      </form>
+    </div>
+  {% else %}
+    <form method="post" class="dir-dash__form" novalidate>
+      {% csrf_token %}
+      {% include "dashboard/_field.html" with field=form.new_email %}
+      {% include "kiam_ui/components/core/button.html" with variant="ghost" type="submit" label="Change my email address" %}
+    </form>
+  {% endif %}
+</section>
+
+<section class="dir-dash__panel dir-dash__panel--quiet">
+  <h2>Taking your listing down</h2>
+  <p>
+    Your listing is published because you agreed to it, and you can withdraw that
+    at any time, yourself, without asking anyone.
+  </p>
+  <ul role="list" class="dir-dash__leaving">
+    <li>
+      <a href="{% url 'dashboard:unpublish' %}">Take my listing down</a> —
+      it stops being public straight away. Everything you have written is kept, so
+      you can ask us to put it back whenever you want.
+    </li>
+    <li>
+      <a href="{% url 'dashboard:remove' %}">Remove me from the directory</a> —
+      the same, and we also schedule the documents you have sent us for deletion.
+    </li>
+  </ul>
+</section>
+{% endblock %}
