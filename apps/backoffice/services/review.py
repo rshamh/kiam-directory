@@ -1,0 +1,512 @@
+"""Submission and review — the publication state machine.
+
+    DRAFT ──submit──> SUBMITTED ──claim──> IN_REVIEW
+                                              │
+                        ┌─────────────────────┼─────────────────────┐
+                     approve            request_changes          reject
+                        │                     │                     │
+                    PUBLISHED         CHANGES_REQUESTED          REMOVED
+
+Three things here are load-bearing rather than plumbing.
+
+**The snapshot.** ``ReviewRequest.snapshot`` is what was submitted, frozen at
+submit time. A reviewer approves *that*, not whatever the practitioner has edited
+since — otherwise the approval means nothing, because the copy could change
+between the reviewer reading it and clicking approve.
+
+**Approval cannot publish a restricted title without a verified registration.**
+``docs/content-compliance.md`` §3 says "enforced at review, not just in the UI",
+and this is where. The lint flags the claim at submission; this refuses to act on
+it. Someone listing as a "Consultant Psychiatrist" with no verified GMC entry
+does not go live because a reviewer was moving quickly.
+
+**Approving an edit returns to PUBLISHED, not to a fresh publication.**
+``published_at`` is set once. A practitioner who has been listed for a year and
+changes their fees has not just been published.
+
+Every transition writes an ``AuditLog`` row with the actor. There is no path
+through this module that changes publication state without one.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
+from django.utils import timezone
+
+from apps.accounts.access import can_review_submissions
+from apps.directory.models import (
+    AuditLog,
+    PublicationStatus,
+    ReviewOutcome,
+    ReviewRequest,
+)
+from apps.directory.services import lint, verification
+
+logger = logging.getLogger("backoffice.review")
+
+#: Editing one of these on a published profile sends it back through review.
+#: Everything else — bio, availability, photo, fees — publishes immediately
+#: (docs/architecture.md, "Publication is a state machine").
+#:
+#: The three related-model names are here because a change to them is a change to
+#: what the listing claims, even though they are not columns on the row:
+#: `registrations` and `qualifications` are the credentials themselves, and
+#: `client_groups` decides whether a DBS is required at all.
+CONTROLLED_FIELDS = (
+    "full_name",
+    "display_title",
+    "post_nominals",
+    "profession",
+    "is_prescriber",
+    "registrations",
+    "qualifications",
+    "client_groups",
+)
+
+
+def controlled_changes(changed_fields) -> list[str]:
+    """The subset of a set of edits that needs a human to look again."""
+    return sorted(set(changed_fields or ()) & set(CONTROLLED_FIELDS))
+
+
+#: Statuses a reviewer can act on.
+REVIEWABLE = (PublicationStatus.SUBMITTED, PublicationStatus.IN_REVIEW)
+
+
+class SubmissionBlocked(Exception):
+    """The lint refused this submission. Carries the findings."""
+
+    def __init__(self, result: lint.LintResult):
+        self.result = result
+        super().__init__("; ".join(f.message for f in result.blocks))
+
+
+class NotReviewable(Exception):
+    """The profile is not in a state a reviewer can act on."""
+
+
+def build_snapshot(practitioner) -> dict:
+    """Exactly what is being submitted, in a form that survives later edits."""
+    return {
+        "full_name": practitioner.full_name,
+        "display_title": practitioner.display_title,
+        "post_nominals": practitioner.post_nominals,
+        "pronouns": practitioner.pronouns,
+        "profession": practitioner.profession.name if practitioner.profession else "",
+        "intro": practitioner.intro,
+        "services": practitioner.services,
+        "availability_note": practitioner.availability_note,
+        "public_email": practitioner.public_email,
+        "public_phone": practitioner.public_phone,
+        "public_website": practitioner.public_website,
+        "booking_url": practitioner.booking_url,
+        "delivery_mode": practitioner.delivery_mode,
+        "offers_online": practitioner.offers_online,
+        "online_coverage": practitioner.online_coverage,
+        "is_prescriber": practitioner.is_prescriber,
+        "fee_min": practitioner.fee_min,
+        "fee_max": practitioner.fee_max,
+        "specialities": sorted(practitioner.specialities.values_list("name", flat=True)),
+        "approaches": sorted(practitioner.approaches.values_list("name", flat=True)),
+        "client_groups": sorted(practitioner.client_groups.values_list("name", flat=True)),
+        "languages": sorted(practitioner.languages.values_list("name", flat=True)),
+        "locations": [
+            {"city": loc.city, "postcode": loc.postcode, "is_public": loc.is_public}
+            for loc in practitioner.locations.all()
+        ],
+        "captured_at": timezone.now().isoformat(),
+    }
+
+
+@transaction.atomic
+def submit(practitioner, *, actor=None) -> ReviewRequest:
+    """Lint, then queue for review. Raises ``SubmissionBlocked`` if the lint blocks.
+
+    The lint runs BEFORE the state changes, so a blocked submission leaves the
+    profile in DRAFT and the practitioner can fix it and try again.
+    """
+    result = lint.run(practitioner)
+
+    if result.is_blocked:
+        logger.info(
+            "review.submission_blocked",
+            extra={
+                "practitioner_id": str(practitioner.pk),
+                "rules": sorted({f.rule for f in result.blocks}),
+            },
+        )
+        raise SubmissionBlocked(result)
+
+    request = ReviewRequest.objects.create(
+        practitioner=practitioner,
+        snapshot=build_snapshot(practitioner),
+        changed_fields=[],
+        lint_flags=result.as_dict(),
+    )
+
+    practitioner.status = PublicationStatus.SUBMITTED
+    practitioner.save(update_fields=["status"])
+
+    AuditLog.objects.create(
+        actor=actor or practitioner.user,
+        action="practitioner.submitted",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={"review_request": str(request.pk), "held": result.must_hold_for_review},
+    )
+    logger.info(
+        "review.submitted",
+        extra={"practitioner_id": str(practitioner.pk), "held": result.must_hold_for_review},
+    )
+    return request
+
+
+@transaction.atomic
+def submit_update(practitioner, *, changed_fields, actor=None, held_fields=()) -> ReviewRequest | None:
+    """A published listing was edited. Decide whether that needs looking at.
+
+    Returns the ``ReviewRequest`` raised, or ``None`` when nothing controlled
+    changed, nothing was held, and the edit simply publishes.
+
+    ``held_fields`` arrived at Phase 6. A HOLD finding — an efficacy claim, a
+    description of child work — is not a controlled *field* and withdraws no
+    badge, but docs/content-compliance.md §2 and §4 both say flagged copy "holds
+    in review rather than auto-publishing". Before the dashboard that was true by
+    construction, because the only route to those fields was `submit()`. A
+    practitioner editing a live listing's `intro` reaches them directly, so the
+    hold has to be raised here or it holds nothing at all.
+
+    **The listing stays PUBLISHED.** Pulling a live page down because somebody
+    corrected the spelling of their own surname would be a punishment for keeping
+    a listing accurate, and it is not what is at risk: what is at risk is the
+    *badge*, which says Kiam checked these details. So the listing keeps serving
+    and the badge goes, until a verifier has confirmed the new details.
+
+    The badge is not switched off — it cannot be. ``invalidate_for_changes()``
+    reopens the checks that were made against whatever changed, and the badge
+    falls out of ``recompute()`` because a required check is no longer verified.
+    A name checked against photo ID stops being a checked name the moment the
+    name changes.
+    """
+    controlled = controlled_changes(changed_fields)
+    held = sorted(set(held_fields or ()))
+
+    if not controlled and not held:
+        return None
+
+    if practitioner.status != PublicationStatus.PUBLISHED:
+        # Not live, so there is no badge to protect and no page to keep up. The
+        # ordinary submit() path applies.
+        return None
+
+    # Only a CONTROLLED change reopens a check. A held phrase is a wording
+    # question for a reviewer, not evidence going stale — withdrawing the badge
+    # over it would punish the wrong thing.
+    reopened = (
+        verification.invalidate_for_changes(practitioner, controlled, actor=actor) if controlled else []
+    )
+
+    request = ReviewRequest.objects.create(
+        practitioner=practitioner,
+        snapshot=build_snapshot(practitioner),
+        changed_fields=controlled or held,
+        lint_flags=lint.run(practitioner).as_dict(),
+    )
+
+    AuditLog.objects.create(
+        actor=actor or practitioner.user,
+        action="practitioner.update_submitted",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={
+            "review_request": str(request.pk),
+            "changed_fields": controlled,
+            "checks_reopened": reopened,
+        },
+    )
+    logger.info(
+        "review.update_submitted",
+        extra={
+            "practitioner_id": str(practitioner.pk),
+            "changed_fields": controlled,
+            "checks_reopened": reopened,
+        },
+    )
+    return request
+
+
+@transaction.atomic
+def approve_update(request: ReviewRequest, *, actor, notes: str = ""):
+    """Accept an edit to a listing that stayed live while it was reviewed.
+
+    Separate from ``approve()`` rather than folded into it, because the two do
+    different things. ``approve()`` moves a profile into PUBLISHED; this one
+    changes no publication state at all — the listing never left. It closes the
+    copy review.
+
+    It does **not** restore the badge, and that is the point. Approving the words
+    is not the same as re-checking the documents: the badge comes back when a
+    verifier confirms the reopened checks in the workbench, and `recompute()`
+    notices. An admin approving a name change cannot thereby re-assert that
+    somebody's photo ID matches it.
+    """
+    _require_reviewer(actor)
+    practitioner = request.practitioner
+
+    if practitioner.status != PublicationStatus.PUBLISHED:
+        raise NotReviewable(
+            f"This profile is {practitioner.get_status_display().lower()}, not a live listing "
+            "with a pending edit."
+        )
+    if request.outcome:
+        raise NotReviewable("This review has already been closed.")
+
+    practitioner.last_review_at = timezone.now()
+    practitioner.save(update_fields=["last_review_at"])
+
+    _close(request, actor=actor, outcome=ReviewOutcome.APPROVED, notes=notes)
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="practitioner.update_approved",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={"changed_fields": request.changed_fields, "is_verified": practitioner.is_verified},
+    )
+    logger.info(
+        "review.update_approved",
+        extra={"practitioner_id": str(practitioner.pk), "badge_restored": practitioner.is_verified},
+    )
+    return practitioner
+
+
+@transaction.atomic
+def claim(request: ReviewRequest, *, actor) -> ReviewRequest:
+    """Mark a submission as being looked at, so two reviewers do not collide."""
+    _require_reviewer(actor)
+
+    if request.practitioner.status != PublicationStatus.SUBMITTED:
+        raise NotReviewable(f"Not awaiting review (status: {request.practitioner.status}).")
+
+    request.practitioner.status = PublicationStatus.IN_REVIEW
+    request.practitioner.save(update_fields=["status"])
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="review.claimed",
+        entity_type="Practitioner",
+        entity_id=str(request.practitioner_id),
+        after={"review_request": str(request.pk)},
+    )
+    return request
+
+
+def blocking_publication_reasons(practitioner) -> list[str]:
+    """Why this profile may not be published yet. Empty means it may.
+
+    Checked at approval rather than at submission because both conditions depend
+    on verification, which happens after review.
+    """
+    reasons = []
+
+    # Consent is the lawful basis for publishing this data, so a listing whose
+    # owner has withdrawn it may not go back up until they give it again.
+    #
+    # `withdraw_consent()` closes every open ConsentRecord — correct — but until
+    # Phase 6's compliance review nothing checked for one on the way back, and
+    # there is no re-listing flow that captures a new one. So whatever staff
+    # improvised to put somebody back would have republished personal data with
+    # every consent row on the account carrying `withdrawn_at`. This makes that
+    # impossible rather than merely unlikely.
+    #
+    # TODO(sign-off): solicitor — re-listing needs a real path that captures a
+    # fresh ConsentRecord against the current terms_version. Until it exists this
+    # refuses, which is the safe direction.
+    # Scoped to WITHDRAWN, not to "has no record". Nothing in this project writes a
+    # ConsentRecord yet — the invite flow does not create one and neither does
+    # review — so refusing every listing without one would block the entire publish
+    # path, which is a Phase 2 gap and a much larger change than this. Recorded at
+    # the Phase 6 gate as its own finding: the lawful basis for publishing is
+    # currently written down nowhere.
+    #
+    # What IS in scope is the hole Phase 6 opened: a practitioner can now withdraw
+    # consent themselves, and nothing stopped a reviewer putting the listing back.
+    if (
+        practitioner.consents.exists()
+        and not practitioner.consents.filter(withdrawn_at__isnull=True).exists()
+    ):
+        reasons.append(
+            "This practitioner has withdrawn their consent to be listed. They have to give "
+            "it again before the listing can be published."
+        )
+
+    profession = practitioner.profession
+    if profession and profession.restricted:
+        required = set(profession.required_bodies or [])
+        verified = set(practitioner.registrations.filter(verified=True).values_list("body", flat=True))
+        if required and not (required & verified):
+            reasons.append(
+                f"“{profession.name}” is a restricted title. It needs a verified registration "
+                f"with one of: {', '.join(sorted(required))}. "
+                + (
+                    f"Verified on file: {', '.join(sorted(verified))}."
+                    if verified
+                    else "No verified registration is on file."
+                )
+            )
+
+    return reasons
+
+
+@transaction.atomic
+def approve(request: ReviewRequest, *, actor, notes: str = ""):
+    """Publish. Refuses if publication is blocked (see the module docstring)."""
+    _require_reviewer(actor)
+    practitioner = request.practitioner
+    _require_reviewable(practitioner)
+
+    reasons = blocking_publication_reasons(practitioner)
+    if reasons:
+        logger.warning(
+            "review.approve_refused",
+            extra={"practitioner_id": str(practitioner.pk), "reasons": reasons},
+        )
+        raise NotReviewable(" ".join(reasons))
+
+    was_published_before = practitioner.published_at is not None
+
+    practitioner.status = PublicationStatus.PUBLISHED
+    # Set once. Re-approving an edit does not make someone newly published.
+    if not was_published_before:
+        practitioner.published_at = timezone.now()
+    practitioner.last_review_at = timezone.now()
+    # Clear the whole suspension triple, not just two thirds of it — a live
+    # listing carrying suspended_by reads as currently suspended to anyone
+    # scanning the table.
+    practitioner.suspended_at = None
+    practitioner.suspended_by = None
+    practitioner.suspend_reason = ""
+    practitioner.save(
+        update_fields=[
+            "status",
+            "published_at",
+            "last_review_at",
+            "suspended_at",
+            "suspended_by",
+            "suspend_reason",
+        ]
+    )
+
+    _close(request, actor=actor, outcome=ReviewOutcome.APPROVED, notes=notes)
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="practitioner.published" if not was_published_before else "practitioner.republished",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        before={"status": PublicationStatus.IN_REVIEW},
+        after={"status": practitioner.status},
+    )
+    logger.info(
+        "review.approved",
+        extra={"practitioner_id": str(practitioner.pk), "first_publication": not was_published_before},
+    )
+    return practitioner
+
+
+@transaction.atomic
+def request_changes(request: ReviewRequest, *, actor, notes: str):
+    """Send it back. Notes are mandatory — "changes requested" with no reason is
+    a dead end for the practitioner and a support ticket for us."""
+    _require_reviewer(actor)
+    if not (notes or "").strip():
+        raise NotReviewable("Say what needs changing — the practitioner sees these notes.")
+
+    practitioner = request.practitioner
+    _require_reviewable(practitioner)
+
+    practitioner.status = PublicationStatus.CHANGES_REQUESTED
+    practitioner.last_review_at = timezone.now()
+    practitioner.save(update_fields=["status", "last_review_at"])
+
+    _close(request, actor=actor, outcome=ReviewOutcome.CHANGES_REQUESTED, notes=notes)
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="review.changes_requested",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={"notes": notes},
+    )
+    return practitioner
+
+
+@transaction.atomic
+def reject(request: ReviewRequest, *, actor, notes: str):
+    """Refuse the listing outright."""
+    _require_reviewer(actor)
+    if not (notes or "").strip():
+        raise NotReviewable("A rejection needs a reason on the record.")
+
+    practitioner = request.practitioner
+    _require_reviewable(practitioner)
+
+    practitioner.status = PublicationStatus.REMOVED
+    practitioner.last_review_at = timezone.now()
+    practitioner.save(update_fields=["status", "last_review_at"])
+
+    _close(request, actor=actor, outcome=ReviewOutcome.REJECTED, notes=notes)
+
+    AuditLog.objects.create(
+        actor=actor,
+        action="review.rejected",
+        entity_type="Practitioner",
+        entity_id=str(practitioner.pk),
+        after={"notes": notes},
+    )
+    return practitioner
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _require_reviewer(actor) -> None:
+    if not can_review_submissions(actor):
+        raise PermissionDenied("This account cannot review submissions.")
+
+
+def _require_reviewable(practitioner) -> None:
+    if practitioner.status not in REVIEWABLE:
+        raise NotReviewable(
+            f"This profile is {practitioner.get_status_display().lower()}, not awaiting review."
+        )
+
+
+def _close(request: ReviewRequest, *, actor, outcome: str, notes: str) -> None:
+    request.reviewed_by = actor
+    request.reviewed_at = timezone.now()
+    request.outcome = outcome
+    request.reviewer_notes = notes
+    request.save(update_fields=["reviewed_by", "reviewed_at", "outcome", "reviewer_notes"])
+
+
+def open_queue():
+    """Submissions awaiting a decision, oldest first.
+
+    PUBLISHED is in the filter alongside the two REVIEWABLE statuses because an
+    edit to a live listing raises a review without taking the listing down (see
+    ``submit_update``). Leaving it out would mean a listing whose badge has just
+    been withdrawn sits in no queue at all, and the practitioner waits for a
+    re-check nobody can see they are owed.
+    """
+    return (
+        ReviewRequest.objects.filter(outcome="")
+        .filter(practitioner__status__in=[*REVIEWABLE, PublicationStatus.PUBLISHED])
+        .select_related("practitioner", "practitioner__profession")
+        .order_by("submitted_at")
+    )

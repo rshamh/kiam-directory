@@ -46,7 +46,7 @@ ANTIVIRUS_BACKEND = env("ANTIVIRUS_BACKEND", default="skip")
 STORAGES = {  # noqa: F405
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "private": {
-        "BACKEND": "directory.storages.PrivateEvidenceStorage",
+        "BACKEND": "apps.directory.storages.PrivateEvidenceStorage",
         "OPTIONS": {"location": str(BASE_DIR / "private-media"), "base_url": None},
     },
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},

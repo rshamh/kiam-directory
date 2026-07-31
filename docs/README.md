@@ -17,7 +17,7 @@ Each ends at a gate. When Code stops and prints its gate report, review it, then
 
 Before Phase 0, make sure these are committed at the repo root:
 `CLAUDE.md`, `docs/`, `pyproject.toml`, `.env.example`, `.gitignore`, `.claude/`,
-`accounts/models.py`, `accounts/access.py`, `directory/models.py`, `directory/taxonomy.py`,
-`directory/services/`.
+`apps/accounts/models.py`, `apps/accounts/access.py`, `apps/directory/models.py`, `apps/directory/taxonomy.py`,
+`apps/directory/services/`.
 
 Also copy in from the main site repo: `.claude/skills/kiam-clinic-design/`.

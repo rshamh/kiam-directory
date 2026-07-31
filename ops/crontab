@@ -17,7 +17,7 @@ PATH=/usr/local/bin:/usr/bin:/bin
 #
 # NOTE: reminders are keyed on an exact days-remaining bucket, so a night that
 # does not run is a reminder nobody receives. If the job fails, re-run it the
-# same day rather than waiting — see directory/services/verification.py.
+# same day rather than waiting — see apps/directory/services/verification.py.
 0 3 * * * cd /app && python manage.py verification_sweep >> /var/log/kiam/verification_sweep.log 2>&1
 
 # 03:30 — rebuild search vectors. Safety net behind the signals, and the only

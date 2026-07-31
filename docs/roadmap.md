@@ -21,15 +21,15 @@ gate is signed off.
 
 ## Phase 0 — Foundation
 Django project skeleton, settings split, PostGIS, Redis, Docker Compose, CI, `kiam-ui` wired and
-documented, base template, thin `User` + magic-link auth, `accounts/access.py`, SEO base
+documented, base template, thin `User` + magic-link auth, `apps/accounts/access.py`, SEO base
 (`robots.txt`, `sitemap.xml`, `llms.txt`, JSON-LD helper), health check, error pages.
 
 **Gate:** site boots on `localhost`, a magic link logs a user in, a kiam-ui-styled page renders,
 `docs/design-system.md` documents kiam-ui's real API, CI green.
 
 ## Phase 1 — Data model & taxonomy
-The models in `directory/models.py` and `accounts/models.py` (already written — review, don't
-rewrite), migrations, `seed_taxonomy` management command, `directory/services/verification.py`,
+The models in `apps/directory/models.py` and `apps/accounts/models.py` (already written — review, don't
+rewrite), migrations, `seed_taxonomy` management command, `apps/directory/services/verification.py`,
 Django admin for staff, `nightly_sweep` management command + scheduler.
 
 **Gate:** `seed_taxonomy` is idempotent; verification tests cover badge lapse and all four

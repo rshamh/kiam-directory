@@ -16,8 +16,16 @@ profile with its static pages, search, the home page, and the practitioner dashb
    and invariants that will otherwise bite you
 2. `docs/multi-project-architecture.md` — how this sits alongside the main site and rooms
 3. `docs/architecture.md` — apps, models, URLs, roles, as they actually are
-4. `docs/design-system.md` — what `kiam-ui` really exposes, and the twenty-one gaps
+4. `docs/design-system.md` — what `kiam-ui` really exposes, and the twenty-four gaps
 5. `docs/roadmap.md` — the eight build phases and their gates
+
+**Layout.** Every Django app lives under `apps/` — `apps/accounts/`, `apps/directory/`,
+`apps/search/`, `apps/dashboard/`, `apps/backoffice/`, `apps/seo/`, `apps/pages/`. `config/`
+(settings, root URLconf, WSGI/ASGI), `templates/`, `static/`, `ops/` and `docs/` stay at the root.
+App **labels** are unchanged — Django takes the label from the last path component, so
+`apps.accounts` is still `accounts`, which is what `AUTH_USER_MODEL` and every migration resolve
+against. Docstrings name modules app-relative (`directory.services.verification`); imports are
+fully qualified (`apps.directory.services.verification`).
 
 ---
 
@@ -230,14 +238,14 @@ used; see `docs/roadmap.md` for the numbers it produced.
   skips. Call syntax is the same either way.
 
 ```bash
-pytest directory/tests/test_search_minors_gate.py   # the Phase 4 gate: PROVISIONAL is not in minors results
-pytest directory/tests/test_profile_minor_gate.py   # the Phase 3 gate: minor groups are not in the HTML
-pytest directory/tests/test_verification.py         # the service that decides what the public sees
-pytest backoffice/tests/test_flow.py                # invite -> draft -> submit -> verify -> publish
-pytest pages/tests/test_home.py                     # the Phase 5 gate: the hero works with no JavaScript
-pytest pages/tests/test_home_service.py             # the grid rotates daily, caches, and cannot show a suspension
-pytest pages/tests/test_home_minors_gate.py         # the Phase 5 gate: no un-cleared child work on the front page
-pytest dashboard/tests/test_gate.py                 # the Phase 6 gate: controlled vs safe edits, and one-click unpublish
+pytest apps/directory/tests/test_search_minors_gate.py   # the Phase 4 gate: PROVISIONAL is not in minors results
+pytest apps/directory/tests/test_profile_minor_gate.py   # the Phase 3 gate: minor groups are not in the HTML
+pytest apps/directory/tests/test_verification.py         # the service that decides what the public sees
+pytest apps/backoffice/tests/test_flow.py                # invite -> draft -> submit -> verify -> publish
+pytest apps/pages/tests/test_home.py                     # the Phase 5 gate: the hero works with no JavaScript
+pytest apps/pages/tests/test_home_service.py             # the grid rotates daily, caches, and cannot show a suspension
+pytest apps/pages/tests/test_home_minors_gate.py         # the Phase 5 gate: no un-cleared child work on the front page
+pytest apps/dashboard/tests/test_gate.py                 # the Phase 6 gate: controlled vs safe edits, and one-click unpublish
 pytest --create-db                                  # after a migration, or the reused DB will lie
 ```
 
@@ -382,18 +390,29 @@ same message and the same status.
 
 **There is no public signup route** — account creation is by admin invite. `admin`, `verifier`
 and `superadmin` must additionally carry a TOTP device *regardless of which route they signed in
-by*; `accounts/middleware.py` keeps an unverified staff session on the challenge page and
-`accounts/access.py` refuses every staff capability until it is answered.
+by*; `apps/accounts/middleware.py` keeps an unverified staff session on the challenge page and
+`apps/accounts/access.py` refuses every staff capability until it is answered.
 
-Every role check in the project lives in `accounts/access.py`. Views and templates never inspect
+Every role check in the project lives in `apps/accounts/access.py`. Views and templates never inspect
 `user.role`.
+
+**Creating an account from the Django admin.** `/staff-console/accounts/user/add/` works, and its
+"Password-based authentication" radio starts at **Disabled** — the normal state is no password and
+a magic link. Set one only when the person has asked; they can set their own from the dashboard's
+Account & security page. Case-different addresses are refused as duplicates, because `email` is
+unique but case-sensitive and two such rows lock *both* accounts out of password sign-in.
+
+**Staff have no practitioner dashboard.** `can_use_dashboard` is practitioner-only: acting on a
+listing through that UI would have no audit actor and no review path, and the back office is where
+staff do it. The header's "Dashboard" link is one URL for everybody (kiam-ui gap 24), so
+`/dashboard/` redirects a staff account to `/backoffice/` rather than 404ing.
 
 ---
 
 ## Things that are easy to get wrong
 
 **The under-18 gate has two halves and both are load-bearing.** `visible_client_groups()` covers
-the profile; `filter(minor_work_status=CLEARED)` in `directory/services/search.py` covers search.
+the profile; `filter(minor_work_status=CLEARED)` in `apps/directory/services/search.py` covers search.
 Each has its own gate test, and the search one ends with a grep asserting both call sites still
 exist — because deleting either leaves the other's tests green. Without the search half, a
 `PROVISIONAL` practitioner — live for adult work with a DBS still pending — is returned to somebody
@@ -412,6 +431,20 @@ here. A draft, a suspension and a slug nobody has ever used now render byte-iden
 channels exist, never their values. If you find yourself adding an email address to the profile
 view's context "just for the template", the reveal endpoint, the metric and the scraping
 protection all stop meaning anything at once.
+
+**Never write an auth-backend path as a string literal.** `login(request, user, backend=…)` puts
+it in the session, and `auth.get_user()` returns `AnonymousUser` if it is not in
+`AUTHENTICATION_BACKENDS` — no exception, no log line, no failing request. Both sign-in routes held
+a literal `"accounts.backends.…"` until the apps moved under `apps/`, at which point the magic link
+was consumed, the redirect was served, and the next page was anonymous. Import
+`apps.accounts.backends.BACKEND_PATH`; it is derived from the class, so it cannot drift.
+
+**A declared form field is required whether or not a fieldset renders it.** That is how the Django
+admin spent six phases unable to create a single user: `AdminUserCreationForm` declares
+`usable_password`/`password1`/`password2`, `add_fieldsets` listed none of them, and every POST
+failed on required fields that were not on the page.
+`accounts/tests/test_admin_user_creation.py::test_every_required_field_on_the_add_form_is_rendered`
+asserts the shape rather than the field names.
 
 **Session cookies stay host-only.** Do not set `SESSION_COOKIE_DOMAIN`. Sharing the cookie
 across `.kiamclinic.com` requires a shared `SECRET_KEY`, a shared session store and a shared user
@@ -437,7 +470,7 @@ The home page, profile pages, results pages and the contact-reveal interstitial 
 grid: the sentence a visitor needs before reading twelve names and photographs on a
 Kiam-branded page cannot be below them.
 
-**Cache primary keys, not rows, and never HTML.** `pages/services/home.py` caches the twelve
+**Cache primary keys, not rows, and never HTML.** `apps/pages/services/home.py` caches the twelve
 chosen ids and re-reads the rows every render. Caching the rows would freeze a practitioner's
 own details and the verification badge's wording for a day; caching pickled model instances
 would 500 the busiest page on the site after the next migration; and re-applying
@@ -446,10 +479,10 @@ suspended listing on the home page.
 
 **`extra={"name": ...}` in a log call raises.** `name` is a reserved `LogRecord` attribute, and
 `Logger.makeRecord` raises `KeyError` on a collision — so a log line meant to record a failure
-becomes the failure. Two calls in `directory/services/images.py` did this, which turned "a broken
+becomes the failure. Two calls in `apps/directory/services/images.py` did this, which turned "a broken
 image never breaks the page" into a 500. The suite could not see it: `config/settings/test.py`
 sets the root logger to CRITICAL, so `makeRecord` is never reached in a test run.
-`directory/tests/test_images.py::test_the_logging_calls_are_actually_emittable` is the guard, and
+`apps/directory/tests/test_images.py::test_the_logging_calls_are_actually_emittable` is the guard, and
 it is the only test in that module that turns logging on.
 
 **A cached payload's version tracks its MEANING, not just its keys.** Phase 5 added a key to the

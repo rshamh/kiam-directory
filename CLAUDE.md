@@ -106,7 +106,7 @@ must appear in a queue, or the practitioner waits for a re-check nobody can see 
 > `directory.services.search.build_queryset()`, which adds
 > `filter(minor_work_status=MinorWorkStatus.CLEARED)` whenever the requested client groups
 > include an `is_minors=True` term. Each has its own gate test —
-> `directory/tests/test_profile_minor_gate.py` and `directory/tests/test_search_minors_gate.py` —
+> `apps/directory/tests/test_profile_minor_gate.py` and `apps/directory/tests/test_search_minors_gate.py` —
 > and the second one ends with a grep asserting **both** call sites are still in the source,
 > because deleting either would leave the other's tests green.
 >
@@ -126,7 +126,7 @@ must appear in a queue, or the practitioner waits for a re-check nobody can see 
 > alone). Phase 5's compliance review found a **BLOCKED** listing publishing exactly that pill on
 > the home page, unprompted, under Kiam's own claim to have checked the listing. The grid now
 > declines to *select* such a listing (`search._ungated_minor_work_ids`, and see
-> `pages/tests/test_home_minors_gate.py` for why narrowing an editorial sample is not a third
+> `apps/pages/tests/test_home_minors_gate.py` for why narrowing an editorial sample is not a third
 > gate) — but that is a fail-safe on one surface, not the fix. The one-line fix is still in
 > `recompute()`.
 > Phase 4 makes this worse in two ways: a **free-text query** for "child adhd" matches that
@@ -137,6 +137,31 @@ must appear in a queue, or the practitioner waits for a re-check nobody can see 
 
 ---
 
+## Layout
+
+**Every Django app lives under `apps/`.** `config/` (settings, root URLconf, WSGI/ASGI),
+`templates/`, `static/`, `ops/`, `docs/`, `manage.py` and `conftest.py` stay at the repository
+root. `apps/` is a container package: no models, no migrations, no `AppConfig`, and
+`INSTALLED_APPS` names its children (`"apps.accounts"`), never it.
+
+The app **labels** are unchanged, and that is not luck — Django derives a label from the last
+component of the dotted path, so `apps.accounts` is still `accounts`. `AUTH_USER_MODEL`, every
+migration dependency, every `ContentType` row and every `apps.get_model("directory", …)` call
+resolve against the label, so the move needed **no migration** and touched no data.
+
+Two things to know when writing code here:
+
+* **Prose names modules app-relative.** A docstring saying `directory.services.verification` means
+  the file `apps/directory/services/verification.py`. The import is
+  `apps.directory.services.verification`. Import statements, settings values, `include()` targets
+  and anything a developer would paste into a shell are fully qualified.
+* **Never write an auth-backend path by hand.** `login(request, user, backend=…)` stores the
+  string in the session and `auth.get_user()` returns `AnonymousUser` if it is not in
+  `AUTHENTICATION_BACKENDS` — no exception, no log line. Both sign-in routes held a literal
+  `"accounts.backends.…"`, and the move to `apps/` silently signed everybody out: link consumed,
+  redirect served, next page anonymous. Import
+  `apps.accounts.backends.BACKEND_PATH`, which is derived from the class.
+
 ## Stack
 
 - Django (latest production-ready), PostgreSQL + **PostGIS** via GeoDjango, Redis cache.
@@ -144,7 +169,7 @@ must appear in a queue, or the practitioner waits for a re-check nobody can see 
 - **`kiam-ui`** — the shared UI package, pinned:
   `kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.0.1`
 - Auth: email identifier, no usernames, thin custom `User`. All role checks in
-  `accounts/access.py` and nowhere else. **Two sign-in routes, both live:**
+  `apps/accounts/access.py` and nowhere else. **Two sign-in routes, both live:**
   a magic link (always available, and the password-recovery path) and an
   **optional** password. Accounts are still created without a password —
   `UserManager` calls `set_unusable_password()` — and only get one if their
@@ -176,7 +201,7 @@ Two matter for the next phases:
 
 - **Fonts load from Google Fonts on every page**, before any consent decision (Gap 3). Unresolved,
   and it collides with golden rule #4 the moment analytics or consent lands.
-- **`collectstatic` needs the override in `seo/management/commands/`** (Gap 9), because the package
+- **`collectstatic` needs the override in `apps/seo/management/commands/`** (Gap 9), because the package
   ships its Tailwind source inside its own `static/` tree. Do not delete that command.
 
 **Do not fork or vendor its components.** If something needs changing, raise it as a `kiam-ui`
@@ -252,12 +277,12 @@ mistakes below are ones already made once in this repo.
 
 ### Services — the work lives here, not in views
 
-    accounts/services/    magic_link · passwords · two_factor · ratelimit
-    directory/services/   verification · lint · documents · search_index · profile · metrics
-    backoffice/services/  invites · review · publication · concerns
+    apps/accounts/services/    magic_link · passwords · two_factor · ratelimit
+    apps/directory/services/   verification · lint · documents · search_index · profile · metrics
+    apps/backoffice/services/  invites · review · publication · concerns
 
-**Only `directory/services/verification.py` may write the five computed fields.** Nothing else,
-ever. `directory/tests/test_admin_readonly.py` enforces this by walking the whole admin registry —
+**Only `apps/directory/services/verification.py` may write the five computed fields.** Nothing else,
+ever. `apps/directory/tests/test_admin_readonly.py` enforces this by walking the whole admin registry —
 if it fails, do not add the field to `readonly_fields` to go green; something is trying to set a
 computed value by hand.
 
@@ -278,7 +303,7 @@ debug bypass and a test asserts `DEBUG=True` is not one.
 
 ### Submission lint
 
-`directory/services/lint.py`, run by `review.submit()`. BLOCK on `pom` and `contact`; HOLD on
+`apps/directory/services/lint.py`, run by `review.submit()`. BLOCK on `pom` and `contact`; HOLD on
 `efficacy`, `child_work`, `restricted_title`. The POM blocklist is `ops/pom-dictionary.txt`
 (`settings.POM_DICTIONARY_PATH`), held outside the code so it updates without a deploy — and a
 **missing file raises rather than permitting everything**, because an empty blocklist silently
@@ -303,7 +328,7 @@ NULL the whole concatenation — both already worked around in `search_index.py`
 
 ### Test factories
 
-`directory/factories.py`. Traits: `published`, `verified`, `provisional_dbs`, `dbs_cleared`,
+`apps/directory/factories.py`. Traits: `published`, `verified`, `provisional_dbs`, `dbs_cleared`,
 `online_only`, `in_person_only`, `multi_location`, `prescriber`, `locations=<n>`.
 
 **No factory writes a verification field** — `verified=True` creates dated checks and calls
@@ -323,7 +348,7 @@ exact day buckets.
 
 ### The public profile (Phase 3)
 
-`/p/<slug>/` → `directory.views.profile` → `directory/services/profile.py`. Six things about it
+`/p/<slug>/` → `directory.views.profile` → `apps/directory/services/profile.py`. Six things about it
 are decisions, not implementation details:
 
 * **Everything that is not PUBLISHED is a 404**, and they are all the *same* 404. A suspension,
@@ -344,7 +369,7 @@ are decisions, not implementation details:
 * **`booking_url` is not rendered.** A booking control on a Kiam-branded page asserts that Kiam
   manages the appointment — one of the three things in `docs/content-compliance.md` §9 that need
   legal review first. The field is populated; nothing displays it.
-* **`BreadcrumbList` JSON-LD comes from kiam-ui's breadcrumb partial**, not from `seo/jsonld.py`,
+* **`BreadcrumbList` JSON-LD comes from kiam-ui's breadcrumb partial**, not from `apps/seo/jsonld.py`,
   because the partial emits it from the same `items` list it renders the visible trail from.
   `jsonld.breadcrumb_items()` builds that list with absolute URLs. Do not add a second
   `BreadcrumbList` to the graph.
@@ -356,8 +381,8 @@ save that then failed. The redirect is written only when `published_at` is set �
 was never live has no inbound links worth preserving — and a slug returning to use (A→B→A) has
 its stale row deleted so it cannot occupy the unique `old_slug`.
 
-**Static pages are a registry, not eight views.** `pages/content.py` holds URL, name, title, meta
-description, template and sitemap priority per page; `pages/urls.py` and `seo/sitemaps.py` both
+**Static pages are a registry, not eight views.** `apps/pages/content.py` holds URL, name, title, meta
+description, template and sitemap priority per page; `apps/pages/urls.py` and `apps/seo/sitemaps.py` both
 read it. That is why a page cannot be added without a meta description and cannot be added and
 forgotten by the sitemap. `/report-a-concern/` is the exception — it takes a POST — and is listed
 in `FORM_PAGES`.
@@ -421,13 +446,13 @@ even with a correct facet filter. **The vector is not a second line of defence**
 
 ### Search (Phase 4)
 
-`/search/` → `search.views.search` → `search/services/params.py` (parsing) →
-`directory/services/search.py` (the query) → `search/services/geocode.py` (postcode → point).
+`/search/` → `search.views.search` → `apps/search/services/params.py` (parsing) →
+`apps/directory/services/search.py` (the query) → `apps/search/services/geocode.py` (postcode → point).
 
-`directory/services/search.py` was **adopted from the rooms repo's history**, and its module
+`apps/directory/services/search.py` was **adopted from the rooms repo's history**, and its module
 docstring lists the five things that had to change. Four were bugs it shipped with; the tests that
 pin them are grouped under `ADOPTION FIX n` headings in
-`directory/tests/test_search_service.py`, so a "simplification" that reintroduces one fails a test
+`apps/directory/tests/test_search_service.py`, so a "simplification" that reintroduces one fails a test
 that says why. The one worth knowing about:
 
 * **Location predicates are ANDed onto ONE relation.** Django resolves each `.filter()` on a
@@ -487,7 +512,7 @@ do not — see the open question above and the docstring for why each would be t
 **HTMX and the no-JS path.** One `<form>` wraps the search bar, the sidebar *and* `#results`. Not
 three forms and not `form=` attributes: with script off, somebody who has typed a location and then
 ticks a filter must submit both. `#results` sits inside that form and contains no inputs, so the
-form serialises only the filters. `search/tests/test_search_view.py::test_search_works_completely_without_javascript`
+form serialises only the filters. `apps/search/tests/test_search_view.py::test_search_works_completely_without_javascript`
 is the one that must never be allowed to fail.
 
 The result count is a **persistent live region outside `#results`**, updated by
@@ -496,7 +521,7 @@ announced — the same lesson as the Phase 3 contact reveal.
 
 ### The home page (Phase 5)
 
-`/` → `pages.views.home` → `pages/services/home.py`. Five things about it are decisions, not
+`/` → `pages.views.home` → `apps/pages/services/home.py`. Five things about it are decisions, not
 implementation.
 
 * **The hero search is the SAME component as `/search/`.** `components/_search_bar.html`, wrapped
@@ -528,7 +553,7 @@ implementation.
   by inference.
 
 **Headshot renditions arrived here**, not in Phase 3 where the card first wanted them:
-`directory/services/images.py`, 80/160/240px, built inside the cached grid path so twelve
+`apps/directory/services/images.py`, 80/160/240px, built inside the cached grid path so twelve
 conversions happen once a day. Names are deterministic from the original's, so a replaced headshot
 gets new rendition names and there is nothing to bust. It is **all-or-nothing and never fatal** —
 any failure returns `""` and the card falls back to the plain `src`, because a `srcset` naming a
@@ -566,7 +591,7 @@ the shapes recur, and because two of the worst were in copy *this phase wrote*.
   **nobody asked.** On search that route needs a typed query or a ticked facet; here Kiam selects
   the twelve and publishes the pill under its own claim to have checked the listing.
   Fixed in `homepage_grid()` via `_ungated_minor_work_ids()`, with
-  `pages/tests/test_home_minors_gate.py`. **This is not a fourth gate** — see that file's
+  `apps/pages/tests/test_home_minors_gate.py`. **This is not a fourth gate** — see that file's
   docstring for why narrowing an editorial *sample* is a different act from gating a *query*, and
   why it leaves no asymmetry for a later change to break.
 * **The page claimed every listing was credential-checked before publication.** It is not:
@@ -620,7 +645,7 @@ axe (which test neither reflow nor focus-indicator contrast):
 
 Also from the reviews and applied: `/` and `/search/` shipped byte-identical `<title>`, `og:title`
 and `<h1>` (the search page moved); the hero lede was a subject-less fragment that named no entity;
-the CTA advertised a message relay `directory/views.py` says needs legal review before anyone
+the CTA advertised a message relay `apps/directory/views.py` says needs legal review before anyone
 builds one; the browse counts described neither of the two different things they count;
 `alt=" Marcus Osei"` carried a leading space; the cross-links cost a redirect hop each; `llms.txt`
 published an HTML entity into a `text/plain` file and told crawlers browsing did not exist while
@@ -654,7 +679,7 @@ contrast, nor 2.5.8's spacing exception, and those are where both blockers lived
 
 ### The practitioner dashboard (Phase 6)
 
-`/dashboard/` → `dashboard.views` → `dashboard/services/{overview,editing,insights}.py`. Every view
+`/dashboard/` → `dashboard.views` → `apps/dashboard/services/{overview,editing,insights}.py`. Every view
 carries `can_use_dashboard` **and** `owns_practitioner` through the `practitioner_view` decorator,
 and **no dashboard URL names a practitioner** — the listing comes from the session, so there is no
 per-view authorisation decision to forget. `test_no_dashboard_url_names_a_practitioner` guards
@@ -666,13 +691,13 @@ Six things are decisions rather than implementation.
   score) and the home-grid gate since Phase 5 — and nothing ever wrote it, so every real listing
   sat at the default 0: bottom of every tie-break and absent from the front page.
   `seed_demo` hard-coded plausible numbers and the factory defaulted to 80, which is exactly why
-  it looked fine. `directory/services/completeness.py` is the single writer, wired through
-  `directory/signals.py` with a `post_save` **and four `m2m_changed` receivers** — one relation is
+  it looked fine. `apps/directory/services/completeness.py` is the single writer, wired through
+  `apps/directory/signals.py` with a `post_save` **and four `m2m_changed` receivers** — one relation is
   not enough, the same lesson as the search vector. **The score and the checklist are one list**:
   a meter saying 68% and advice saying something else would be two sources of truth about the
   same question.
 * **"Controlled" and "safe" are `review.CONTROLLED_FIELDS`, imported, never restated.**
-  `dashboard/services/editing.py` derives from it so the label a practitioner reads and the
+  `apps/dashboard/services/editing.py` derives from it so the label a practitioner reads and the
   behaviour they get cannot disagree. **The copy says the listing stays online**, because
   "re-enters review" reads as "my page disappears" and somebody who believes that will not fix
   their own typo — which is the opposite of what the control is for.
@@ -681,7 +706,7 @@ Six things are decisions rather than implementation.
   appear in it not at all, so `editing.save()` takes them as an explicit `related_changed`
   argument. A caller that forgets is a badge left on against an unchecked GMC number, which is
   why it is a required argument rather than something inferred.
-* **The lint runs on every edit, not just at submission.** `directory/services/lint.py` was
+* **The lint runs on every edit, not just at submission.** `apps/directory/services/lint.py` was
   written for `review.submit()` — the one-time draft→published path. Phase 6 is the first time a
   practitioner can edit a **live** listing's free text, and a safe-field edit publishes
   immediately, so without `dashboard.forms.LintedPractitionerForm` a published practitioner could
@@ -689,7 +714,7 @@ Six things are decisions rather than implementation.
   pressed Save. Only findings about fields *this* form shows become errors — otherwise a bad
   intro would block somebody from editing their opening hours, with an error pointing at a field
   that is not on the page.
-* **Evidence upload fails closed.** `directory/services/antivirus.py` defaults to `reject`:
+* **Evidence upload fails closed.** `apps/directory/services/antivirus.py` defaults to `reject`:
   with no scanner configured, every upload is refused. A control that switches itself off when it
   cannot reach its dependency is not a control — the same reasoning as the POM dictionary, which
   raises rather than permitting everything. `skip` exists for development, is named so it cannot
@@ -772,11 +797,64 @@ implement. Gaps 22–23.
 large for this phase. `blocking_publication_reasons()` now refuses a listing whose
 consent was *withdrawn*, which is the half Phase 6 opened.
 
+### Post-Phase-6 corrections (naming, layout, admin, staff routing)
+
+Not a phase — five requested changes and what each turned up. Two were latent bugs
+nothing in 1074 tests could see, both for the same reason: **no test exercised the
+surface.**
+
+* **The site is the "Kiam Clinic Directory".** `KIAM_UI["SITE_NAME"]` said "Kiam
+  Directory" from Phase 0, so `<title>` and `og:site_name` disagreed with the
+  `WebSite` entity `seo/jsonld.py` emitted on the same page (`DIRECTORY_NAME` has
+  always been right). `BRAND_PREFIX` / `BRAND_ACCENT` are now set **explicitly**:
+  kiam-ui derives the wordmark by splitting `SITE_NAME` on the first space, which
+  would have accented "Clinic Directory" and put the publisher's own name in the
+  brand colour. It is "Kiam Clinic" + green "Directory", because the half that has
+  to be visible is the one that says this is not the clinic.
+* **The contact address is `info@kiamclinic.com`**, not the main site's
+  `enquiries@`. An enquiry about a listed practitioner is not a clinic enquiry.
+  `DEFAULT_FROM_EMAIL` (`no-reply@`) is a sending address and is untouched.
+* **No account could be created through the Django admin, at all.**
+  `AdminUserCreationForm` *declares* `usable_password`, `password1` and
+  `password2`; declared fields are required whether or not a fieldset lists them,
+  and `add_fieldsets` listed none of them — so the page rendered without the
+  inputs and every POST failed on "This field is required" for two controls that
+  were not on it. The general guard is
+  `test_every_required_field_on_the_add_form_is_rendered`, which asserts the
+  *shape* (nothing the form insists on is missing from the page) rather than
+  today's field names.
+
+  `password` is back on the change fieldsets too. It was omitted on the reasoning
+  that a settable password is "a second, unaudited way in" — true while magic link
+  was the only route, and not since Phase 1. Omitting it never prevented password
+  authentication; it only prevented an admin helping somebody locked out of it.
+  The field is `ReadOnlyPasswordHashField` and Django's change-password view
+  writes a `LogEntry` naming the admin. The add form now also refuses a
+  **case-different duplicate address**: `email` is unique but case-SENSITIVE and
+  `normalize_email()` lowercases only the domain, so two such rows break *both*
+  accounts — `CaseInsensitiveEmailBackend` fails closed on
+  `MultipleObjectsReturned` and `magic_link` would mail whichever came back first.
+* **`/dashboard/` 404ed for staff, and the header sent them there.** kiam-ui
+  renders one "Dashboard" link from `KIAM_UI["AUTH"]["DASHBOARD_URL"]` for every
+  signed-in account; `AUTH` is not in kiam-ui's `RESOLVABLE` set, so it cannot vary
+  by role without forking the package. `practitioner_view` redirects staff to
+  `backoffice:dashboard` — guarded by `can_review_submissions`, the same predicate
+  that decides the redirect, so the destination cannot 403. **`can_use_dashboard`
+  is unchanged**: staff are redirected, not admitted, and the 404 is kept for the
+  case it was written for, an account with no listing. Design-system gap 24.
+* **The apps moved to `apps/`** — see "Layout" above. The move was mechanical
+  except for one thing, and that one thing is the lesson: a **hand-written
+  auth-backend path** in `magic_link.log_in()` and `passwords.log_in()` silently
+  signed everybody out, because `auth.get_user()` returns `AnonymousUser` for a
+  backend not in settings without raising or logging. Now
+  `apps.accounts.backends.BACKEND_PATH`, derived from the class, with a grep test
+  over `accounts/services/` so the next module cannot write one.
+
 ### Still to build
 
 Phase 7: insights rollups, landing pages and launch prep. See `docs/roadmap.md`.
 
-`directory/services/search.py` was recovered from the rooms repo at Phase 4
+`apps/directory/services/search.py` was recovered from the rooms repo at Phase 4
 (`git -C ../rooms show f49d0c2^:search.py`) and is now in this repo, reviewed and fixed.
 `homepage_grid()` is in use from Phase 5 and has tests; its daily seed moved from the UTC date to
 `timezone.localdate()` so it rotates when the result shuffle does.
@@ -793,10 +871,10 @@ Phase 7: insights rollups, landing pages and launch prep. See `docs/roadmap.md`.
 - The intent docs (`multi-project-architecture`, `seo`, `content-compliance`,
   `verification-policy`, `roadmap`) are human-authored. **Propose changes, don't silently
   rewrite them.**
-- **Some source files are authored elsewhere and adopted verbatim** — `accounts/models.py`,
-  `accounts/access.py`, `directory/models.py`, `directory/taxonomy.py`,
-  `directory/services/verification.py`. Review, don't rewrite. Where one genuinely had to change
-  (two blockers in `directory/models.py`, one bug in `verification.py`) the reason is commented in
+- **Some source files are authored elsewhere and adopted verbatim** — `apps/accounts/models.py`,
+  `apps/accounts/access.py`, `apps/directory/models.py`, `apps/directory/taxonomy.py`,
+  `apps/directory/services/verification.py`. Review, don't rewrite. Where one genuinely had to change
+  (two blockers in `apps/directory/models.py`, one bug in `verification.py`) the reason is commented in
   place, and `pyproject.toml` carries per-file lint ignores rather than editing them for style.
   Additions go in a clearly marked block at the end of the file, not interleaved.
 - Migrations: one logical change per migration where practical, and always reviewable.
