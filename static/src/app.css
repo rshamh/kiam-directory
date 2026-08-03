@@ -554,40 +554,13 @@ html[data-contrast="high"] .dir-reveal:focus {
   font-size: var(--text-caption);
 }
 
-.dir-filter-group__list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: var(--space-1);
-}
+/* The row, the checkbox and the 44px hit area are `.ds-dir-filters__row` /
+   `__box` from kiam-ui v1.1.0 — which sizes the row at 36px on desktop and 44px
+   below 860px, i.e. the same 2.5.8 clearance this used to set by hand.
 
-/* Generous hit area: the whole label is the target, and 44px of height clears
-   WCAG 2.2 §2.5.8 with room to spare on a phone. */
-.dir-filter-group__label {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  min-block-size: 2.75rem;
-  padding-block: var(--space-2);
-  font-weight: var(--weight-regular);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.dir-filter-group__label input {
-  margin-block-start: 0.2em;
-  inline-size: 1.1rem;
-  block-size: 1.1rem;
-  flex: 0 0 auto;
-  accent-color: var(--brand-primary);
-}
-
-.dir-filter-group__item--parent .dir-filter-group__label {
-  font-weight: var(--weight-medium);
-}
-
-.dir-filter-group--tree .dir-filter-group__list {
+   The child specialities under a category keep their indent, which the package
+   has no opinion about because it has no two-level group. */
+.dir-filter-group--tree .ds-dir-filters__row {
   padding-inline-start: var(--space-3);
 }
 
@@ -672,105 +645,20 @@ html[data-contrast="high"] .dir-reveal:focus {
 
 /* ---------- results ---------- */
 
+/* Direction 1a is "the register": one decision per row, every card the same shape
+   with the same fact in the same position, so comparing five strangers is five
+   vertical reads rather than five re-orientations. The two-up comparison grid was
+   the other direction offered and is not the one chosen.
+
+   The card itself is `.ds-dir-pcard`; the package deliberately owns no results
+   grid ("what is NOT here is the page composition" — directory.css's header). */
 .dir-results {
   list-style: none;
   padding: 0;
   margin-block-start: var(--space-5);
   display: grid;
+  grid-template-columns: 1fr;
   gap: var(--space-4);
-}
-
-.dir-practitioner {
-  padding: var(--space-5);
-}
-
-.dir-practitioner__featured {
-  margin-block-end: var(--space-3);
-}
-
-.dir-practitioner__body {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  align-items: flex-start;
-}
-
-.dir-practitioner__headshot {
-  inline-size: 5rem;
-  block-size: 5rem;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
-  flex: 0 0 auto;
-}
-
-.dir-practitioner__headshot--empty {
-  display: grid;
-  place-items: center;
-  color: var(--text-faint);
-}
-
-.dir-practitioner__detail {
-  flex: 1 1 16rem;
-}
-
-.dir-practitioner__name {
-  margin-block-end: var(--space-1);
-}
-
-.dir-practitioner__name a {
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-.dir-practitioner__post-nominals {
-  color: var(--text-secondary);
-  font-weight: var(--weight-regular);
-  font-size: var(--text-body-sm);
-}
-
-.dir-practitioner__profession {
-  color: var(--text-secondary);
-}
-
-.dir-practitioner__meta {
-  margin-block-start: var(--space-2);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  color: var(--text-secondary);
-  font-size: var(--text-body-sm);
-}
-
-.dir-practitioner__verified,
-.dir-practitioner__distance {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.dir-practitioner__specialities {
-  list-style: none;
-  padding: 0;
-  margin-block-start: var(--space-3);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.dir-practitioner__availability {
-  margin-block-start: var(--space-3);
-  font-size: var(--text-body-sm);
-}
-
-.dir-practitioner__accepting {
-  color: var(--text-heading);
-  font-weight: var(--weight-medium);
-}
-
-.dir-practitioner__closed {
-  color: var(--text-secondary);
 }
 
 /* ---------- pagination and empty state ---------- */
@@ -888,15 +776,9 @@ html[data-contrast="high"] .dir-hero .ds-control:focus {
   border-color: var(--border-hover);
 }
 
-/* Tailwind's preflight sets `h1..h6 { font-size: inherit; font-weight: inherit }`
-   and kiam-ui sizes only `.ds-section-head__title`, so every heading in this
-   phase's components rendered at body size — including the practitioner's name,
-   which is the primary scanning cue on a twenty-result page and the main link on
-   every card. */
-.dir-practitioner__name {
-  font-size: var(--text-title-sm);
-  line-height: var(--line-height-heading);
-}
+/* `.ds-dir-pcard__name` carries its own size now, so the local workaround for
+   Tailwind's `h1..h6 { font-size: inherit }` preflight is gone for the card. Gap
+   18 still applies to every heading the package does NOT size — the two below. */
 
 .dir-search__sidebar-title,
 .dir-empty-state__title {
@@ -948,11 +830,36 @@ html[data-contrast="high"] .dir-hero .ds-control:focus {
   font-weight: var(--weight-regular);
 }
 
-/* Featured listings get a visible frame as well as the "Paid placement" pill, so
-   the disclosure is not carried by one small element (content-compliance §6). */
-.dir-practitioner--featured {
+/* Featured listings get a visible frame as well as the "Paid placement" label, so
+   the disclosure is not carried by one small element (content-compliance §6).
+   `.ds-dir-pcard--featured` tints; this deepens it to a full border. */
+.dir-practitioner.ds-dir-pcard--featured {
   border-color: var(--brand-secondary);
-  box-shadow: var(--shadow-soft);
+}
+
+/* The badge's "What this does and does not mean" link has to stay clickable, and
+   `.ds-dir-pcard__link::after` covers the whole card at `inset: 0`. Upstream
+   lifts its contact button back above that with a stacking context; this is the
+   same move for the one interactive element we put there instead. Without it the
+   card has a link the eye can see and the mouse cannot reach — and the rule that
+   the limits of the claim stay one click from the claim would hold only on
+   paper. */
+.dir-practitioner__trust {
+  position: relative;
+  z-index: 1;
+}
+
+/* 80px where the packaged monogram is 56px, because this card carries a real
+   headshot with a `srcset` rather than an initials tile, and 56px throws away
+   most of the 160px rendition the image service already built. */
+.dir-practitioner__headshot {
+  inline-size: 5rem;
+  block-size: 5rem;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
 }
 
 /* A CLOSED <details> must actually collapse.

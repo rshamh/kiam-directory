@@ -180,7 +180,7 @@ def test_the_hero_search_is_the_shared_component_not_a_copy(client):
 def test_the_grid_shows_twelve_of_fifteen(client, listings):
     grid = grid_markup(client.get(URL).content.decode())
 
-    assert grid.count("dir-practitioner__name") == 12
+    assert grid.count("ds-dir-pcard__name") == 12
 
 
 def test_the_grid_excludes_listings_that_are_not_complete_enough(client):
@@ -217,7 +217,7 @@ def test_the_grid_uses_the_shared_card_so_the_badge_comes_with_it(client, listin
     listings[0].refresh_from_db()
     body = client.get(URL).content.decode()
 
-    assert '<article class="ds-card dir-practitioner' in body
+    assert '<article class="ds-dir-pcard' in body
     assert "/how-verification-works/" in body
 
 
@@ -321,7 +321,7 @@ def test_a_featured_listing_takes_the_first_slot_and_is_labelled(client, listing
     grid = grid_markup(client.get(URL).content.decode())
 
     assert "Paid placement" in grid
-    assert "dir-practitioner--featured" in grid
+    assert "ds-dir-pcard--featured" in grid
     # First card in the list, whatever the day's shuffle did to the other eleven.
     first_card = grid.split("dir-home-grid__item", 2)[1]
     assert "Paid Listing" in first_card
@@ -333,7 +333,7 @@ def test_an_unfeatured_grid_carries_no_paid_label_on_a_card(client, listings):
     grid = grid_markup(client.get(URL).content.decode())
 
     assert "Paid placement" not in grid
-    assert "dir-practitioner--featured" not in grid
+    assert "ds-dir-pcard--featured" not in grid
 
 
 def test_the_featured_cap_applies_to_the_grid(client, listings):
@@ -359,7 +359,7 @@ def test_the_featured_cap_applies_to_the_grid(client, listings):
 
     assert grid.count("Paid placement") == FEATURED_CAP_PER_PAGE
     # And the page is still full — the cap reserves slots, it does not shrink the grid.
-    assert grid.count("dir-practitioner__name") == 12
+    assert grid.count("ds-dir-pcard__name") == 12
 
 
 def test_the_paid_cap_the_page_promises_is_the_one_it_applies(client, listings):

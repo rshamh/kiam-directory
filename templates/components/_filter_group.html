@@ -1,7 +1,7 @@
 {% comment %}
 FilterGroup — one titled group of checkboxes inside the filter sidebar.
 
-  {% include "components/_filter_group.html" with legend="Approach" name="approach" options=facets.approaches selected=params.approaches %}
+  {% include "components/_filter_group.html" with legend="Type of therapy" name="approach" options=facets.approaches selected=params.approaches %}
 
 Params:
   legend    (required) the group's heading. Becomes a real <legend>.
@@ -15,37 +15,43 @@ Params:
   selected  list of currently-checked values.
   help      optional explanatory line, wired to the fieldset by aria-describedby.
 
-A real <fieldset> with a real <legend>, which is the whole reason this is a
-component: a group of checkboxes whose only label is a styled <div> tells a screen
-reader nothing about what the options have in common, and a visitor arrowing
-through twenty checkboxes has no idea which ones are professions and which are
-approaches.
+**kiam-ui's `ds-dir-filters` structure from v1.1.0**, which is flat: the rows are
+`<label>`s directly inside the `<fieldset>`, with no `<ul>` between.
+
+That is not a cosmetic difference. The `<ul>` this replaces carried
+`display: grid`, and **an author `display` declaration on the content of a closed
+`<details>` defeats the collapse** — which is exactly the Phase 4 gate defect,
+where the sidebar reported 317 tabbable controls instead of 35 because every
+"closed" group was still rendering its checkboxes. Removing the list removes the
+whole class of bug rather than working around it again.
+
+A real <fieldset> with a real <legend> is the reason this is a component at all: a
+group of checkboxes whose only label is a styled <div> tells a screen reader
+nothing about what the options have in common, and somebody arrowing through
+twenty checkboxes has no idea which are professions and which are approaches.
 
 No JavaScript anywhere in here. Each checkbox is a plain input inside the page's
 one form, so the sidebar submits with the button and works with script disabled;
 the HTMX `change` trigger on the form is what makes it feel live when script runs.
 {% endcomment %}
 {% if options %}
-<fieldset class="dir-filter-group"{% if help %} aria-describedby="filter-{{ name }}-help"{% endif %}>
-  <legend class="dir-filter-group__legend">{{ legend }}</legend>
-  {% if help %}
-    <p class="dir-filter-group__help" id="filter-{{ name }}-help">{{ help }}</p>
-  {% endif %}
-  <ul class="dir-filter-group__list" role="list">
-    {% for option in options %}
-      {% with value=option.value %}
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-{{ name }}-{{ value }}">
-            <input type="checkbox"
-                   id="filter-{{ name }}-{{ value }}"
-                   name="{{ name }}"
-                   value="{{ value }}"
-                   {% if value in selected %}checked{% endif %}>
-            <span>{{ option.name }}</span>
-          </label>
-        </li>
-      {% endwith %}
-    {% endfor %}
-  </ul>
+<fieldset class="ds-dir-filters__group dir-filter-group"{% if help %} aria-describedby="filter-{{ name }}-help"{% endif %}>
+  <legend class="ds-dir-filters__legend">
+    {{ legend }}
+    {% if help %}<span class="ds-dir-filters__hint" id="filter-{{ name }}-help">{{ help }}</span>{% endif %}
+  </legend>
+  {% for option in options %}
+    {% with value=option.value %}
+      <label class="ds-dir-filters__row" for="filter-{{ name }}-{{ value }}">
+        <input class="ds-dir-filters__box"
+               type="checkbox"
+               id="filter-{{ name }}-{{ value }}"
+               name="{{ name }}"
+               value="{{ value }}"
+               {% if value in selected %}checked{% endif %}>
+        <span>{{ option.name }}</span>
+      </label>
+    {% endwith %}
+  {% endfor %}
 </fieldset>
 {% endif %}

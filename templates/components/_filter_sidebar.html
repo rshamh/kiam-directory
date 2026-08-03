@@ -45,80 +45,66 @@ the enforced claim: the under-18 CLIENT GROUPS are what the DBS gate covers.
   accessibility tree entirely, so arriving from a shared URL would hide an applied
   filter rather than merely scroll past it.
   {% endcomment %}
-  <details class="dir-filter-block" {% if params.specialities or params.speciality_categories %}open{% endif %}>
-    <summary>
+  <details class="ds-dir-filters__details dir-filter-block" {% if params.specialities or params.speciality_categories %}open{% endif %}>
+    <summary class="ds-dir-filters__legend">
       What they treat{% if params.specialities or params.speciality_categories %}
         <span class="dir-filter-block__count">{{ params.specialities|length|add:params.speciality_categories|length }} selected</span>
       {% endif %}
     </summary>
     {% comment %} The two-level tree. {% endcomment %}
     {% for category in facets.speciality_tree %}
-      <fieldset class="dir-filter-group dir-filter-group--tree">
-        <legend class="dir-filter-group__legend">{{ category.name }}</legend>
-        <ul class="dir-filter-group__list" role="list">
-          <li class="dir-filter-group__item dir-filter-group__item--parent">
-            <label class="dir-filter-group__label" for="filter-category-{{ category.value }}">
-              <input type="checkbox"
+      <fieldset class="ds-dir-filters__group dir-filter-group dir-filter-group--tree">
+        <legend class="ds-dir-filters__legend">{{ category.name }}</legend>
+            <label class="ds-dir-filters__row" for="filter-category-{{ category.value }}">
+              <input class="ds-dir-filters__box" type="checkbox"
                      id="filter-category-{{ category.value }}"
                      name="category"
                      value="{{ category.value }}"
                      {% if category.value in params.speciality_categories %}checked{% endif %}>
               <span>Anything in {{ category.name }}</span>
             </label>
-          </li>
           {% for speciality in category.specialities %}
-            <li class="dir-filter-group__item">
-              <label class="dir-filter-group__label" for="filter-speciality-{{ speciality.value }}">
-                <input type="checkbox"
+              <label class="ds-dir-filters__row" for="filter-speciality-{{ speciality.value }}">
+                <input class="ds-dir-filters__box" type="checkbox"
                        id="filter-speciality-{{ speciality.value }}"
                        name="speciality"
                        value="{{ speciality.value }}"
                        {% if speciality.value in params.specialities %}checked{% endif %}>
                 <span>{{ speciality.name }}</span>
               </label>
-            </li>
           {% endfor %}
-        </ul>
       </fieldset>
     {% endfor %}
   </details>
 
-  <details class="dir-filter-block" open>
-    <summary>Who they see</summary>
+  <details class="ds-dir-filters__details dir-filter-block" open>
+    <summary class="ds-dir-filters__legend">Who they see</summary>
     {% include "components/_filter_group.html" with legend="Client groups" name="group" options=facets.client_groups selected=params.client_groups help=dbs_help %}
   </details>
 
-  <details class="dir-filter-block" open>
-    <summary>Availability</summary>
-    <fieldset class="dir-filter-group">
-      <legend class="dir-filter-group__legend">Availability</legend>
-      <ul class="dir-filter-group__list" role="list">
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-accepting">
-            <input type="checkbox" id="filter-accepting" name="accepting" value="1"
+  <details class="ds-dir-filters__details dir-filter-block" open>
+    <summary class="ds-dir-filters__legend">Availability</summary>
+    <fieldset class="ds-dir-filters__group dir-filter-group">
+      <legend class="ds-dir-filters__legend">Availability</legend>
+          <label class="ds-dir-filters__row" for="filter-accepting">
+            <input class="ds-dir-filters__box" type="checkbox" id="filter-accepting" name="accepting" value="1"
                    {% if params.accepting_new_clients %}checked{% endif %}>
             <span>Accepting new clients</span>
           </label>
-        </li>
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-evening">
-            <input type="checkbox" id="filter-evening" name="evening" value="1"
+          <label class="ds-dir-filters__row" for="filter-evening">
+            <input class="ds-dir-filters__box" type="checkbox" id="filter-evening" name="evening" value="1"
                    {% if params.evening %}checked{% endif %}>
             <span>Evening appointments</span>
           </label>
-        </li>
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-weekend">
-            <input type="checkbox" id="filter-weekend" name="weekend" value="1"
+          <label class="ds-dir-filters__row" for="filter-weekend">
+            <input class="ds-dir-filters__box" type="checkbox" id="filter-weekend" name="weekend" value="1"
                    {% if params.weekend %}checked{% endif %}>
             <span>Weekend appointments</span>
           </label>
-        </li>
-      </ul>
     </fieldset>
 
     <div class="dir-filter-group">
-      <label class="dir-filter-group__legend" for="filter-wait">Typical wait — no longer than</label>
+      <label class="ds-dir-filters__legend" for="filter-wait">Typical wait — no longer than</label>
       <select class="ds-control ds-control--select" id="filter-wait" name="wait">
         <option value="">Any wait</option>
         {% for option in wait_options %}
@@ -130,100 +116,80 @@ the enforced claim: the under-18 CLIENT GROUPS are what the DBS gate covers.
     </div>
   </details>
 
-  <details class="dir-filter-block" open>
-    <summary>How you meet</summary>
-    <fieldset class="dir-filter-group">
-      <legend class="dir-filter-group__legend">Delivery</legend>
-      <ul class="dir-filter-group__list" role="list">
+  <details class="ds-dir-filters__details dir-filter-block" open>
+    <summary class="ds-dir-filters__legend">How you meet</summary>
+    <fieldset class="ds-dir-filters__group dir-filter-group">
+      <legend class="ds-dir-filters__legend">In person or online</legend>
         {% comment %}
         Radios, not checkboxes: "in person" and "online" together is the default
         (everything), and two checkboxes both ticked would mean the same thing
         while looking like a narrower search.
         {% endcomment %}
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-delivery-any">
-            <input type="radio" id="filter-delivery-any" name="delivery" value=""
+          <label class="ds-dir-filters__row" for="filter-delivery-any">
+            <input class="ds-dir-filters__box" type="radio" id="filter-delivery-any" name="delivery" value=""
                    {% if not params.in_person_only and not params.online_only %}checked{% endif %}>
             <span>Either</span>
           </label>
-        </li>
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-delivery-in-person">
-            <input type="radio" id="filter-delivery-in-person" name="delivery" value="in_person"
+          <label class="ds-dir-filters__row" for="filter-delivery-in-person">
+            <input class="ds-dir-filters__box" type="radio" id="filter-delivery-in-person" name="delivery" value="in_person"
                    {% if params.in_person_only %}checked{% endif %}>
             <span>In person</span>
           </label>
-        </li>
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-delivery-online">
-            <input type="radio" id="filter-delivery-online" name="delivery" value="online"
+          <label class="ds-dir-filters__row" for="filter-delivery-online">
+            <input class="ds-dir-filters__box" type="radio" id="filter-delivery-online" name="delivery" value="online"
                    {% if params.online_only %}checked{% endif %}>
             <span>Online</span>
           </label>
-        </li>
-      </ul>
     </fieldset>
 
     {% include "components/_filter_group.html" with legend="Session format" name="format" options=facets.session_formats selected=params.session_formats %}
   </details>
 
-  <details class="dir-filter-block" {% if params.step_free_access or params.parking_available or params.hearing_loop %}open{% endif %}>
-    <summary>Access at the practice</summary>
+  <details class="ds-dir-filters__details dir-filter-block" {% if params.step_free_access or params.parking_available or params.hearing_loop %}open{% endif %}>
+    <summary class="ds-dir-filters__legend">Access at the practice</summary>
     <fieldset class="dir-filter-group" aria-describedby="filter-access-help">
-      <legend class="dir-filter-group__legend">Accessibility</legend>
+      <legend class="ds-dir-filters__legend">Accessibility</legend>
       <p class="dir-filter-group__help" id="filter-access-help">
         These describe a physical practice, so choosing one shows only practitioners
         with an address that has it — online-only listings are left out.
       </p>
-      <ul class="dir-filter-group__list" role="list">
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-step-free">
-            <input type="checkbox" id="filter-step-free" name="step_free" value="1"
+          <label class="ds-dir-filters__row" for="filter-step-free">
+            <input class="ds-dir-filters__box" type="checkbox" id="filter-step-free" name="step_free" value="1"
                    {% if params.step_free_access %}checked{% endif %}>
             <span>Step-free access</span>
           </label>
-        </li>
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-parking">
-            <input type="checkbox" id="filter-parking" name="parking" value="1"
+          <label class="ds-dir-filters__row" for="filter-parking">
+            <input class="ds-dir-filters__box" type="checkbox" id="filter-parking" name="parking" value="1"
                    {% if params.parking_available %}checked{% endif %}>
             <span>Parking available</span>
           </label>
-        </li>
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-hearing-loop">
-            <input type="checkbox" id="filter-hearing-loop" name="hearing_loop" value="1"
+          <label class="ds-dir-filters__row" for="filter-hearing-loop">
+            <input class="ds-dir-filters__box" type="checkbox" id="filter-hearing-loop" name="hearing_loop" value="1"
                    {% if params.hearing_loop %}checked{% endif %}>
             <span>Hearing loop</span>
           </label>
-        </li>
-      </ul>
     </fieldset>
   </details>
 
-  <details class="dir-filter-block" {% if params.professions or params.approaches or params.languages or params.genders or params.min_years_experience %}open{% endif %}>
-    <summary>Who they are</summary>
+  <details class="ds-dir-filters__details dir-filter-block" {% if params.professions or params.approaches or params.languages or params.genders or params.min_years_experience %}open{% endif %}>
+    <summary class="ds-dir-filters__legend">Who they are</summary>
     {% include "components/_filter_group.html" with legend="Profession" name="profession" options=facets.professions selected=params.professions %}
     {% include "components/_filter_group.html" with legend="Approach" name="approach" options=facets.approaches selected=params.approaches %}
     {% include "components/_filter_group.html" with legend="Language" name="language" options=facets.languages selected=params.languages %}
 
-    <fieldset class="dir-filter-group">
-      <legend class="dir-filter-group__legend">Practitioner gender</legend>
-      <ul class="dir-filter-group__list" role="list">
+    <fieldset class="ds-dir-filters__group dir-filter-group">
+      <legend class="ds-dir-filters__legend">Practitioner gender</legend>
         {% for value, label in gender_options %}
-          <li class="dir-filter-group__item">
-            <label class="dir-filter-group__label" for="filter-gender-{{ value }}">
-              <input type="checkbox" id="filter-gender-{{ value }}" name="gender" value="{{ value }}"
+            <label class="ds-dir-filters__row" for="filter-gender-{{ value }}">
+              <input class="ds-dir-filters__box" type="checkbox" id="filter-gender-{{ value }}" name="gender" value="{{ value }}"
                      {% if value in params.genders %}checked{% endif %}>
               <span>{{ label }}</span>
             </label>
-          </li>
         {% endfor %}
-      </ul>
     </fieldset>
 
     <div class="dir-filter-group">
-      <label class="dir-filter-group__legend" for="filter-experience">Years of experience — at least</label>
+      <label class="ds-dir-filters__legend" for="filter-experience">Years of experience — at least</label>
       <select class="ds-control ds-control--select" id="filter-experience" name="experience">
         <option value="">Any</option>
         {% for years in experience_options %}
@@ -235,10 +201,10 @@ the enforced claim: the under-18 CLIENT GROUPS are what the DBS gate covers.
     </div>
   </details>
 
-  <details class="dir-filter-block" {% if params.fee_max_pence or params.funding %}open{% endif %}>
-    <summary>Cost and cover</summary>
+  <details class="ds-dir-filters__details dir-filter-block" {% if params.fee_max_pence or params.funding %}open{% endif %}>
+    <summary class="ds-dir-filters__legend">Cost and cover</summary>
     <div class="dir-filter-group">
-      <label class="dir-filter-group__legend" for="filter-fee">Fee per session — up to</label>
+      <label class="ds-dir-filters__legend" for="filter-fee">Fee per session — up to</label>
       <select class="ds-control ds-control--select" id="filter-fee" name="fee_max">
         <option value="">Any fee</option>
         {% for option in fee_options %}
@@ -252,30 +218,24 @@ the enforced claim: the under-18 CLIENT GROUPS are what the DBS gate covers.
     {% include "components/_filter_group.html" with legend="Funding accepted" name="funding" options=facets.funding selected=params.funding %}
   </details>
 
-  <details class="dir-filter-block" open>
-    <summary>Verification</summary>
+  <details class="ds-dir-filters__details dir-filter-block" open>
+    <summary class="ds-dir-filters__legend">Verification</summary>
     <fieldset class="dir-filter-group" aria-describedby="filter-verified-help">
-      <legend class="dir-filter-group__legend">Checks and prescribing</legend>
+      <legend class="ds-dir-filters__legend">Checks and prescribing</legend>
       <p class="dir-filter-group__help" id="filter-verified-help">
         “Verified” means Kiam has checked the practitioner's documents and they are in
         date. <a href="{% url 'pages:how_verification_works' %}">What that does and does not mean</a>.
       </p>
-      <ul class="dir-filter-group__list" role="list">
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-verified">
-            <input type="checkbox" id="filter-verified" name="verified" value="1"
+          <label class="ds-dir-filters__row" for="filter-verified">
+            <input class="ds-dir-filters__box" type="checkbox" id="filter-verified" name="verified" value="1"
                    {% if params.verified_only %}checked{% endif %}>
             <span>Verified listings only</span>
           </label>
-        </li>
-        <li class="dir-filter-group__item">
-          <label class="dir-filter-group__label" for="filter-prescriber">
-            <input type="checkbox" id="filter-prescriber" name="prescriber" value="1"
+          <label class="ds-dir-filters__row" for="filter-prescriber">
+            <input class="ds-dir-filters__box" type="checkbox" id="filter-prescriber" name="prescriber" value="1"
                    {% if params.is_prescriber %}checked{% endif %}>
             <span>Can prescribe</span>
           </label>
-        </li>
-      </ul>
     </fieldset>
   </details>
 

@@ -446,13 +446,23 @@ def test_a_card_never_leaks_contact_details(client, cohort):
     assert "mailto:" not in main
 
 
-def test_the_whole_card_is_not_one_giant_link(client, cohort):
-    """A card-sized anchor gives a screen reader one link whose name is the entire
-    card read aloud. The name is the link."""
-    body = client.get(URL).content.decode()
+def test_the_card_is_a_stretched_link_not_one_giant_anchor(client, cohort):
+    """The click target is the whole card; the ACCESSIBLE NAME is just the name.
 
-    assert '<article class="ds-card dir-practitioner' in body
-    assert '<a href="/p/local-example/"' in body
+    A card-sized `<a>` wrapping the headshot, three pills and a badge gives a
+    screen reader one enormous link whose name is the entire card read aloud. The
+    packaged card gets the same big target from `.ds-dir-pcard__link::after`,
+    which is a pseudo-element and contributes nothing to the name — so this asserts
+    the `<article>` is not an anchor and the anchor holds only the name.
+    """
+    body = client.get(URL).content.decode()
+    card = body.split('<article class="ds-dir-pcard', 1)[1].split("</article>", 1)[0]
+
+    assert "<article" in body and '<a class="ds-dir-pcard' in card
+    link = card.split('<a class="ds-dir-pcard__link"', 1)[1].split("</a>", 1)[0]
+    assert "Aisha Rahman" in link
+    for swallowed in ("<img", "ds-dir-pcard__tags", "ds-dir-verified", "<h3"):
+        assert swallowed not in link, f"the stretched link swallowed {swallowed}"
 
 
 # ---------------------------------------------------------------------------
@@ -612,9 +622,11 @@ def test_there_is_a_bypass_past_the_filters(client, cohort):
 def test_the_big_speciality_group_is_collapsed_by_default(client, cohort):
     """138 specialities in one open <details> is what made the sidebar 8,000px tall."""
     body = client.get(URL).content.decode()
-    block = body.split("<summary>\n      What they treat", 1)[0].rsplit("<details", 1)[1]
+    # The <details> TAG only — the card markup further down now contains
+    # `ds-dir-status--open`, and a substring check over a whole block would find it.
+    tag = body.split("What they treat", 1)[0].rsplit("<details", 1)[1].split(">", 1)[0]
 
-    assert "open" not in block
+    assert " open" not in tag, f"the speciality group ships open: <details{tag}>"
 
 
 def test_a_group_holding_a_selection_is_open(client, cohort):
@@ -622,7 +634,7 @@ def test_a_group_holding_a_selection_is_open(client, cohort):
     shared URL would hide an applied filter rather than merely scroll past it."""
     body = client.get(URL, {"speciality": "adult-adhd"}).content.decode()
 
-    assert re.search(r'<details class="dir-filter-block"\s+open>', body)
+    assert re.search(r'<details class="ds-dir-filters__details dir-filter-block"\s+open>', body)
     assert "selected</span>" in body
 
 
@@ -726,7 +738,7 @@ def test_a_featured_listing_is_labelled_at_the_point_of_display(client, vocabula
     results = body.split('<div id="results">', 1)[1]
 
     assert "Paid placement" in results
-    assert "dir-practitioner--featured" in results
+    assert "ds-dir-pcard--featured" in results
 
 
 def test_an_unfeatured_listing_carries_no_label(client, cohort):
@@ -736,7 +748,7 @@ def test_an_unfeatured_listing_carries_no_label(client, cohort):
     results = body.split('<div id="results">', 1)[1]
 
     assert "Paid placement" not in results
-    assert "dir-practitioner--featured" not in results
+    assert "ds-dir-pcard--featured" not in results
 
 
 def test_the_page_states_how_results_are_ordered(client, cohort):
@@ -769,7 +781,11 @@ def test_the_sidebar_stays_navigable_with_the_real_taxonomy(client, django_asser
 
     # Everything inside a collapsed <details> is out of the tab order, so the count
     # that matters is what is left open.
-    open_blocks = re.findall(r'<details class="dir-filter-block"\s+open>.*?</details>', before_results, re.S)
+    open_blocks = re.findall(
+        r'<details class="ds-dir-filters__details dir-filter-block"\s+open>.*?</details>',
+        before_results,
+        re.S,
+    )
     focusable_in_open_groups = sum(block.count("<input") for block in open_blocks)
 
     assert focusable_in_open_groups < 60, (
