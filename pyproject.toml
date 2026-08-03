@@ -5,7 +5,7 @@ description = "Kiam Clinic Directory — directory.kiamclinic.com"
 requires-python = ">=3.12"
 
 dependencies = [
-  # kiam-ui v1.0.1 itself requires >=5.2; the floor is raised to match so the
+  # kiam-ui v1.1.0 itself requires >=5.2; the floor is raised to match so the
   # declared range cannot resolve to a Django the UI package will not run on.
   "Django>=5.2,<6.0",
   "psycopg[binary]>=3.2",
@@ -27,7 +27,7 @@ dependencies = [
   # without it Django raises on the first password hash.
   "argon2-cffi>=23.1",
   # Shared UI package. PINNED — upgrade deliberately, never track a branch.
-  "kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.0.1",
+  "kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.1.0",
 ]
 
 [project.optional-dependencies]

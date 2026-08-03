@@ -167,7 +167,7 @@ Two things to know when writing code here:
 - Django (latest production-ready), PostgreSQL + **PostGIS** via GeoDjango, Redis cache.
 - Tailwind + **HTMX** + Alpine.js.
 - **`kiam-ui`** — the shared UI package, pinned:
-  `kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.0.1`
+  `kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.1.0`
 - Auth: email identifier, no usernames, thin custom `User`. All role checks in
   `apps/accounts/access.py` and nowhere else. **Two sign-in routes, both live:**
   a magic link (always available, and the password-recovery path) and an
@@ -187,14 +187,39 @@ Two things to know when writing code here:
 
 ## kiam-ui
 
-Pinned to `v1.0.1`. **Upgrade deliberately** — bump the pin, read the changelog, run the visual
+Pinned to `v1.1.0`. **Upgrade deliberately** — bump the pin, read the changelog, run the visual
 check, commit as its own change. Never track a branch.
 
 **`docs/design-system.md` already documents its real API** — base template, all 24 block names,
-every `KIAM_UI` settings key, all 17 component partials with parameters, the token families and
-the documented WCAG contrast pairings. Read that rather than guessing, and **re-read the installed
-package and update it whenever the pin moves**. Do not re-specify colours, type or spacing
-anywhere in this repo — `kiam-ui` is the source of truth for those.
+every `KIAM_UI` settings key, all 17 core component partials with parameters, the token families
+and the documented WCAG contrast pairings. Read that rather than guessing, and **re-read the
+installed package and update it whenever the pin moves**. Do not re-specify colours, type or
+spacing anywhere in this repo — `kiam-ui` is the source of truth for those.
+
+**v1.1.0 ships 16 `components/directory/` partials this repo does not use, and that is a
+decision, not an oversight.** The package now has its own `search_bar`, `practitioner_card`,
+`verified_badge`, `independence_notice`, `contact_reveal` and eleven more — the same vocabulary
+this repo built locally as `dir-*` across Phases 3–5b. Adopting them is a **redesign**, not an
+upgrade: they take the "1a" direction (elevated search bar, single-column register results,
+dossier profile) with different markup, and the local versions carry behaviour the packaged ones
+know nothing about — the POST-only reveal with its focus move and per-IP limit, the two-place
+minors gate, the "no contact details on a card" rule, `headshot_priority`, and the independence
+notice as verbatim §5 copy. Swapping markup underneath any of those is a compliance change.
+So: **the pin moved, the components did not.** See §8 of `docs/design-system.md` for the
+component-by-component comparison, and treat adoption as its own scoped piece of work.
+
+Two consequences of the upgrade that are live now:
+
+- **The site does NOT set `.ds-dir`.** The changelog says the directory must; that is true only
+  for consumers of the new components. `.ds-dir` re-points `--focus-ring` to Sky Blue site-wide,
+  which would change every focus indicator on every page for no benefit while nothing renders a
+  `ds-dir-*` class. Add it in the same change that adopts the components, not before, and
+  re-measure focus contrast when you do — including under `html[data-contrast="high"]`, which
+  out-specifies `.ds-dir` and keeps green-900.
+- **The compiled `kiam-ui.css` grew 38.5 KB → 61.2 KB** (9.8 KB gzipped, up from 7.0 KB) and is
+  render-blocking on every page. Every added byte is `.ds-dir`-scoped and matches nothing here.
+  It is a real cost for a capability not yet used; it is small next to Gap 3's 68 KB of Google
+  Fonts, and it is the price of the components being available.
 
 Its §7 "Gaps" is the list of things the package does not give us and how each is worked around.
 Two matter for the next phases:

@@ -70,7 +70,7 @@ sudo apt install postgresql-17-postgis-3 gdal-bin libgdal-dev libgeos-dev redis-
 `kiam-ui` is a **private** repository installed over SSH:
 
 ```
-kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.0.1
+kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.1.0
 ```
 
 pip carries no credentials of its own, so `git+https://` will not work — the pin is deliberately
@@ -170,6 +170,12 @@ where nothing is purged.
 
 **Re-run `npm run build:css` after every `kiam-ui` pin bump.** `build/` and `static/css/` are
 build output and are gitignored.
+
+> **Do not trust the version the vendor step prints.** At `v1.1.0` the package ships
+> `__version__ = "1.0.1"`, so a correct vendor reports `kiam-ui 1.0.1 vendored` and looks like a
+> failed upgrade. The distribution metadata is right —
+> `python -c "from importlib.metadata import version; print(version('kiam-ui'))"`. Upstream bug;
+> see `docs/design-system.md` §9.
 
 ---
 
@@ -506,3 +512,13 @@ it is drawn on is not a focus ring.
 `.dir-steps` sets `list-style: decimal` itself rather than relying on a container. Same class of
 bug as an unsized heading: kiam-ui sizes only `.ds-section-head__title`, so a plain `<h2>`
 renders at body size until this repo's CSS sizes it.
+
+**`kiam-ui` v1.1.0 ships directory components we deliberately do not use.** There are now two
+`search_bar`s, two `practitioner_card`s and two `verified_badge`s reachable from this repo — the
+packaged `kiam_ui/components/directory/*` and our `dir-*` originals. Ours are the live ones. The
+packaged set implements a different design direction, and the partials it would replace carry
+signed-off behaviour in their markup: the POST-only contact reveal with its focus move, the card
+that renders no contact details, the badge that renders nothing when unverified. Adopting them is
+a scoped piece of work with a compliance and a11y review, not a template swap. **Do not set
+`.ds-dir` on `<body>`** in the meantime — it re-points `--focus-ring` site-wide to Sky Blue while
+nothing on the site renders a `ds-dir-*` class. `docs/design-system.md` §9.
