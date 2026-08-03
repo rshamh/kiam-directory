@@ -132,10 +132,10 @@ def test_the_three_hero_fields_are_labelled_and_the_radius_is_a_select(client):
     A slider needs a text alternative and is hard with a motor impairment."""
     body = client.get(URL).content.decode()
 
-    assert '<label for="search-q">' in body
-    assert '<label for="search-near">' in body
-    assert '<label for="search-radius">' in body
-    assert '<select class="ds-control ds-control--select" id="search-radius"' in body
+    assert 'for="search-q">What do you need help with?' in body
+    assert 'for="search-near">Where are you?' in body
+    assert 'for="search-radius">Within' in body
+    assert '<select class="ds-dir-search__input ds-dir-search__value" id="search-radius"' in body
     assert 'type="range"' not in body
 
 
@@ -158,7 +158,12 @@ def test_the_hero_search_is_the_shared_component_not_a_copy(client):
     """
     body = client.get(URL).content.decode()
 
-    assert 'class="dir-searchbar dir-searchbar--hero" role="search"' in body
+    assert 'class="dir-searchbar" role="search"' in body
+    # The bar's own anatomy is kiam-ui's from v1.1.0, so this is also the
+    # assertion that the packaged design is actually in use rather than
+    # reimplemented locally for a second time.
+    assert '<div class="ds-dir-search">' in body
+    assert body.count('class="ds-dir-search__segment dir-searchbar__field"') == 3
 
     # The two variants are CSS. Anything the hero renders that /search/ does not
     # is a second implementation starting to grow, which is what this guards.

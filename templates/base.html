@@ -39,3 +39,27 @@ Canonicals stay inside this subdomain. Never point one at kiamclinic.com
 {% comment %} Our Tailwind build. Loaded after kiam-ui's layer so site CSS wins a genuine
    collision — see docs/design-system.md §6. {% endcomment %}
 {% block site_css %}<link rel="stylesheet" href="{% static 'css/app.css' %}">{% endblock %}
+
+{% comment %}
+`ds-dir` is the scope every `components/directory/` partial in kiam-ui expects,
+and from the v1.1.0 adoption this site renders those on four surfaces — so it
+goes on the body, which is what the package's own note asks for.
+
+It does one thing beyond scoping: re-points `--focus-ring` at Sky Blue
+(`--sky-500`). That is a site-wide change to every focus indicator, and it was
+deliberately NOT set when the pin moved, because nothing then rendered a
+`ds-dir-*` class and it would have been an accessibility change for no benefit.
+
+Two things measured before setting it, because Phase 5 shipped a focus ring that
+got *worse* in the one mode somebody turns on for help:
+
+* Sky Blue is 3.09:1 on white and 3.01:1 on the hero's deepest mint — above
+  1.4.11's 3:1 for a focus indicator, with very little spare. It is a floor, not
+  a comfortable margin; anything darker than mint-200 behind a control needs
+  re-measuring rather than assuming.
+* `html[data-contrast="high"]` out-specifies `.ds-dir` (0,1,1 against 0,1,0), so
+  high-contrast mode keeps green-900 at 8.9:1 and never sees the Sky ring. That
+  is the right outcome and it is an accident of specificity, so
+  `apps/pages/tests/test_chrome.py` pins it.
+{% endcomment %}
+{% block body_class %}ds-dir{% endblock %}

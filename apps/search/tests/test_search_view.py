@@ -201,7 +201,7 @@ def test_the_radius_control_is_a_select_not_a_slider(client, cohort):
     body = client.get(URL).content.decode()
 
     assert 'id="search-radius"' in body
-    assert '<select class="ds-control ds-control--select" id="search-radius"' in body
+    assert '<select class="ds-dir-search__input ds-dir-search__value" id="search-radius"' in body
     assert 'type="range"' not in body
 
 
@@ -673,7 +673,7 @@ def test_the_search_landmark_does_not_wrap_the_results(client, cohort):
     nobody navigating by landmark."""
     body = client.get(URL).content.decode()
 
-    assert 'class="dir-searchbar dir-searchbar--inline" role="search"' in body
+    assert 'class="dir-searchbar" role="search"' in body
     assert (
         '<form method="get"\n        action="/search/"\n        class="dir-search__form"\n        role="search"'
         not in body

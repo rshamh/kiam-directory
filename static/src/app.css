@@ -495,60 +495,19 @@ html[data-contrast="high"] .dir-reveal:focus {
   }
 }
 
-/* ---------- the search bar ---------- */
+/* ---------- the search bar ----------
 
-.dir-searchbar {
-  padding: var(--space-5);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  background: var(--surface-card);
-}
+   Layout, dividers, focus tint, submit and the stacked mobile form are all
+   `.ds-dir-search` from kiam-ui v1.1.0 (`css/src/directory.css`). The hint row is
+   the only part this repo still owns — see the block at the end of this file.
+   Nothing here may restate a `ds-dir-*` rule; if the packaged bar is wrong, that
+   is a kiam-ui change, not a local override. */
 
-/* The grid moved from the bar to `.dir-searchbar__cells` when Phase 5b wrapped the
-   fields, and the columns went from four to three because the radius is now a
-   sub-control INSIDE the location cell rather than a peer of it. Both variants
-   share that structure; only the proportions differ. */
-.dir-searchbar__cells {
-  display: grid;
-  gap: var(--space-4);
-}
-
-@media (min-width: 48rem) {
-  .dir-searchbar--inline .dir-searchbar__cells {
-    grid-template-columns: 2fr 3fr auto;
-    align-items: start;
-  }
-}
-
-/* Place and radius share the location cell in both variants. `minmax(0, …)` on the
-   place column because a `<select>` has an intrinsic min-content width and would
-   otherwise refuse to shrink, squeezing the postcode input to nothing. */
-.dir-searchbar__field--where {
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) auto;
-  gap: var(--space-4);
-  align-items: start;
-}
-
-.dir-searchbar__field label,
 .dir-filter-group__legend {
   display: block;
   margin-block-end: var(--space-2);
   color: var(--text-heading);
   font-weight: var(--weight-semibold);
-}
-
-.dir-searchbar__help {
-  /* Spans both sub-columns of the location cell, which is a grid — otherwise the
-     hint sits in the place column and wraps against the radius select. */
-  grid-column: 1 / -1;
-  margin-block-start: var(--space-2);
-  color: var(--text-secondary);
-  font-size: var(--text-caption);
-}
-
-.dir-searchbar__submit {
-  align-self: end;
 }
 
 /* ---------- the sidebar ---------- */
@@ -2109,194 +2068,57 @@ html[data-contrast="high"] .site-footer :focus {
 
 
 /* ===========================================================================
-   Phase 5b — the hero search bar
+   The hero search bar — what is left after kiam-ui v1.1.0
    ===========================================================================
 
-   The heart of the site, rebuilt. What it replaced measured 576px tall on a
-   375x812 phone — 71% of the viewport, with the Search button below the fold —
-   and 55 words of grey help text inside the box across three paragraphs. It read
-   as an admin form that happened to be on a homepage.
+   Phase 5b built this bar by hand: a segmented pill, the cell carrying the
+   boundary instead of the input, dividers, a focus tint. v1.1.0 ships exactly
+   that as `.ds-dir-search`, with the same reasoning in its own comments —
+   including the one this repo only learned by rendering it, that a bar whose
+   segmentation appears on hover reads as one box at rest.
 
-   Three moves, in order of how much each one bought:
+   So all of it is gone from here. What remains is the one thing upstream does not
+   have: the per-field hint that follows focus. Upstream's bar has a single
+   `helper_template` slot for the whole component; ours has a sentence per field,
+   each of them that field's `aria-describedby` target.
 
-   1. **The CELL carries the boundary, not the input.** One surface, one border,
-      one shadow, with hairline dividers between cells. Every input inside loses
-      its own border and background. That is the single change that stops it
-      reading as a form.
-   2. **The radius moved inside the location cell** (see the template). "Where"
-      and "how far" are one question, and asking them as two produced a label
-      that wrapped to three lines and was wider than its own select.
-   3. **One hint line instead of three paragraphs**, revealed by `:focus-within`
-      in CSS, in a row whose height is reserved so nothing shifts.
-
-   None of it needs JavaScript, which is the point: the no-JS guarantee is not a
-   fallback here, it is the implementation.
+   The hints live inside their segments — that is what makes `:focus-within` and
+   the description association both work — and are positioned into one reserved
+   row under the bar. `.dir-searchbar` is the containing block, NOT the segment:
+   `position: relative` on a segment makes it the containing block for its own
+   hint, which then renders on top of the location input. That was a real bug,
+   found by rendering it, and it is why this rule is on the wrapper.
    ------------------------------------------------------------------------- */
 
-/* The reserved hint row. One value, used by the padding that reserves the space
-   and by the absolutely-positioned paragraphs that fill it, so they cannot drift
-   apart.
-
-   **Sized to the longest sentence at the narrowest width, and anchored to the TOP
-   of the strip.** Both halves of that are a bug fix. The first draft reserved
-   3rem — two lines — and the resting sentence wraps to THREE at 375px, so the
-   paragraph grew upwards out of its strip and rendered underneath the Search
-   button. Anchoring to the top means any overflow grows downward, past the bar's
-   own edge, where it can look untidy but cannot cover a control.
-
-   **Expressed in the hint's own font size, not in `rem`.** A fixed 3.75rem was
-   correct at the default type scale and spilled 8px past the pill under
-   `html[data-font-size="larger"]` — untidy in precisely the mode somebody turns on
-   because they are struggling to read, which is the shape of the Phase 5 defect
-   where high contrast made the focus ring worse. Three lines on a phone, two on a
-   wide bar, both scaling with `--text-caption`. */
-.dir-searchbar--hero {
+.dir-searchbar {
+  /* Three lines of caption on a phone, two on a wide bar, both scaling with the
+     type token — at a fixed rem it spilled 8px under
+     html[data-font-size="larger"], degrading in exactly the mode somebody turns
+     on because they are struggling to read. */
   --hint-row: calc(var(--text-caption) * 1.35 * 3);
 
   position: relative;
-  display: block;
-  padding: var(--space-2) var(--space-2) calc(var(--hint-row) + var(--space-1));
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius-xl);
-  background: var(--surface-card);
-  box-shadow: var(--shadow-card);
-}
-
-.dir-searchbar--hero .dir-searchbar__cells {
-  display: grid;
-  gap: var(--space-1);
+  padding-block-end: var(--hint-row);
 }
 
 @media (min-width: 56rem) {
-  .dir-searchbar--hero {
+  .dir-searchbar {
     --hint-row: calc(var(--text-caption) * 1.35 * 2);
-
-    border-radius: var(--radius-pill);
-    padding-inline: var(--space-3);
-  }
-
-  .dir-searchbar--hero .dir-searchbar__cells {
-    grid-template-columns: 1.35fr 1fr auto;
-    align-items: stretch;
-    gap: 0;
   }
 }
 
-/* ---- the cells ---- */
+/* Every hint is stacked in the same reserved strip under the bar and hidden;
+   `:focus-within` on its own segment reveals it. `visibility` rather than
+   `display`, so the paragraph keeps its box and its id stays a valid
+   `aria-describedby` target at all times.
 
-.dir-searchbar--hero .dir-searchbar__field {
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-}
-
-/* The divider is a border on the cell rather than a `::before`, so it disappears
-   with the cell at the stacking breakpoint without a second rule. */
-/* `--control-border` (3.28:1 on white), not `--line` (1.20:1). A divider between
-   two fields is not decoration: with the inputs' own borders gone it is the only
-   thing that says where one field ends and the next begins, and 1.4.11 is about
-   exactly that. Inset from the pill's ends rather than a full-height rule, which
-   at this contrast reads as a table cell.
-
-   Drawn as a background-image rather than an inset absolute `::before`, and that
-   is a bug fix rather than a preference: `position: relative` on the cell makes it
-   the containing block for everything absolute inside it — including this field's
-   own hint paragraph, which then rendered ON TOP OF the location input instead of
-   in the reserved row at the foot of the bar. A gradient needs no positioning
-   context, so the hint stays anchored to the bar. */
-@media (min-width: 56rem) {
-  .dir-searchbar--hero .dir-searchbar__field--where {
-    background-image: linear-gradient(var(--control-border), var(--control-border));
-    background-repeat: no-repeat;
-    background-position: left center;
-    background-size: 1px calc(100% - var(--space-5));
-  }
-}
-
-@media (max-width: 55.999rem) {
-  .dir-searchbar--hero .dir-searchbar__field--where {
-    border-block-start: 1px solid var(--control-border);
-    border-radius: 0;
-  }
-}
-
-/* Hover and focus raise the CELL, which is what makes the bar feel like one
-   object with three parts rather than three controls in a box. `--surface-sunken`
-   rather than a new tint: the inputs sit on it, and it is the documented pairing.
-
-   :focus-within, not :focus — the visible affordance has to follow the input
-   inside, and on the location cell there are two inputs in the same cell. */
-.dir-searchbar--hero .dir-searchbar__field:hover,
-.dir-searchbar--hero .dir-searchbar__field:focus-within {
-  background-color: var(--surface-sunken);
-}
-
-/* ---- labels and controls ---- */
-
-.dir-searchbar--hero .dir-searchbar__field label {
-  display: block;
-  margin-block-end: 0;
-  color: var(--text-heading);
-  font-size: var(--text-eyebrow);
-  font-weight: var(--weight-semibold);
-  line-height: 1.4;
-}
-
-/* The input is now a bare text run inside the cell: no border, no background, no
-   padding of its own. It keeps `.ds-control` for the font stack, the sizing and —
-   the reason it must not be dropped — the packaged focus behaviour that the
-   override further up this file corrects to 3:1. */
-/* `background-color`, NOT the `background` shorthand. The shorthand also resets
-   `background-image`, and kiam-ui draws the select's chevron with one — so the
-   first version of this rule left `<select>` looking like plain text with no
-   affordance that it opened anything. Measured `backgroundImage: "none"` in the
-   browser; nothing in the suite could have seen it. */
-.dir-searchbar--hero .ds-control {
-  inline-size: 100%;
-  min-inline-size: 0;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background-color: transparent;
-  font-size: var(--text-body-sm);
-}
-
-/* With the border gone, `:focus` on a transparent control would have nothing to
-   draw against and the ring would sit on the cell tint. Pull it in tight: the cell
-   is already showing focus, so this is the second, precise indicator that says
-   WHICH control has it — WCAG 2.4.11 wants both the target and the identity. */
-.dir-searchbar--hero .ds-control:focus-visible,
-.dir-searchbar--hero .ds-control:focus {
-  outline-offset: 3px;
-  background-color: transparent;
-  box-shadow: none;
-}
-
-/* The select keeps its chevron but loses the box. `--text-body-sm` matches the
-   text inputs so the three controls sit on one optical baseline. */
-.dir-searchbar--hero .ds-control--select {
-  padding-inline-end: var(--space-5);
-  background-position: right 0 center;
-}
-
-/* The where-cell grid itself is shared (see the base rules); the hero only wants a
-   tighter gutter, because inside a pill the two sub-controls read as one field. */
-.dir-searchbar--hero .dir-searchbar__field--where {
-  gap: var(--space-3);
-}
-
-/* ---- the hint row ---- */
-
-/* Every hint is stacked in the same reserved strip at the foot of the bar and
-   hidden; `:focus-within` on its own cell reveals it. `visibility` rather than
-   `display` so the paragraph keeps its box and its id stays a valid
-   `aria-describedby` target at all times — a display:none description is still
-   announced by every current screen reader, but a reader that ever stopped doing
-   so would silently drop the guidance, and this is not the field to find that out
-   on. */
-.dir-searchbar--hero .dir-searchbar__help,
-.dir-searchbar--hero .dir-searchbar__resting {
+   Anchored to the TOP of the strip, so anything that overflows grows downward
+   past the bar's edge — where it can look untidy but cannot cover a control. The
+   first version anchored to the bottom and grew upwards into the Search button. */
+.dir-searchbar__help,
+.dir-searchbar__resting {
   position: absolute;
-  inset-inline: var(--space-6);
+  inset-inline: var(--space-4);
   inset-block-start: calc(100% - var(--hint-row));
   margin: 0;
   color: var(--text-secondary);
@@ -2304,45 +2126,55 @@ html[data-contrast="high"] .site-footer :focus {
   line-height: 1.35;
 }
 
-.dir-searchbar--hero .dir-searchbar__help {
+.dir-searchbar__help {
   visibility: hidden;
 }
 
-.dir-searchbar--hero .dir-searchbar__field:focus-within .dir-searchbar__help {
+.dir-searchbar__field:focus-within .dir-searchbar__help {
   visibility: visible;
 }
 
 /* The resting sentence steps aside as soon as anything in the bar has focus,
    including the submit button — at which point the row is empty, which is
    correct: the button needs no hint and a stale one under it would be worse. */
-.dir-searchbar--hero:focus-within .dir-searchbar__resting {
+.dir-searchbar:focus-within .dir-searchbar__resting {
   visibility: hidden;
 }
 
-/* The inline variant on /search/ keeps its hints under their own fields, so the
-   resting line has no job there. */
-.dir-searchbar--inline .dir-searchbar__resting {
-  display: none;
+/* ---------- focus, now that `.ds-dir` is on the body ----------
+
+   kiam-ui v1.1.0 ships `.ds-dir :focus-visible { outline: 2px solid
+   var(--focus-ring); outline-offset: 2px }`, imported after `components.css`, so
+   at equal specificity it beats the packaged `.ds-control:focus-visible {
+   outline: none }` that Gap 14 existed to work around. The local workaround above
+   (`.dir-search .ds-control:focus`) now matches nothing in the search bar, whose
+   inputs are `.ds-dir-search__input`; it is left in place for the controls on the
+   dashboard and back office that are still `.ds-control`.
+
+   Two corrections, both about the accessibility panel, and both found by
+   measuring rather than by reading selectors — otherwise this would be the third
+   time a focus indicator got WORSE in the mode somebody turns on for help.
+
+   1. `a11y.css` widens the ring to 4px in high contrast via
+      `html[data-contrast="high"] :focus-visible` — (0,2,0), the same as
+      `.ds-dir :focus-visible`, and imported EARLIER, so it loses the tie and the
+      ring narrows back to 2px. Restored below at (0,3,0).
+
+   2. `.ds-dir` re-points `--focus-ring` to Sky Blue **on `<body>`**; `a11y.css`
+      re-points it to green-900 on `<html>`. Different elements, so specificity
+      never arbitrates: the custom property inherits from the nearer one and body
+      wins. High contrast would get the 3.09:1 Sky ring instead of the 8.90:1
+      green one. docs/design-system.md §9 predicted the opposite from the
+      selectors alone and was wrong.
+
+   Sky Blue stays for everyone else — it is the directory's ring by design, and is
+   what stops it reading as a second selection beside a tinted segment. */
+html[data-contrast="high"] .ds-dir {
+  --focus-ring: var(--green-900);
 }
 
-/* ---- the submit ---- */
-
-.dir-searchbar--hero .dir-searchbar__submit {
-  display: flex;
-  align-items: center;
-  padding: var(--space-2);
-}
-
-.dir-searchbar--hero .dir-searchbar__submit .btn {
-  inline-size: 100%;
-  justify-content: center;
-}
-
-@media (min-width: 56rem) {
-  .dir-searchbar--hero .dir-searchbar__submit .btn {
-    border-radius: var(--radius-pill);
-    padding-inline: var(--space-6);
-  }
+html[data-contrast="high"] .ds-dir :focus-visible {
+  outline-width: 4px;
 }
 
 /* ---------- the profession chips ---------- */
@@ -2398,4 +2230,32 @@ html[data-contrast="high"] .site-footer :focus {
 .dir-hero__scale strong {
   color: var(--text-heading);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- the one local override of a `ds-dir-*` rule ----------
+
+   CLAUDE.md: "Do not fork or vendor its components… A local override is a last
+   resort and must be commented with why." This is the why.
+
+   `--sky-500` is documented upstream as "focus ring only (3.1:1 vs white: UI
+   ≥3:1)", and 3.1:1 on white is true — measured here at **3.12:1**. But the
+   packaged search bar tints the focused segment to Cloud Grey (`--surface-control`,
+   #F2F2EF) at `:focus-within`, and the ring is drawn on the input INSIDE that
+   segment, 2px out. So the backdrop the ring is actually measured against is never
+   white: it is the tint, where Sky Blue measures **2.78:1** — a WCAG 1.4.11
+   failure at precisely the moment the indicator exists to be seen.
+
+   The token has no headroom to absorb a tint: at 3.12:1 on pure white, any
+   backdrop darker than about #F5F5F3 puts it under. So this is not a value that
+   can be nudged; the ring has to be darker inside the bar.
+
+   `--forest-900` is the package's own deep brand surface and measures 9.8:1 on
+   that tint. Scoped to the segments only, so every other focus indicator on the
+   site stays the Sky Blue the direction asked for.
+
+   RAISE UPSTREAM: either the segment should not tint under a focused control, or
+   the directory ring needs a darker value. Until then this override stands and
+   should be deleted the moment the pin moves past it. */
+.ds-dir-search__segment:focus-within {
+  --focus-ring: var(--forest-900);
 }

@@ -73,7 +73,7 @@ heavy dependency to carry for one page type, and the team already has a review w
 Available and pinned:
 
 ```
-kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.0.1
+kiam-ui @ git+ssh://git@github.com/rshamh/kiam-ui@v1.1.0
 ```
 
 It provides the compiled design-system CSS, base template, header, footer, accessibility panel and

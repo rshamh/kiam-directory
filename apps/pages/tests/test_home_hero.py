@@ -96,11 +96,14 @@ def test_the_submit_button_still_carries_the_word(client):
     """
     body = client.get(URL).content.decode()
     bar = body.split('class="dir-searchbar', 1)[1].split("</form>", 1)[0]
-    submit = bar.split('class="dir-searchbar__submit"', 1)[1]
+    submit = bar.split('<button type="submit"', 1)[1].split("</button>", 1)[0]
 
-    assert 'type="submit"' in submit
+    assert "ds-dir-search__submit" in submit, "the submit is not the packaged one"
     assert "Search" in submit
     assert 'sr-only">Search' not in submit, "the label was hidden and replaced by the glyph"
+    # An icon is fine beside the word; an icon INSTEAD of it is the thing this
+    # guards, and kiam-ui's own bar renders both.
+    assert "icon" in submit
 
 
 def test_the_radius_label_keeps_its_full_accessible_name(client):
@@ -114,8 +117,8 @@ def test_the_radius_label_keeps_its_full_accessible_name(client):
     body = client.get(URL).content.decode()
 
     assert (
-        '<label for="search-radius">Within<span class="sr-only"> (distance from your location)</span></label>'
-        in body
+        '<label class="ds-dir-search__label" for="search-radius">Within'
+        '<span class="sr-only"> (distance from your location)</span></label>' in body
     )
 
 

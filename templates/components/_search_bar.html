@@ -1,39 +1,48 @@
 {% comment %}
 SearchBar — the query, the location and the radius.
 
-Params: params · near · location · location_failed · facets · variant
+Params: params · near · location · location_failed · facets
 
-**One markup, two layouts.** `variant="hero"` renders the home page's segmented
-pill; anything else (the default, `inline`) renders the denser row `/search/` uses
-above its results. The difference is entirely CSS — the elements, their ids, their
-names and their order in the DOM are identical, because the whole reason this is
-one partial is that there is then only one keyboard pattern to keep accessible. A
-second implementation on the most important page on the site would be a second one
-to get wrong.
+**This is kiam-ui's `ds-dir-search` anatomy with our markup inside it.** The
+three-segment bar, its dividers, the focus tint that moves between segments and
+the stacked mobile layout are all `components/directory/search_bar.html`'s CSS,
+carried by `.ds-dir-search*` classes — so the design lives upstream and moves
+with the pin, and this repo defines none of it.
 
-The location field is a plain text input with a native `<datalist>`. That is a
-deliberate choice over a hand-rolled combobox: the browser supplies the entire
-keyboard pattern — arrow keys, Escape, filtering, the announcement — and if the
-suggestion request never lands, what remains is a working text box that the server
-geocodes anyway. A `<div>` with a keydown handler is precisely what this avoids.
+**What it is NOT is `{% include %}`-ing that partial**, and the reasons are
+behavioural rather than aesthetic:
 
-The radius is a `<select>`, not a slider. A slider needs a text alternative, is
-hard to operate with a motor impairment and is worse on a phone; a select needs
-none of that and is seven discrete values.
+* **It renders its own `<form>`.** On `/search/` one form has to wrap the bar,
+  the sidebar *and* `#results`, because with script off somebody who types a
+  location and then ticks a filter must submit both. A second `<form>` inside
+  that one is not valid HTML and would silently drop half the query.
+* **Its field names are `q` / `loc` / `r`.** Ours are `q` / `near` / `radius`,
+  which is what `apps/search/services/params.py` parses and what every existing
+  facet URL, sitemap entry and browse link already contains. They are
+  parameterisable upstream, but see the next two points.
+* **Location autocomplete is a native `<datalist>` here, not an ARIA combobox.**
+  The packaged bar wires `role="combobox"` for a JS enhancement to fill in. A
+  datalist makes the browser supply the whole keyboard pattern — arrow keys,
+  Escape, filtering, the announcement — and if the suggestion request never
+  lands, what remains is a working text box the server geocodes anyway.
+* **Every segment has its own `aria-describedby`.** The packaged bar has one
+  `helper_template` slot for the whole thing; ours has a sentence per field,
+  because "leave it blank to browse everything" is guidance about the query box
+  and nothing else.
 
-**The radius lives INSIDE the location cell**, because "where" and "how far" are
-one question, and reading them as two produced the worst thing on the page: a
-label ("Within (distance from you)") that wrapped to three lines and was wider
-than the control it described. It is a sub-control of the same field, not a peer.
+So: the package owns how it looks, this file owns what it does. If those two ever
+disagree, the fix is a `kiam-ui` change, not a local override.
 
-**The hint text is one line, and which line depends on focus — in CSS, not script.**
-Each field still carries its own `<p>` and its own `aria-describedby`, so what a
-screen reader hears is byte-for-byte what it heard when all three were stacked
-under the box. In the hero variant those paragraphs are stacked into one reserved
-row at the foot of the bar and revealed with `:focus-within`; the row's height is
-reserved, so revealing one shifts nothing.
+The radius is a `<select>`, not a slider — upstream's rule and ours. A slider
+needs a text alternative, is hard to operate with a motor impairment, is worse on
+a phone, and implies a precision the distance data does not have.
 
-No `aria-live` on any of it. The text is already an accessible description of the
+**The hint text is one line, and which line depends on focus — in CSS, not
+script.** Each field keeps its own `<p>` and its own `aria-describedby`, so what
+a screen reader hears is byte-for-byte what it heard when all three were stacked
+under the box. They are stacked into one reserved row under the bar and revealed
+with `:focus-within`; the row's height is reserved, so revealing one shifts
+nothing. No `aria-live` — the text is already the accessible description of the
 field that has just taken focus, and announcing it a second time is the Phase 3
 contact-reveal mistake in a new place.
 
@@ -45,102 +54,92 @@ component exists to keep is that it works with scripting off.
 carries a delay so it is not a request per keystroke, and `changed` so re-focusing
 the field does not re-ask.
 {% endcomment %}
-{% firstof variant "inline" as searchbar_variant %}
 {% comment %}
-`role="search"` is on THIS region rather than on the form, which also wraps the
-sidebar and twenty result cards — a landmark named "Search practitioners"
-containing the whole page body helps nobody navigating by landmark.
+`role="search"` is on THIS region rather than on the form, which on `/search/`
+also wraps the sidebar and twenty result cards — a landmark named "Search
+practitioners" containing the whole page body helps nobody navigating by
+landmark.
 {% endcomment %}
-<div class="dir-searchbar dir-searchbar--{{ searchbar_variant }}" role="search" aria-label="Search practitioners">
+<div class="dir-searchbar" role="search" aria-label="Search practitioners">
 
-  <div class="dir-searchbar__cells">
+  <div class="ds-dir-search">
 
-    <div class="dir-searchbar__field dir-searchbar__field--query">
-      <div class="dir-searchbar__control">
-        <label for="search-q">What do you need help with?</label>
-        <input class="ds-control"
-               type="search"
-               id="search-q"
-               name="q"
-               value="{{ params.q }}"
-               {% comment %} spellcheck stays ON: this site ships a dyslexia display mode, and
-                  switching it off on the one box where somebody types "obsessive
-                  compulsive" or "dissociation" removes a real aid. {% endcomment %}
-               placeholder="ADHD assessment, anxiety, EMDR…"
-               aria-describedby="search-q-help">
-      </div>
+    <div class="ds-dir-search__segment dir-searchbar__field">
+      <label class="ds-dir-search__label" for="search-q">What do you need help with?</label>
+      <input class="ds-dir-search__input"
+             type="search"
+             id="search-q"
+             name="q"
+             value="{{ params.q }}"
+             {% comment %} spellcheck stays ON: this site ships a dyslexia display mode, and
+                switching it off on the one box where somebody types "obsessive
+                compulsive" or "dissociation" removes a real aid. {% endcomment %}
+             placeholder="ADHD assessment, anxiety, EMDR…"
+             aria-describedby="search-q-help">
       <p class="dir-searchbar__help" id="search-q-help">
         A condition, an approach, or a practitioner's name. Leave it blank to browse everything.
       </p>
     </div>
 
-    <div class="dir-searchbar__field dir-searchbar__field--where">
-      <div class="dir-searchbar__control dir-searchbar__control--place">
-        <label for="search-near">Where are you?</label>
-        <input class="ds-control"
-               type="text"
-               id="search-near"
-               name="near"
-               value="{{ near }}"
-               list="place-options"
-               autocomplete="off"
-               placeholder="Postcode or town"
-               aria-describedby="search-near-help"
-               hx-get="{% url 'search:place_suggestions' %}"
-               hx-trigger="input changed delay:400ms"
-               hx-target="#place-options"
-               hx-sync="this:replace">
-        <datalist id="place-options">
-          {% include "search/partials/_place_options.html" %}
-        </datalist>
-      </div>
-
-      <div class="dir-searchbar__control dir-searchbar__control--radius">
-        {% comment %} "Within" alone announces as "Within, combo box" with nothing to say what
-           it measures (WCAG 2.4.6), so the rest of the accessible name is carried in
-           `.sr-only`. The visible word is the FIRST word of the accessible name, which
-           is what 2.5.3 Label in Name requires of a voice-control user saying "Within".
-        {% endcomment %}
-        <label for="search-radius">Within<span class="sr-only"> (distance from your location)</span></label>
-        <select class="ds-control ds-control--select" id="search-radius" name="radius">
-          {% for miles in facets.radii %}
-            <option value="{{ miles }}" {% if miles == params.radius_miles %}selected{% endif %}>
-              {{ miles }} mile{{ miles|pluralize }}
-            </option>
-          {% endfor %}
-        </select>
-      </div>
-
+    <div class="ds-dir-search__segment dir-searchbar__field">
+      <label class="ds-dir-search__label" for="search-near">Where are you?</label>
+      <input class="ds-dir-search__input"
+             type="text"
+             id="search-near"
+             name="near"
+             value="{{ near }}"
+             list="place-options"
+             autocomplete="off"
+             placeholder="Postcode or town"
+             aria-describedby="search-near-help"
+             hx-get="{% url 'search:place_suggestions' %}"
+             hx-trigger="input changed delay:400ms"
+             hx-target="#place-options"
+             hx-sync="this:replace">
+      <datalist id="place-options">
+        {% include "search/partials/_place_options.html" %}
+      </datalist>
       <p class="dir-searchbar__help" id="search-near-help">
         {% if location %}
           Showing practitioners near <strong>{{ location.label }}</strong>.
-          Suggestions may appear as you type.
         {% elif location_failed %}
           We didn't recognise that place, so these results aren't filtered by distance.
           Try a full postcode.
         {% else %}
-          {% comment %} Trimmed from "…— suggestions may appear as you type. Optional: leave it
-             blank…". At 375px that wrapped to FOUR lines and was the single tallest thing the
-             hero's reserved hint row had to make space for. What went is also the most
-             redundant part of it: a native `<datalist>` is announced as an autocomplete by
-             every screen reader, and it is self-evident to everyone else the moment it
-             opens. {% endcomment %}
           A postcode or a town name. Leave it blank to include everywhere.
         {% endif %}
       </p>
     </div>
 
-    <div class="dir-searchbar__submit">
-      {% comment %}
-      A real, always-visible submit button carrying the WORD "Search", not an icon
-      alone. With JavaScript off this is the only way to run the search — and this
-      audience has a high rate of anxiety and neurodevelopmental conditions
-      (CLAUDE.md golden rule #3), for whom an icon anyone has to interpret is a
-      worse control than a word anyone can read. It is never hidden and never
-      reduced to the glyph.
-      {% endcomment %}
-      {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Search" icon="search" icon_position="left" %}
+    <div class="ds-dir-search__segment dir-searchbar__field">
+      {% comment %} "Within" alone announces as "Within, combo box" with nothing to say what
+         it measures (WCAG 2.4.6), so the rest of the accessible name is carried in
+         `.sr-only`. The visible word is the FIRST word of the accessible name, which
+         is what 2.5.3 Label in Name requires of a voice-control user saying "Within".
+         Upstream's own label is the bare word; this is additive and changes nothing
+         visually, so it is not a fork. {% endcomment %}
+      <label class="ds-dir-search__label" for="search-radius">Within<span class="sr-only"> (distance from your location)</span></label>
+      <select class="ds-dir-search__input ds-dir-search__value" id="search-radius" name="radius">
+        {% for miles in facets.radii %}
+          <option value="{{ miles }}" {% if miles == params.radius_miles %}selected{% endif %}>
+            {{ miles }} mile{{ miles|pluralize }}
+          </option>
+        {% endfor %}
+      </select>
     </div>
+
+    {% comment %}
+    A real, always-visible submit button carrying the WORD "Search", not an icon
+    alone. With JavaScript off this is the only way to run the search — and this
+    audience has a high rate of anxiety and neurodevelopmental conditions
+    (CLAUDE.md golden rule #3), for whom an icon anyone has to interpret is a
+    worse control than a word anyone can read. Upstream agrees: its own bar
+    renders icon + label.
+    {% endcomment %}
+    <button type="submit" class="btn btn-primary ds-dir-search__submit">
+      {% include "kiam_ui/components/icon.html" with name="search" size=16 %}
+      Search
+    </button>
 
   </div>
 
@@ -149,9 +148,6 @@ containing the whole page body helps nobody navigating by landmark.
   focus. `aria-hidden` because every sentence it can carry is already the
   accessible description of the field it belongs to; exposing it as well would
   read the same guidance twice.
-
-  Rendered in both variants so the reserved row has a height before anything is
-  focused. That is what makes the reveal free of layout shift rather than a jump.
   {% endcomment %}
   <p class="dir-searchbar__resting" aria-hidden="true">
     {% if location %}
