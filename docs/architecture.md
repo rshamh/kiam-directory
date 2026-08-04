@@ -6,6 +6,12 @@
 
 See `docs/multi-project-architecture.md` for how this sits alongside the main site and rooms.
 
+`docs/uml/` holds the generated companion to this file: every model with its fields and
+relations, and every other class with its inheritance, read out of the code rather than written
+by hand. It is regenerated with `.venv/bin/python .claude/skills/uml/generate_uml.py` (the `uml`
+skill), and it describes structure only — the rules that structure exists to enforce are here and
+in `CLAUDE.md`.
+
 ## Apps
 
 **Every app lives under `apps/`.** `apps/accounts/`, `apps/directory/` and so on; `config/` (the
