@@ -16,13 +16,14 @@ from django.utils import timezone
 from apps.directory.factories import (
     ApproachFactory,
     ClientGroupFactory,
+    FundingOptionFactory,
     LanguageFactory,
     PractitionerFactory,
     PractitionerLocationFactory,
     SpecialityCategoryFactory,
     SpecialityFactory,
 )
-from apps.directory.models import Practitioner, PublicationStatus
+from apps.directory.models import MinorWorkStatus, Practitioner, PublicationStatus
 from apps.directory.services import search
 
 pytestmark = pytest.mark.django_db
@@ -511,11 +512,27 @@ def test_decorating_a_page_does_not_run_a_query_per_result(django_assert_num_que
     for i in range(10):
         PractitionerFactory(published=True, slug=f"p{i}", specialities=specialities)
 
-    # featured count + standard count + featured slice + standard slice + specialities
-    with django_assert_num_queries(5):
+    # featured count + standard count + featured slice + standard slice, then the
+    # three card queries: specialities, languages, public locations. THREE and not
+    # three-per-card is the whole point — the number here is allowed to grow when
+    # the card learns a new fact, and is not allowed to grow with the page size.
+    with django_assert_num_queries(7):
         page = search.results_page(search.SearchParams(page_size=10))
         assert len(page.items) == 10
         assert page.items[0].top_specialities
+
+
+def test_the_card_queries_do_not_grow_with_the_page(django_assert_num_queries):
+    """The guard the count above cannot give on its own: twice the rows, same
+    queries. A per-card `practitioner.languages.all` passes the test above at a
+    page size of one."""
+    specialities = [SpecialityFactory(slug=f"s{i}", name=f"S{i}") for i in range(3)]
+    for i in range(20):
+        PractitionerFactory(published=True, slug=f"p{i}", specialities=specialities)
+
+    with django_assert_num_queries(7):
+        page = search.results_page(search.SearchParams(page_size=20))
+        assert len(page.items) == 20
 
 
 def test_wider_radius_offers_the_next_option_up():
@@ -590,3 +607,132 @@ def test_the_empty_state_is_reachable_from_the_search_box(client):
     body = client.get("/search/", {"q": "zzzznonsense"}).content.decode()
 
     assert "No practitioners match these filters" in body
+
+
+# ---------------------------------------------------------------------------
+# The register row's facts (Phase 5c)
+# ---------------------------------------------------------------------------
+
+
+def test_initials_split_on_whitespace_not_on_the_hyphen():
+    """Splitting on the hyphen too turns "Marcus Osei-Bonsu" into MB, which is not
+    how anybody writes their own initials."""
+    assert search._initials("Marcus Osei-Bonsu") == "MO"
+    assert search._initials("Priya Sharma") == "PS"
+    assert search._initials("Cher") == "C"
+    assert search._initials("   ") == ""
+
+
+def test_fees_are_rendered_from_pence_and_absence_is_a_real_answer():
+    """`fee_min` is pence — the unit `fee_max_pence` filters in. A card that
+    renders it raw says "£9500 / session"."""
+
+    class Row:
+        def __init__(self, low, high):
+            self.fee_min, self.fee_max = low, high
+
+    assert search._fee_label(Row(9500, 9500)) == "£95 / session"
+    assert search._fee_label(Row(7000, 12000)) == "£70–£120 / session"
+    assert search._fee_label(Row(7000, None)) == "£70 / session"
+    assert search._fee_label(Row(9550, 9550)) == "£95.50 / session"
+    # No fee is no line. "£0" is wrong and "Price on request" is copy nobody wrote.
+    assert search._fee_label(Row(None, None)) == ""
+
+
+def test_one_language_is_not_a_line_on_the_card():
+    """Everybody here works in English, so printing it on every row spends a line
+    of the register on nothing."""
+    language = LanguageFactory(code="en", name="English")
+    other = LanguageFactory(code="hi", name="Hindi")
+
+    only_english = PractitionerFactory(published=True, slug="one-tongue", languages=[language])
+    bilingual = PractitionerFactory(published=True, slug="two-tongues", languages=[language, other])
+
+    items = [only_english, bilingual]
+    search.decorate_cards(items)
+
+    assert items[0].languages_label == ""
+    assert "English" in items[1].languages_label and "Hindi" in items[1].languages_label
+
+
+def test_a_private_address_never_names_its_town_on_a_card():
+    """`is_public=False` is usually a home office. Naming its town on a results
+    page publishes it by inference — the same rule the browse links follow."""
+    practitioner = PractitionerFactory(published=True, slug="works-from-home")
+    PractitionerLocationFactory(practitioner=practitioner, city="Hiddenham", is_public=False)
+
+    items = [practitioner]
+    search.decorate_cards(items)
+
+    assert items[0].nearest_place == ""
+
+
+def test_the_status_note_says_different_things_open_and_closed():
+    """Open: the fact that makes an impossible appointment possible. Closed: the
+    practitioner's own words about when that changes."""
+    evenings = PractitionerFactory(published=True, slug="evenings", accepting_new_clients=True)
+    evenings.evening_appointments = True
+    closed = PractitionerFactory(published=True, slug="closed", accepting_new_clients=False)
+    closed.availability_note = "Expected to reopen in October"
+    quiet = PractitionerFactory(published=True, slug="quiet", accepting_new_clients=False)
+
+    assert search._status_note(evenings) == "Evening appointments"
+    assert search._status_note(closed) == "Expected to reopen in October"
+    # No note is no note. "Check back later" is a promise nobody made.
+    assert search._status_note(quiet) == ""
+
+
+# ---------------------------------------------------------------------------
+# Facet counts (Phase 5c)
+# ---------------------------------------------------------------------------
+
+
+def test_a_facet_count_is_measured_with_its_own_group_cleared():
+    """Count a group against a queryset that already has that group's filter
+    applied and every sibling reads 0 the moment you tick one — a sidebar telling
+    you there is nothing else to choose is worse than one with no numbers on it."""
+    self_pay = FundingOptionFactory(slug="self-pay", name="Self-pay")
+    insurance = FundingOptionFactory(slug="insurance", name="Private insurance")
+
+    PractitionerFactory(published=True, slug="a").funding_options.set([self_pay])
+    PractitionerFactory(published=True, slug="b").funding_options.set([self_pay])
+    PractitionerFactory(published=True, slug="c").funding_options.set([insurance])
+
+    counts = search.facet_counts(search.SearchParams(funding=["self-pay"]))
+
+    assert counts["funding"]["self-pay"] == 2
+    # The sibling is still reachable and says so.
+    assert counts["funding"]["insurance"] == 1
+
+
+def test_facet_counts_still_narrow_across_groups():
+    """Within a group the selection is cleared; across groups the filters stay on,
+    so the number answers "and how many of THESE"."""
+    self_pay = FundingOptionFactory(slug="self-pay", name="Self-pay")
+
+    PractitionerFactory(published=True, slug="a", is_prescriber=True).funding_options.set([self_pay])
+    PractitionerFactory(published=True, slug="b", is_prescriber=False).funding_options.set([self_pay])
+
+    counts = search.facet_counts(search.SearchParams(is_prescriber=True))
+
+    assert counts["funding"]["self-pay"] == 1
+
+
+def test_the_under_18_gate_survives_the_count_query():
+    """Clearing the speciality selection also clears what `_requests_minor_work`
+    reads, so the gate has to be re-applied by hand or a count would be measured
+    against a queryset the real search would never return."""
+    child_work = SpecialityFactory(slug="child-adhd", name="Child ADHD", implies_minors=True)
+    other = SpecialityFactory(slug="adult-adhd", name="Adult ADHD")
+
+    cleared = PractitionerFactory(published=True, slug="cleared", specialities=[child_work, other])
+    cleared.minor_work_status = MinorWorkStatus.CLEARED
+    cleared.save(update_fields=["minor_work_status"])
+
+    provisional = PractitionerFactory(published=True, slug="prov", specialities=[child_work, other])
+    provisional.minor_work_status = MinorWorkStatus.PROVISIONAL
+    provisional.save(update_fields=["minor_work_status"])
+
+    counts = search.facet_counts(search.SearchParams(specialities=["child-adhd"]))
+
+    assert counts["speciality"]["adult-adhd"] == 1, "the gate was relaxed by clearing the group"

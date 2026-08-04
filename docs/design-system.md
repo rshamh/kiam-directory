@@ -708,3 +708,64 @@ metadata is correct (`importlib.metadata.version("kiam-ui")` → `1.1.0`), so in
 unaffected, but `manage.py kiam_ui_vendor` prints `kiam-ui 1.0.1 vendored` after a correct
 v1.1.0 vendor — which reads exactly like a failed upgrade. **Raise upstream; do not patch here.**
 Trust the distribution metadata, not `kiam_ui.__version__`, until it is fixed.
+
+---
+
+## 10. Phase 5c — the register and the panelled sidebar, and what they override
+
+`/search/` was rebuilt against a supplied reference design: bigger result rows with the
+commercial facts in a rail, and a sidebar of white panels with a count against every option.
+The CSS is the `Phase 5c` block at the end of `static/src/app.css`. Everything below is a
+deliberate override of a packaged rule, with the measurement that justified it — §8's "never
+redefine a `ds-*` class" is still the rule, and each of these is the documented exception.
+
+| Override | Packaged value | Why |
+|---|---|---|
+| `.dir-search { --container-max: 84rem }` | `1180px` | At 1180 the register's body column was **338px**: three pills wrapped to three rows, the meta line to two, and a row that should be one horizontal read was 349px tall. 1180 is right for an article and wrong for a three-column row. Scoped to this page only. |
+| `.dir-practitioner__cta { border-color: var(--brand-primary) }` | `.btn-ghost` uses `--border-default` | `--border-default` is **1.04:1** on white — a button with no visible boundary, WCAG 1.4.11. `--brand-primary` measures 4.4:1. **Raise upstream.** |
+| `.dir-panel { box-shadow: var(--shadow-card) }` | — | The panel's `--border-hover` edge measures **1.23:1** on `--surface-page` (white card, near-white page). Not a 1.4.11 failure — a grouping box is not a UI component — but the whole structure rests on that edge. The shadow is what `.ds-dir-pcard` already uses. In `html[data-contrast="high"]` the same edge is 6.71:1 and carries it alone. |
+| `.dir-practitioner .ds-dir-pcard__name { font-family: var(--font-serif-display) }` | family inherits | An addition, not a contradiction: the package sizes the name and leaves the family alone. On a page of twenty strangers the name is what is being scanned. |
+| `.dir-practitioner .ds-dir-pcard__prof { color: var(--brand-secondary) }` | `--brand-primary-dark` | Separates the role line from the name above and the pills below without adding a colour the token set does not own. 8.8:1 on `--surface-card`. |
+| `.dir-practitioner .ds-pill { font-size: var(--text-caption); letter-spacing: 0 }` | 12px, 0.04em | The packaged pill is a status chip. Three speciality names somebody is reading to decide whether this person can help is body copy. |
+| `.dir-practitioner__mode { border-color: var(--control-border) }` | — | These chips are not controls, so 1.4.11 does not apply — but `--border-hover` is 1.2:1 and "In person" inside an invisible outline is text with odd padding. |
+
+### Measured
+
+| | |
+|---|---|
+| Focus ring on a panel / on the page | **3.12:1 / 3.06:1** (Sky Blue, via `.ds-dir`) — passing 1.4.11 with nothing spare, as §9 warns |
+| Same under `html[data-contrast="high"]` | **9.51:1** — better, not worse. Phase 5's blocker was the opposite |
+| Switch track and mode-chip borders | **3.28:1** |
+| Counts / sub-labels / fee / status | 5.37 – 8.83:1 |
+| Reflow at 320px, default / larger / largest | **no horizontal scroll** in any mode (`scrollWidth === innerWidth === 320`) |
+| Result row height | 254px at 1440 |
+| Queries added per search | 5 for the facet counts, 2 for the card's languages and places — **none of them per-row** |
+
+### Two things only the browser showed
+
+* **A `<select>`'s min-content width is its longest option.** "Typical wait" refused to go below
+  231px and dragged the whole sidebar track to 273px inside a 264px container at 320.
+  `min-inline-size: 0` on the control, not on its parents.
+* **The rail had two borders at once.** The stacked layout's `border-block-start` was never reset
+  in the `≥56rem` rule that adds the vertical `border-inline-start`, so the right-hand column
+  wore a stray rule across its top that separated nothing from nothing. Green suite, correct
+  markup, visible in one screenshot.
+
+### The verified badge is now a hover/focus panel
+
+`components/_verified_badge.html` reads **"Verified · what this means"** and puts the date and
+the scope of the check in a panel that opens on hover *and* on focus. It replaced
+"Credentials checked 30 July 2026" + "What this does and does not mean", which was four lines in
+a 232px rail. Three things hold it together and none may be dropped:
+
+* **The trigger is a real link** to `/how-verification-works/`. The panel is supplementary — with
+  scripting off, Alpine never removes `x-cloak`, the panel never renders, and the link still
+  works. Nothing interactive lives inside the panel, so nothing is reachable only by hovering.
+* **WCAG 1.4.13** — measured: opens on `focusin`, dismissible with Escape without moving focus,
+  and hoverable because the handlers are on the badge and the panel is inside it.
+* **The panel names only `verification.BASE_REQUIRED`** — registration, qualifications,
+  insurance, photo ID, plus prescriber status for a prescriber. **DBS is deliberately absent**:
+  it is the safeguarding check, not one of the badge's required ones.
+
+**TODO(sign-off): Dr. Abbass.** All of that wording is derived from
+`docs/verification-policy.md` and is behind the clinical gate.

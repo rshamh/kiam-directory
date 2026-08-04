@@ -390,6 +390,13 @@ TOP_SPECIALITIES_ON_CARD = 3
 #: Metres in a mile. The one place it is written down.
 METRES_PER_MILE = 1609.344
 
+#: How many languages a card names before it stops listing them.
+#:
+#: Three is what fits the meta row at 320px. A practitioner with eight gets
+#: "+5 more" rather than a second wrapped line, because the register's whole
+#: premise is that every row is the same height and the same shape.
+LANGUAGES_ON_CARD = 3
+
 
 def _miles(value):
     """The annotated distance in miles, or ``None``.
@@ -413,7 +420,7 @@ def _miles(value):
         return None
 
 
-def _decorate(items, *, top_specialities: int, radius_miles: int | None = None) -> None:
+def _decorate(items, *, top_specialities: int, radius_miles: int | None = None, point=None) -> None:
     """Attach what the result card needs, in one query for the whole page.
 
     Done here rather than in the template because a card that reaches for
@@ -452,6 +459,129 @@ def _decorate(items, *, top_specialities: int, radius_miles: int | None = None) 
 
     for item in items:
         item.top_specialities = by_practitioner.get(item.pk, [])
+
+    _card_facts(items, point=point)
+
+
+def _card_facts(items, *, point=None) -> None:
+    """The monogram, the place, the languages and the fee, for the whole page.
+
+    Two more queries, and they are two rather than two-per-card for the reason
+    `_decorate` exists at all: `practitioner.languages.all` in a template is
+    twenty round trips on a page with a latency budget.
+
+    Three of the four are one-liners on the row and could have been template
+    logic. They are here because each carries a decision a template would have
+    hidden:
+
+    * **The place comes from a PUBLIC location only.** `is_public=False` is a
+      home address, and naming its town on a results page publishes it by
+      inference — the same rule the Phase 5 browse links follow. A practitioner
+      whose only address is private gets no place line, not a guessed one.
+    * **The place is the NEAREST public address when there is a point**, ordered
+      by the same distance the card prints. Falling back to the primary address
+      would put "3.0 miles — Sutton" on a row whose three miles are to the
+      Epsom office, which is a wrong direction to send somebody in, not a
+      cosmetic mismatch.
+    * **Fees are stored in pence** (`fee_max_pence` is the filter's unit) and a
+      card that renders `fee_min` raw says "£9500 / session".
+    * **Initials are split on whitespace only.** Splitting on the hyphen too
+      makes "Marcus Osei-Bonsu" into MB, which is not how anybody writes their
+      own initials.
+    """
+    if not items:
+        return
+
+    from apps.directory.models import Language, PractitionerLocation
+
+    ids = [item.pk for item in items]
+
+    languages: dict = {}
+    rows = (
+        Language.objects.filter(practitioners__in=ids)
+        .values_list("practitioners__id", "name")
+        .order_by("sort_order", "name")
+    )
+    for practitioner_id, name in rows:
+        languages.setdefault(practitioner_id, []).append(name)
+
+    places = PractitionerLocation.objects.filter(practitioner__in=ids, is_public=True)
+    if point is not None:
+        places = places.annotate(_distance=Distance("geo", point)).order_by("practitioner_id", "_distance")
+    else:
+        places = places.order_by("practitioner_id", "-is_primary", "city")
+
+    nearest: dict = {}
+    for practitioner_id, city in places.values_list("practitioner_id", "city"):
+        nearest.setdefault(practitioner_id, city)
+
+    for item in items:
+        item.initials = _initials(item.full_name)
+        item.nearest_place = nearest.get(item.pk, "")
+        item.fee_label = _fee_label(item)
+        item.status_note = _status_note(item)
+        spoken = languages.get(item.pk, [])
+        # ONE language is not a fact worth a line: everybody on this directory
+        # works in English, so printing "English" on every card spends a row of
+        # the register on nothing. Two or more is a real difference.
+        item.languages_label = _languages_label(spoken) if len(spoken) > 1 else ""
+
+
+def _status_note(practitioner) -> str:
+    """The qualifying line under the availability sentence, or nothing.
+
+    Two different things share one slot, and they are the two different things a
+    reader wants at that moment. Open: the fact that decides whether an otherwise
+    impossible appointment is possible — evenings and weekends. Closed: the
+    practitioner's own words about when that changes.
+
+    A closed listing with no note gets no note. "Check back later" is copy nobody
+    wrote and a promise nobody made.
+    """
+    if not practitioner.accepting_new_clients:
+        return practitioner.availability_note
+
+    if practitioner.evening_appointments and practitioner.weekend_appointments:
+        return "Evening and weekend appointments"
+    if practitioner.evening_appointments:
+        return "Evening appointments"
+    if practitioner.weekend_appointments:
+        return "Weekend appointments"
+    return ""
+
+
+def _initials(name: str) -> str:
+    parts = name.split()
+    if not parts:
+        return ""
+    return (parts[0][:1] + (parts[-1][:1] if len(parts) > 1 else "")).upper()
+
+
+def _languages_label(names: list[str]) -> str:
+    shown = names[:LANGUAGES_ON_CARD]
+    remaining = len(names) - len(shown)
+    label = " · ".join(shown)
+    return f"{label} · +{remaining} more" if remaining else label
+
+
+def _fee_label(practitioner) -> str:
+    """The fee line: "£95 / session", "£70–£120 / session", or nothing at all.
+
+    Nothing is a real answer. A listing with no fee on it must not render "£0"
+    or "Price on request" — the first is wrong and the second is copy nobody
+    wrote.
+    """
+    low, high = practitioner.fee_min, practitioner.fee_max
+    if not low and not high:
+        return ""
+    if low and high and high != low:
+        return f"£{_pounds(low)}–£{_pounds(high)} / session"
+    return f"£{_pounds(low or high)} / session"
+
+
+def _pounds(pence: int) -> str:
+    pounds, remainder = divmod(int(pence), 100)
+    return f"{pounds:,}" if not remainder else f"{pounds:,}.{remainder:02d}"
 
 
 def decorate_cards(items, *, radius_miles: int | None = None) -> None:
@@ -504,6 +634,18 @@ class ResultPage:
     def end_index(self) -> int:
         return (self.page - 1) * self.page_size + len(self.items)
 
+    @property
+    def remaining(self) -> int:
+        """How many results are still below the fold — the "Show N more" number.
+
+        Counted from ``end_index``, so it is right in both the paged reading (page
+        2 of 3, 20 shown of 56) and the appended one (40 rows on screen, 16 to
+        go). The register loads by appending when script is running, so a control
+        that said "Next" while the previous twenty were still above it would be
+        describing something the visitor cannot see happening.
+        """
+        return max(0, self.total - self.end_index)
+
 
 def results_page(p: SearchParams) -> ResultPage:
     """Assemble one page: at most ``FEATURED_CAP_PER_PAGE`` featured, then the rest.
@@ -521,6 +663,9 @@ def results_page(p: SearchParams) -> ResultPage:
     """
     now = timezone.now()
     ranked = search(p)
+    # The same point the ranking measured to, so the place printed on a card is
+    # the address its distance belongs to.
+    point = Point(p.lng, p.lat, srid=4326) if p.has_location else None
 
     is_featured = Q(featured_until__gt=now)
     featured_qs = ranked.filter(is_featured)
@@ -558,6 +703,7 @@ def results_page(p: SearchParams) -> ResultPage:
         items,
         top_specialities=TOP_SPECIALITIES_ON_CARD,
         radius_miles=p.radius_miles if p.has_location else None,
+        point=point,
     )
 
     return ResultPage(
@@ -567,6 +713,72 @@ def results_page(p: SearchParams) -> ResultPage:
         total=total,
         featured_total=featured_total,
     )
+
+
+# ===========================================================================
+# Facet counts
+# ===========================================================================
+
+
+def facet_counts(p: SearchParams) -> dict:
+    """How many listings each offered option would match, for the sidebar.
+
+    Five queries for the page, not one per option: the two flags are counted
+    against their own querysets and the three vocabularies are grouped.
+
+    **Each group is counted with its OWN selection cleared**, which is the whole
+    reason this is not simply `len(results)`. Count a group against a queryset
+    that already has that group's filter applied and every sibling reads 0 the
+    moment you tick one — a sidebar that tells you there is nothing else to
+    choose is worse than a sidebar with no numbers on it. Across groups the
+    filters stay applied, so the numbers answer "and how many of *these*", which
+    is the question somebody narrowing a search is actually asking.
+
+    A **0** is worth rendering rather than hiding. It is the difference between
+    "nobody here takes EAP referrals" and "we forgot to offer that option", and
+    the row is disabled rather than removed so the vocabulary stays stable
+    between searches.
+
+    ONE KNOWN OVER-COUNT, and it is the open safeguarding item rather than a bug
+    here. Clearing the speciality selection also clears what
+    `_requests_minor_work` reads, so the under-18 gate is re-applied by hand
+    below to keep it where the real query would put it. What that cannot fix is
+    the case where nothing is selected yet: an `implies_minors` speciality is
+    counted across every published listing, and clicking it then applies the gate
+    and returns fewer. The number over-states, which is the safe direction, and
+    it stops over-stating the moment `recompute()` derives `works_with_minors`
+    from specialities as well as client groups.
+
+    TODO(sign-off): Dr. Abbass / CQC lead — the `recompute()` one-liner in
+    CLAUDE.md removes this asymmetry along with the other three.
+    """
+    from dataclasses import replace
+
+    from django.db.models import Count
+
+    def counted(**cleared):
+        queryset, _ = build_queryset(replace(p, **cleared))
+        if _requests_minor_work(p):
+            queryset = queryset.filter(minor_work_status=MinorWorkStatus.CLEARED)
+        return queryset
+
+    def grouped(queryset, field: str) -> dict:
+        rows = (
+            queryset.values(field)
+            .annotate(total=Count("id", distinct=True))
+            .filter(**{f"{field}__isnull": False})
+        )
+        return {row[field]: row["total"] for row in rows}
+
+    specialities = counted(specialities=[], speciality_categories=[])
+
+    return {
+        "accepting": counted(accepting_new_clients=False).filter(accepting_new_clients=True).count(),
+        "prescriber": counted(is_prescriber=False).filter(is_prescriber=True).count(),
+        "funding": grouped(counted(funding=[]), "funding_options__slug"),
+        "speciality": grouped(specialities, "specialities__slug"),
+        "category": grouped(specialities, "specialities__category__slug"),
+    }
 
 
 def weights() -> dict[str, float]:

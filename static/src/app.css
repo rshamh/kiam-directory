@@ -512,34 +512,12 @@ html[data-contrast="high"] .dir-reveal:focus {
 
 /* ---------- the sidebar ---------- */
 
-.dir-search__sidebar {
-  padding: var(--space-5);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  background: var(--surface-sunken);
-}
+/* The sidebar's own chrome — the outer card, the group dividers and the
+   `<summary>` styling — moved to the Phase 5c block at the end of this file when
+   the sidebar became three panels. What is left here is what the panels contain. */
 
 .dir-search__sidebar-title {
   margin-block-end: var(--space-4);
-}
-
-.dir-filter-block {
-  border-block-start: 1px solid var(--border-default);
-  padding-block: var(--space-3);
-}
-
-.dir-filter-block > summary {
-  cursor: pointer;
-  padding-block: var(--space-2);
-  color: var(--text-heading);
-  font-weight: var(--weight-semibold);
-}
-
-/* A <summary> is focusable and must show it. The default marker is kept — it is
-   the only affordance saying the section opens. */
-.dir-filter-block > summary:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
 }
 
 .dir-filter-group {
@@ -556,18 +534,9 @@ html[data-contrast="high"] .dir-reveal:focus {
 
 /* The row, the checkbox and the 44px hit area are `.ds-dir-filters__row` /
    `__box` from kiam-ui v1.1.0 — which sizes the row at 36px on desktop and 44px
-   below 860px, i.e. the same 2.5.8 clearance this used to set by hand.
-
-   The child specialities under a category keep their indent, which the package
-   has no opinion about because it has no two-level group. */
-.dir-filter-group--tree .ds-dir-filters__row {
-  padding-inline-start: var(--space-3);
-}
+   below 860px, i.e. the same 2.5.8 clearance this used to set by hand. */
 
 .dir-search__sidebar-actions {
-  margin-block-start: var(--space-6);
-  padding-block-start: var(--space-5);
-  border-block-start: 1px solid var(--border-default);
   display: grid;
   gap: var(--space-3);
   text-align: center;
@@ -663,31 +632,8 @@ html[data-contrast="high"] .dir-reveal:focus {
 
 /* ---------- pagination and empty state ---------- */
 
-.dir-pagination {
-  margin-block-start: var(--space-8);
-  padding-block-start: var(--space-5);
-  border-block-start: 1px solid var(--border-default);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.dir-pagination__link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-block-size: 2.75rem;
-  padding-inline: var(--space-3);
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-.dir-pagination__status {
-  color: var(--text-secondary);
-  font-size: var(--text-caption);
-}
+/* Pagination is `.dir-more` in the Phase 5c block — one "Show N more" control
+   that appends, rather than a Previous/Next bar that replaces. */
 
 .dir-empty-state {
   margin-block-start: var(--space-6);
@@ -761,20 +707,10 @@ html[data-contrast="high"] .dir-hero .ds-control:focus {
   outline-width: 4px;
 }
 
-/* The sidebar sits on `--surface-card`, not `--surface-sunken`.
-   `--control-border` is documented at ~3.2:1 "on mint/white" — that is mint-50 and
-   white. Phase 4 was the first place a control was put on mint-100, where the same
-   border measures 2.85:1 and fails WCAG 1.4.11 for a control boundary. */
-.dir-search__sidebar {
-  background: var(--surface-card);
-}
-
-/* `--border-default` on the old sunken sidebar was 1.04:1 — the group dividers the
-   sidebar is structured around did not render at all. */
-.dir-filter-block,
-.dir-search__sidebar-actions {
-  border-color: var(--border-hover);
-}
+/* The Phase 4 finding this block recorded — a control on mint-100, where
+   `--control-border` measures 2.85:1 and fails WCAG 1.4.11 — is now structural
+   rather than a patch: the sidebar has no background of its own and every control
+   in it sits on `--surface-card`, inside a panel. See the Phase 5c block. */
 
 /* `.ds-dir-pcard__name` carries its own size now, so the local workaround for
    Tailwind's `h1..h6 { font-size: inherit }` preflight is gone for the card. Gap
@@ -818,17 +754,10 @@ html[data-contrast="high"] .dir-hero .ds-control:focus {
   background: var(--surface-sunken);
 }
 
-/* "N selected" on a collapsed group, so an applied filter is visible from outside
-   the <details> that hides it. */
-.dir-filter-block__count {
-  margin-inline-start: var(--space-2);
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--brand-accent-soft);
-  color: var(--text-heading);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-regular);
-}
+/* "N selected" on a collapsed group is `.dir-facet__sub` in the Phase 5c block —
+   part of the summary line rather than a pill appended to it, so the count reads
+   as one sentence with the group's name. Same purpose: an applied filter has to
+   be visible from OUTSIDE the <details> that hides it. */
 
 /* Featured listings get a visible frame as well as the "Paid placement" label, so
    the disclosure is not carried by one small element (content-compliance §6).
@@ -878,8 +807,14 @@ html[data-contrast="high"] .dir-hero .ds-control:focus {
    all, and neither the suite nor reading the markup would ever have shown it.
 
    Higher specificity than the `display` rules it has to beat, so no `!important`.
-   Hiding the direct children takes their descendants with them. */
-details.dir-filter-block:not([open]) > *:not(summary) {
+   Hiding the direct children takes their descendants with them.
+
+   Phase 5c renamed the groups and there are two kinds now, so the guard follows
+   them rather than being rewritten. It is the one rule in this file that must be
+   re-checked whenever a `<details>` class name changes. */
+details.dir-facet:not([open]) > *:not(summary),
+details.dir-cat:not([open]) > *:not(summary),
+details.dir-more-options:not([open]) > *:not(summary) {
   display: none;
 }
 
@@ -2165,4 +2100,754 @@ html[data-contrast="high"] .ds-dir :focus-visible {
    should be deleted the moment the pin moves past it. */
 .ds-dir-search__segment:focus-within {
   --focus-ring: var(--forest-900);
+}
+
+/* ===========================================================================
+   Phase 5c — the results register and the panelled filter sidebar.
+   ===========================================================================
+
+   Requested against a reference design: bigger, calmer result rows with the
+   commercial facts pulled out into a rail, and a sidebar of white panels with a
+   count against every option.
+
+   Same rules as every block above it — semantic token aliases only, no raw
+   swatches, no hex, no transitions and no animations. Where a kiam-ui rule is
+   overridden the comment says why, because docs/design-system.md §8 calls a local
+   override a last resort.
+
+   THE FIVE DECISIONS
+
+   1. **The panel carries the boundary, not the sidebar.** One outer card holding
+      nine groups meant the group dividers were the only structure, and
+      `--border-default` on the old sunken background measured 1.04:1 — the
+      structure the sidebar was organised around did not render at all (Phase 4
+      gate). Three panels on the page background put a real 1px edge around each
+      group, and every control inside one now sits on `--surface-card`, which is
+      the surface `--control-border`'s 3.2:1 is documented against. The Phase 4
+      patch that forced the sidebar white is deleted rather than kept, because the
+      structure now does what the patch was compensating for.
+
+   2. **The register row is three columns and the third is a hairline away.**
+      Availability, fee and verification are what somebody is comparing across
+      twenty strangers, and in one column they were twenty scroll-lengths apart.
+      The rail is `grid-column: 3` above 56rem and `1 / -1` below it — the same
+      markup, so there is one card component and not two.
+
+   3. **The chevrons replace the `<summary>` marker.** Phase 4 kept the native
+      triangle because it was "the only affordance saying the section opens".
+      There is an explicit one now, rotated by `[open]`, so the marker is hidden
+      rather than sitting next to a second arrow pointing the other way. The
+      focus outline on `<summary>` is unchanged and still required.
+
+   4. **The toggle is a checkbox.** `.dir-switch__input` is a real
+      `<input type="checkbox" role="switch">` at `opacity: 0` over a drawn track,
+      so it submits with the form, holds its state in the URL, works with script
+      off, and keeps its own `:focus-visible` — which is drawn on the track,
+      because that is the thing a sighted keyboard user is looking at.
+
+   5. **Nothing here re-specifies colour, type or spacing.** Every value below is
+      a kiam-ui token or a token-derived `calc()`. The two places a packaged
+      component is overridden — the card's name face and the CTA's border — are
+      commented in place.
+   =========================================================================== */
+
+/* ---------- how much room the page gets ----------
+
+   MEASURED, not chosen. At the packaged `--container-max: 1180px` the register's
+   body column came out 338px wide: three speciality pills wrapped to three rows,
+   the meta line wrapped to two, and a row that should be one horizontal read was
+   349px tall. 1180 is right for an article and wrong for a three-column row.
+
+   84rem gives the body ~530px at 1280 and the rail a quarter of the row, which is
+   the proportion the reference design uses. It is a local override of a kiam-ui
+   token, scoped to this page — every other page keeps the packaged measure.
+
+   The lede then has to be capped, and that is not a side effect: it was already
+   running the full 1124px, which is well past the ~75-character measure anything
+   readable stays inside. Widening the container is what made an existing problem
+   impossible to keep ignoring. */
+.dir-search {
+  --container-max: 84rem;
+}
+
+.dir-search__lede {
+  max-inline-size: 70ch;
+}
+
+/* ---------- the sidebar shell ---------- */
+
+/* No chrome of its own: the panels are the cards now. The Phase 4 rules that gave
+   this element a border, a radius and a background are deleted above rather than
+   overridden here, so there is one place that decides what a panel looks like. */
+.dir-search__sidebar {
+  padding: 0;
+  border: 0;
+  background: none;
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.dir-filters__head {
+  align-items: baseline;
+  margin-block-end: 0;
+}
+
+.dir-filters__clear {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  white-space: nowrap;
+}
+
+@media (min-width: 60rem) {
+  .dir-search__layout {
+    grid-template-columns: 20.5rem 1fr;
+  }
+}
+
+/* ---------- a panel ---------- */
+
+/* The shadow is doing real work here, not decoration.
+   MEASURED: the panel's `--border-hover` edge is 1.23:1 against `--surface-page`,
+   because a white card on mint-50 is white on near-white and the 1px line is the
+   only separation there is. That is not a 1.4.11 failure — a grouping box is not a
+   UI component boundary and nothing about a control's state depends on it — but it
+   is a boundary this block's whole structure rests on, and at 1.23:1 it barely
+   renders. `--shadow-card` is what kiam-ui gives `.ds-dir-pcard` for exactly this
+   reason, so the panels and the result rows separate from the page the same way.
+   `html[data-contrast="high"]` re-points `--border-hover` at green-800 and the
+   same edge measures 6.71:1, so the line carries it there on its own. */
+.dir-panel {
+  background: var(--surface-card);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding-inline: var(--space-5);
+  padding-block: var(--space-1);
+}
+
+/* The hairlines between rows. `--border-hover` (mint-200) rather than
+   `--border-default` (line): these separate content from content, where the 1.4.11
+   3:1 floor does not apply and a heavier rule would turn a calm panel into a
+   spreadsheet. The panel's own outer edge carries the same value, which is what
+   makes the group read as one object. */
+.dir-panel--stack > * + *,
+.dir-panel--rows > * + * {
+  border-block-start: 1px solid var(--border-hover);
+}
+
+.dir-panel__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 3rem;
+  padding-block: var(--space-3);
+}
+
+.dir-panel__label,
+.dir-switch__label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  color: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-body-sm);
+}
+
+.dir-panel__sub {
+  display: block;
+  font-weight: var(--weight-regular);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+.dir-panel__eyebrow {
+  padding-block: var(--space-4) var(--space-1);
+  font-size: var(--text-eyebrow);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--letter-eyebrow);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.dir-panel__group {
+  border: 0;
+  margin: 0;
+  padding: 0 0 var(--space-3);
+}
+
+/* `background-COLOR`, never the `background` shorthand. The shorthand resets
+   `background-image`, and kiam-ui draws the select chevron with one — which is
+   how Phase 5b shipped a `<select>` rendering as plain text with no affordance
+   that it opened anything (measured: `backgroundImage: "none"`). */
+/* `min-inline-size: 0` is the load-bearing one. A `<select>`'s min-content width
+   is its LONGEST OPTION, so this control refused to go below 231px and dragged
+   the whole sidebar track out to 273px inside a 264px container at 320 —
+   measured. There is no document-level horizontal scroll either way (the overflow
+   lands in the container's gutter, so it is not a 1.4.10 failure), but a filter
+   panel wider than the column it is in is how one becomes one. */
+.dir-panel__select {
+  inline-size: auto;
+  min-inline-size: 0;
+  max-inline-size: 60%;
+  margin-inline-start: auto;
+  background-color: transparent;
+  border-color: transparent;
+  padding-block: var(--space-2);
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 26rem) {
+  .dir-panel {
+    padding-inline: var(--space-4);
+  }
+}
+
+/* ---------- the toggle ---------- */
+
+.dir-switch {
+  position: relative;
+  cursor: pointer;
+}
+
+/* Visually hidden, NOT display:none and NOT tabindex="-1" — it is the control.
+   `pointer-events: none` because the whole <label> is already the hit area, and
+   an invisible 44px box floating over the row would otherwise eat clicks on the
+   text beside it. */
+.dir-switch__input {
+  position: absolute;
+  inset-inline-end: 0;
+  inline-size: 44px;
+  block-size: 26px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dir-switch__track {
+  position: relative;
+  flex: 0 0 auto;
+  inline-size: 44px;
+  block-size: 26px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken-deep);
+}
+
+.dir-switch__track::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.dir-switch__input:checked + .dir-switch__track {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary-dark);
+}
+
+.dir-switch__input:checked + .dir-switch__track::after {
+  inset-inline-start: 22px;
+}
+
+/* The ring goes on the track. The input is transparent, so an outline on it would
+   be an outline around nothing a sighted keyboard user can see. */
+.dir-switch__input:focus-visible + .dir-switch__track {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+html[data-contrast="high"] .dir-switch__input:focus-visible + .dir-switch__track {
+  outline-width: 4px;
+}
+
+/* ---------- rows with counts ---------- */
+
+.dir-row__label {
+  flex: 0 1 auto;
+}
+
+/* A zero-count option keeps its place and stops being tickable. kiam-ui already
+   fades `[aria-disabled="true"]` to `--text-faint` (5.0:1 on white — still
+   readable, which is the point: it is information, not decoration). */
+.dir-row .ds-dir-filters__box:disabled {
+  opacity: 0.45;
+}
+
+/* ---------- the speciality panel ---------- */
+
+.dir-panel--specialities {
+  padding-block-end: var(--space-4);
+}
+
+.dir-facet-search {
+  position: relative;
+  margin-block-end: var(--space-3);
+}
+
+.dir-facet-search__icon {
+  position: absolute;
+  inset-inline-start: var(--space-3);
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.dir-facet-search__input {
+  inline-size: 100%;
+  padding-inline-start: var(--space-8);
+}
+
+.dir-cat__summary,
+.dir-facet__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  /* Both halves are needed: `list-style` covers Firefox and modern Chrome, the
+     pseudo-element covers WebKit. Hidden because there is an explicit chevron
+     below, and two arrows disagreeing about which way the section opens is worse
+     than either alone. */
+  list-style: none;
+}
+
+.dir-cat__summary::-webkit-details-marker,
+.dir-facet__summary::-webkit-details-marker {
+  display: none;
+}
+
+.dir-cat__summary:focus-visible,
+.dir-facet__summary:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+html[data-contrast="high"] .dir-cat__summary:focus-visible,
+html[data-contrast="high"] .dir-facet__summary:focus-visible {
+  outline-width: 4px;
+}
+
+.dir-cat__summary {
+  min-block-size: 2.75rem;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-heading);
+}
+
+.dir-cat__name {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.dir-cat__chevron,
+.dir-facet__chevron {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+.dir-cat:not([open]) > .dir-cat__summary .dir-cat__chevron,
+.dir-facet:not([open]) > .dir-facet__summary .dir-facet__chevron {
+  transform: rotate(-90deg);
+}
+
+.dir-cat__group {
+  border: 0;
+  margin: 0;
+  padding: 0 0 var(--space-2) var(--space-6);
+}
+
+/* ---------- collapsed groups in the third panel ---------- */
+
+.dir-facet__summary {
+  min-block-size: 3rem;
+  padding-block: var(--space-3);
+}
+
+.dir-facet__title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  color: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-body-sm);
+}
+
+.dir-facet__sub {
+  display: block;
+  font-weight: var(--weight-regular);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+.dir-facet__value {
+  color: var(--brand-primary-dark);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-body-sm);
+}
+
+.dir-facet .dir-filter-group,
+.dir-facet .ds-dir-filters__group {
+  margin-block: 0;
+  padding-block: 0 var(--space-3);
+  border-block-start: 0;
+}
+
+/* ---------- the register row ---------- */
+
+.dir-results {
+  gap: var(--space-4);
+}
+
+.dir-practitioner {
+  padding: var(--space-6);
+  border-radius: var(--radius-md);
+  gap: var(--space-5);
+}
+
+@media (max-width: 30rem) {
+  .dir-practitioner {
+    padding: var(--space-5);
+  }
+}
+
+/* `min(…, 100%)` on the rail's track, not a bare `15.5rem`.
+
+   A fixed min track cannot shrink below its floor, which is exactly the Phase 5
+   home-grid failure: `minmax(19rem, 1fr)` forced 304px cards into a 264px
+   container and sliced the grid off at the right edge, and 320px IS the
+   requirement (1280px at 400% zoom, WCAG 1.4.10). The media query already keeps
+   this off small screens; the `min()` is the belt for the case where the sidebar's
+   own width changes and the results column narrows without the viewport doing so. */
+@media (min-width: 56rem) {
+  .dir-practitioner--register {
+    grid-template-columns: auto minmax(0, 1fr) min(15rem, 30%);
+  }
+
+  /* The rail's divider is the VERTICAL one here, and the stacked layout's
+     horizontal one has to be turned off explicitly — leaving it set drew a stray
+     rule across the top of the right-hand column, which is a line that separates
+     nothing from nothing and reads as a broken table cell. It shipped that way for
+     one screenshot; the two borders are one either/or now, not two rules that
+     happen to both apply. */
+  .dir-practitioner--register .dir-practitioner__rail {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+    border-block-start: 0;
+    padding-block-start: 0;
+    border-inline-start: 1px solid var(--border-hover);
+    padding-inline-start: var(--space-5);
+  }
+}
+
+.dir-practitioner__rail {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  border-block-start: 1px solid var(--border-hover);
+  padding-block-start: var(--space-4);
+}
+
+.dir-practitioner--grid .dir-practitioner__rail {
+  grid-column: 1 / -1;
+}
+
+/* The delivery chips and the place/language line sit on the BOTTOM edge of the
+   row, not directly under the intro. The rail is the taller column, so a
+   top-aligned body left a band of empty card under the meta line and the row read
+   as two things of different lengths side by side rather than one row. Pushing it
+   down gives the card a baseline: name at the top, how-and-where at the foot,
+   the same on every row, which is the whole premise of a register. */
+.dir-practitioner .ds-dir-pcard__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.dir-practitioner__meta {
+  margin-block-start: auto;
+  padding-block-start: var(--space-4);
+}
+
+.dir-practitioner__status {
+  margin-block-start: 0;
+}
+
+.dir-practitioner__fee {
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+/* The affordance. `--border-default` is 1.04:1 on white, so kiam-ui's `.btn-ghost`
+   draws a button with no visible boundary — a WCAG 1.4.11 failure for a control,
+   and the reason this is the second local override in the file rather than a
+   preference. `--brand-primary` measures 4.4:1 on `--surface-card`.
+
+   RAISE UPSTREAM: `.btn-ghost` needs a border token that meets 3:1. */
+.dir-practitioner__cta {
+  inline-size: 100%;
+  border-color: var(--brand-primary);
+}
+
+/* The name in the display face. kiam-ui sizes `.ds-dir-pcard__name` and leaves the
+   family to inherit, so this is an addition rather than a contradiction: on a page
+   of twenty strangers the name is the thing being scanned, and Lora is the brand's
+   own display face. Scoped to this card, so the packaged component is unchanged
+   anywhere it is used directly. */
+.dir-practitioner .ds-dir-pcard__name {
+  font-family: var(--font-serif-display);
+  font-size: var(--text-title-md);
+  letter-spacing: var(--letter-tight);
+}
+
+.dir-practitioner__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dir-practitioner__cred {
+  margin-inline-start: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+  color: var(--text-secondary);
+}
+
+/* Blue rather than the packaged green. `--brand-secondary` separates the role line
+   from the name above it and the pills below it without introducing a colour the
+   token set does not already own; it measures 8.5:1 on `--surface-card`. */
+.dir-practitioner .ds-dir-pcard__prof {
+  color: var(--brand-secondary);
+  font-size: var(--text-body-sm);
+}
+
+/* Bigger and un-tracked. The packaged pill is a 12px uppercase-adjacent label with
+   0.04em tracking, which is right for a status chip and wrong for a run of three
+   speciality names somebody is reading to decide whether this person can help. */
+.dir-practitioner .ds-pill {
+  padding: 7px 14px;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0;
+}
+
+.dir-practitioner .ds-pill--soft {
+  background: var(--surface-sunken);
+  color: var(--text-heading);
+}
+
+/* Clamped, not truncated in the template. `truncatechars` cuts at a fixed count
+   regardless of how wide the row actually is, so the same card would show an
+   identical stub on a desktop and a phone; the clamp fills whatever line it has,
+   and the full text stays in the DOM for a screen reader. */
+.dir-practitioner__intro {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+  margin-block-start: var(--space-3);
+}
+
+.dir-practitioner--grid .dir-practitioner__intro {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.dir-practitioner__meta {
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-block-start: var(--space-3);
+}
+
+/* `--control-border` (3.2:1) rather than `--border-hover` (1.2:1). These chips are
+   not controls, so 1.4.11 does not require it — but a border nobody can see is not
+   a border, and "In person" inside an invisible outline is just text with odd
+   padding. */
+.dir-practitioner__mode {
+  padding: 5px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+}
+
+.dir-practitioner__headshot {
+  background: var(--brand-accent-soft);
+  color: var(--brand-primary-dark);
+  font-family: var(--font-serif-display);
+  font-size: 1.6rem;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+/* Top-right of the body column, in flow — NOT absolutely positioned. An absolute
+   pill in the card's own padding box would sit on top of the rail at wide widths,
+   over the availability line, which is the one thing on the row that must not be
+   obscured. */
+.dir-practitioner .ds-dir-pcard__featured {
+  margin: 0;
+  background: var(--brand-accent-soft);
+  color: var(--brand-secondary);
+  letter-spacing: 0.03em;
+}
+
+/* The badge, stripped of the pill it wears on a profile page. In the rail it is
+   one of four stacked facts and a bordered capsule around one of them reads as a
+   button. The wording, the date and the "what this does and does not mean" link
+   are untouched — they are `_verified_badge.html`'s and they are gated copy. */
+/* Stripped of the pill it wears on a profile page. In the rail it is one of four
+   stacked facts, and a bordered capsule around one of them reads as a button.
+   `position: relative` is the panel's containing block — see the note below. */
+/* MEASURED: at `--space-2` between the four parts the line came to 215px in a
+   211px rail and "what this means" dropped to a second row, which is the one thing
+   the shorter copy was for. `--space-1` brings it to 203. It still WRAPS rather
+   than clipping, because at `data-font-size="largest"` it has to. */
+.dir-practitioner__trust .dir-verified {
+  margin-block-start: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  align-items: center;
+  gap: var(--space-1);
+  line-height: 1.35;
+  color: var(--brand-primary-dark);
+}
+
+.dir-verified {
+  position: relative;
+}
+
+.dir-practitioner__trust .dir-verified__label {
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--brand-primary-dark);
+}
+
+.dir-verified__sep {
+  color: var(--text-faint);
+}
+
+.dir-practitioner__trust .dir-verified__link {
+  font-size: var(--text-caption);
+  line-height: 1.3;
+  text-decoration-style: dashed;
+}
+
+/* ---------- what "Verified" means, on hover or focus ---------- */
+
+/* `x-cloak` is what keeps this honest with scripting off: Alpine removes the
+   attribute on init, so without Alpine the panel never renders at all and the
+   badge is just its link. `!important` because `x-show` writes an inline
+   `display` and the two must not race. */
+[x-cloak] {
+  display: none !important;
+}
+
+/* Right-aligned and clamped to the row rather than the rail: 232px of rail is not
+   enough to read four lines of explanation in, and the card sets no `overflow`, so
+   the panel is free to be wider than the column it hangs off. `z-index` is above
+   `.ds-dir-pcard__link::after`, which covers the whole card — the same lift
+   `.dir-practitioner__trust` already needed for the link itself. */
+.dir-verified__note {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: calc(100% + var(--space-2));
+  inset-inline-end: 0;
+  inline-size: min(22rem, 78vw);
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--surface-forest);
+  color: var(--text-on-brand);
+  box-shadow: var(--shadow-float);
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-regular);
+  line-height: var(--line-height-body);
+  text-align: start;
+}
+
+.dir-verified__note strong {
+  font-weight: var(--weight-semibold);
+  color: var(--text-on-brand);
+}
+
+/* The last row's panel would otherwise open below the fold of the register with
+   nothing under it. Flipping the last two upward costs nothing and means the
+   explanation is always on screen when it opens. */
+.dir-results__item:nth-last-child(-n + 2) .dir-verified__note {
+  inset-block-start: auto;
+  inset-block-end: calc(100% + var(--space-2));
+}
+
+/* ---------- the end of the register ---------- */
+
+.dir-more {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  margin-block-start: var(--space-6);
+}
+
+.dir-more__back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 2.75rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.dir-more__button {
+  min-inline-size: 14rem;
+  border-color: var(--brand-primary);
+}
+
+.dir-more__status {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+.dir-more__done {
+  font-size: var(--text-body-sm);
+  color: var(--text-secondary);
+}
+
+/* It is focused after the last "Show more" — see the comment in
+   `search/partials/_results.html` — so it has to show that it is. */
+.dir-more__done:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* The funding overflow. Styled as a link rather than a group header — it reveals
+   more of the list it sits in, it does not open a new section. */
+.dir-more-options > summary {
+  cursor: pointer;
+  list-style: none;
+  min-block-size: 2.25rem;
+  display: flex;
+  align-items: center;
+  color: var(--text-link);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.dir-more-options > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dir-more-options > summary:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }

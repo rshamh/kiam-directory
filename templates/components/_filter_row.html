@@ -1,0 +1,45 @@
+{% comment %}
+FilterRow — one checkbox in the sidebar, with the count of what it would match.
+
+  {% include "components/_filter_row.html" with name="funding" option=option selected=params.funding %}
+  {% include "components/_filter_row.html" with name="speciality" option=speciality selected=params.specialities searchable="1" %}
+
+Params:
+  name      (required) the GET parameter this posts under.
+  option    (required) {"value", "name", "count"} — the shape
+            `search.services.params.facets_with_counts` produces.
+  selected  the currently-checked values for this parameter.
+  searchable  set to "1" to take part in the speciality filter box. Needs an
+              Alpine `hit()` in scope; without one Alpine logs and the row stays
+              visible, which is the right failure.
+  no_count    set to "1" to suppress the number (the "Anything in <category>"
+              row, whose count is already on the category's own summary line).
+  label_prefix  text before the option name, e.g. "Anything in ".
+
+Note `no_count="1"` and `searchable="1"` are STRINGS. Django templates have no
+boolean literals: `{% include … with no_count=True %}` looks up a variable called
+`True`, finds nothing, and passes the empty string — so the flag would be silently
+false everywhere it was set. This is the same class of trap as the
+`option.slug|default:option.code` bug that took the sidebar down at Phase 4.
+
+**A zero count disables the row; a ticked row is never disabled.** The order
+matters. A disabled checkbox is not submitted, so disabling a ticked one would
+drop the visitor's own filter out of the form on the next change — the filter
+would vanish from the results while the sidebar still showed it applied, which is
+the WCAG 4.1.2 disagreement the Phase 4 chips were rewritten to avoid. It cannot
+happen with the counts as computed (a selected option's count is measured with its
+own group cleared, so it is at least its own matches) but "cannot happen" is not a
+reason to write it the other way round.
+{% endcomment %}
+<label class="ds-dir-filters__row dir-row" for="filter-{{ name }}-{{ option.value }}"
+       {% if option.count == 0 and not no_count %}aria-disabled="true"{% endif %}
+       {% if searchable %}data-haystack="{{ option.name|lower }}" x-show="hit($el.dataset.haystack)"{% endif %}>
+  <input class="ds-dir-filters__box"
+         type="checkbox"
+         id="filter-{{ name }}-{{ option.value }}"
+         name="{{ name }}"
+         value="{{ option.value }}"
+         {% if option.value in selected %}checked{% elif option.count == 0 and not no_count %}disabled{% endif %}>
+  <span class="dir-row__label">{{ label_prefix|default:"" }}{{ option.name }}</span>
+  {% if not no_count %}<span class="ds-dir-filters__count">{{ option.count|default:0 }}</span>{% endif %}
+</label>

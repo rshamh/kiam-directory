@@ -14,6 +14,12 @@ Params:
             client group) took the page down with a VariableDoesNotExist.
   selected  list of currently-checked values.
   help      optional explanatory line, wired to the fieldset by aria-describedby.
+  hide_legend  "1" when the group sits inside a <details> whose <summary> already
+            says the same words. The <legend> is still rendered, `sr-only` — it is
+            what tells a screen reader that twenty checkboxes are one question,
+            and the summary above is a sibling, not a label for the group.
+            A STRING, because Django templates have no boolean literals and
+            `hide_legend=True` looks up a variable called `True` and passes "".
 
 **kiam-ui's `ds-dir-filters` structure from v1.1.0**, which is flat: the rows are
 `<label>`s directly inside the `<fieldset>`, with no `<ul>` between.
@@ -36,10 +42,12 @@ the HTMX `change` trigger on the form is what makes it feel live when script run
 {% endcomment %}
 {% if options %}
 <fieldset class="ds-dir-filters__group dir-filter-group"{% if help %} aria-describedby="filter-{{ name }}-help"{% endif %}>
-  <legend class="ds-dir-filters__legend">
+  <legend class="{% if hide_legend %}sr-only{% else %}ds-dir-filters__legend{% endif %}">
     {{ legend }}
-    {% if help %}<span class="ds-dir-filters__hint" id="filter-{{ name }}-help">{{ help }}</span>{% endif %}
   </legend>
+  {% comment %} The hint is OUTSIDE the legend when the legend is hidden — `sr-only`
+     on the legend would take the visible help text with it. {% endcomment %}
+  {% if help %}<span class="ds-dir-filters__hint" id="filter-{{ name }}-help">{{ help }}</span>{% endif %}
   {% for option in options %}
     {% with value=option.value %}
       <label class="ds-dir-filters__row" for="filter-{{ name }}-{{ value }}">

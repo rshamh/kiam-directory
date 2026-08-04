@@ -85,6 +85,15 @@ FACET_CACHE_SECONDS = 600
 #: and makes a shape change self-healing instead of a manual step in a runbook.
 FACET_CACHE_VERSION = 2
 
+#: How many funding rows the sidebar shows before the rest go behind a control.
+#: Six is what fits panel 1 without the group becoming the panel.
+FUNDING_ROWS_VISIBLE = 6
+
+#: How many speciality categories are listed before "Browse all N categories".
+#: Eighteen categories is ~840px of summary rows before a visitor has opened
+#: anything; six is a list somebody can read.
+CATEGORY_ROWS_VISIBLE = 6
+
 
 def daily_seed(when=None) -> int:
     """A seed that is the same all day and different tomorrow.
@@ -371,6 +380,93 @@ def facets() -> dict:
         timeout=FACET_CACHE_SECONDS,
     )
     return data
+
+
+def facets_with_counts(counts: dict, params: SearchParams | None = None) -> dict:
+    """The cached vocabulary with this search's counts and selection written onto it.
+
+    A COPY, always, and that is the whole point of the function existing rather
+    than the view mutating what `facets()` hands back. The vocabulary is shared
+    and cached; a per-request count written onto it is one visitor's numbers
+    served to everybody, and `FACET_CACHE_VERSION` would not catch it because the
+    shape is unchanged — only the meaning. That is exactly the failure the
+    constant's docstring was widened to cover at Phase 5.
+
+    Copying eighteen categories and a hundred and fifty specialities per request
+    is a dict comprehension. The bug is not that cheap.
+
+    ``selected`` per category is here rather than in the template for the Phase 4
+    reason: a collapsed ``<details>`` removes its contents from the accessibility
+    tree, so a category holding a ticked speciality has to render OPEN or arriving
+    from a shared URL hides an applied filter rather than merely scrolling past
+    it. "Does any speciality in this category appear in the selection" is not
+    something a Django template can ask, and a template that cannot ask it
+    silently answers no.
+
+    ``speciality_total`` is what the filter box says it searches. Counted from the
+    live vocabulary rather than written into the copy, so retiring a term does not
+    leave the placeholder claiming a number that has not been true for a year.
+    """
+    data = facets()
+    speciality_counts = counts.get("speciality", {})
+    category_counts = counts.get("category", {})
+    funding_counts = counts.get("funding", {})
+
+    chosen_specialities = set(params.specialities if params else [])
+    chosen_categories = set(params.speciality_categories if params else [])
+
+    tree = []
+    for category in data["speciality_tree"]:
+        specialities = [
+            {**speciality, "count": speciality_counts.get(speciality["value"], 0)}
+            for speciality in category["specialities"]
+        ]
+        tree.append(
+            {
+                **category,
+                "count": category_counts.get(category["value"], 0),
+                "specialities": specialities,
+                "selected": category["value"] in chosen_categories
+                or any(speciality["value"] in chosen_specialities for speciality in specialities),
+                # The needle the client-side filter box matches against, built
+                # here so the template does not join a hundred and fifty strings
+                # in a loop. Lower-cased once rather than per keystroke.
+                "haystack": " ".join(
+                    [category["name"], *(speciality["name"] for speciality in specialities)]
+                ).lower(),
+            }
+        )
+
+    funding = [{**option, "count": funding_counts.get(option["value"], 0)} for option in data["funding"]]
+    chosen_funding = set(params.funding if params else [])
+
+    # A selected category is pulled to the FRONT rather than left in the tail. It
+    # keeps the applied filter in the accessibility tree without forcing the
+    # overflow open, and it is the only reordering the sidebar does — everything
+    # else stays in taxonomy order, because a filter list that rearranges itself
+    # under somebody mid-task is what golden rule #3 rules out.
+    tree.sort(key=lambda category: not category["selected"])
+
+    merged = dict(data)
+    merged["speciality_tree"] = tree
+    merged["speciality_visible"] = tree[:CATEGORY_ROWS_VISIBLE]
+    merged["speciality_more"] = tree[CATEGORY_ROWS_VISIBLE:]
+    merged["speciality_total"] = sum(len(category["specialities"]) for category in tree)
+    merged["funding"] = funding
+    # The seeded taxonomy has fifteen insurers and schemes, which is a fifteen-row
+    # wall in the panel a visitor reads first. The rest go behind one control.
+    #
+    # The split is here and not in the template for the same reason `selected` is:
+    # the group has to render OPEN when the overflow holds a selection, or a
+    # ticked "NHS Right to Choose" arriving from a shared URL is inside a closed
+    # <details> and therefore out of the accessibility tree entirely. A template
+    # cannot ask "is any of the tail selected".
+    merged["funding_visible"] = funding[:FUNDING_ROWS_VISIBLE]
+    merged["funding_more"] = funding[FUNDING_ROWS_VISIBLE:]
+    merged["funding_more_selected"] = any(
+        option["value"] in chosen_funding for option in merged["funding_more"]
+    )
+    return merged
 
 
 def _options(queryset, key: str = "slug") -> list[dict]:

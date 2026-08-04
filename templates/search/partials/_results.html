@@ -41,55 +41,74 @@ just made it look like this file's job.
   {% endcomment %}
   <h2 class="sr-only">Practitioners matching your search</h2>
 
-  <ol class="dir-results" role="list">
+  <ol id="results-list" class="dir-results" role="list">
     {% for practitioner in results %}
       <li class="dir-results__item">
-        {% include "components/_practitioner_card.html" with practitioner=practitioner %}
+        {% include "components/_practitioner_card.html" with practitioner=practitioner variant="register" %}
       </li>
     {% endfor %}
   </ol>
 
-  {% if page.num_pages > 1 %}
-    <nav class="dir-pagination" aria-label="Results pages">
-      {% if page.has_previous %}
-        {% comment %}
-        `id` is load-bearing, not decoration. htmx 2.0.4 restores focus after a swap
-        only when the previously focused element had one
-        (`if (s.elt && !le(s.elt) && ee(s.elt, "id"))`), and these anchors live
-        inside #results and are destroyed by it. Without an id, activating "Next"
-        dropped focus to <body> — leaving a keyboard user with no position and the
-        whole filter sidebar between them and the link they had just used.
-        {% endcomment %}
-        <a class="dir-pagination__link"
-           id="pagination-previous"
-           href="{{ previous_url }}"
-           hx-get="{% url 'search:search' %}{{ previous_url }}"
-           hx-target="#results"
-           hx-replace-url="true"
-           rel="prev">
-          {% include "kiam_ui/components/icon.html" with name="arrow-left" size=16 %}
-          Previous
-        </a>
-      {% endif %}
+  {% comment %}
+  THE END OF THE REGISTER — one control, and it APPENDS.
 
-      <p class="dir-pagination__status">
-        Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.total }}
-      </p>
+  With script running, "Show 13 more" adds the next page to the bottom of the list
+  the visitor is already reading: `hx-select` takes the new `<li>`s out of the
+  response and `hx-swap="beforeend"` puts them on the end of `#results-list`, while
+  `hx-select-oob` swaps this container for the response's version of it — so the
+  number on the button, the "showing N of M" line and the button's own existence
+  all come from the server rather than from arithmetic in the browser.
 
-      {% if page.has_next %}
-        <a class="dir-pagination__link"
-           id="pagination-next"
-           href="{{ next_url }}"
-           hx-get="{% url 'search:search' %}{{ next_url }}"
-           hx-target="#results"
-           hx-replace-url="true"
-           rel="next">
-          Next
-          {% include "kiam_ui/components/icon.html" with name="arrow-right" size=16 %}
-        </a>
-      {% endif %}
-    </nav>
-  {% endif %}
+  With script off it is a plain link to `?page=2` and the register pages normally,
+  which is why "Previous" is rendered on the full page and not in the fragment: a
+  no-JS visitor on page 2 needs a way back, and an HTMX visitor who has just
+  appended page 2 below page 1 does not — the rows are still there above them.
+
+  `hx-replace-url="false"` opts out of the form's inherited `hx-replace-url`.
+  Without it the address bar would say `?page=3` while the page showed pages 1–3,
+  and a reload would drop the first forty rows.
+
+  **BOTH BRANCHES CARRY `id="results-end"`, and that is the load-bearing part.**
+  htmx 2 restores focus after a swap by looking the previously focused element up
+  by id (`if (s.elt && !le(s.elt) && ee(s.elt, "id"))`). This control replaces
+  itself on every activation, so without a stable id the last press — the one that
+  exhausts the results — would drop focus to `<body>`, leaving a keyboard user with
+  no position and the whole filter sidebar between them and where they were. The
+  same lesson as the Phase 4 pagination links, one swap pattern later.
+  {% endcomment %}
+  <div id="results-more" class="dir-more">
+    {% if not request.htmx and page.has_previous %}
+      <a class="dir-more__back" id="pagination-previous" href="{{ previous_url }}" rel="prev">
+        {% include "kiam_ui/components/icon.html" with name="arrow-left" size=16 %}
+        Previous page
+      </a>
+    {% endif %}
+
+    {% if page.has_next %}
+      <a class="btn btn-ghost dir-more__button"
+         id="results-end"
+         href="{{ next_url }}"
+         hx-get="{% url 'search:search' %}{{ next_url }}"
+         hx-target="#results-list"
+         hx-swap="beforeend"
+         hx-select="#results-list > li"
+         hx-select-oob="#results-more"
+         hx-replace-url="false"
+         rel="next">
+        Show {{ page.remaining }} more
+      </a>
+    {% else %}
+      <p class="dir-more__done" id="results-end" tabindex="-1">That is everyone who matches.</p>
+    {% endif %}
+
+    {% comment %}
+    Deliberately NOT a live region. `#result-count` above the results is the
+    persistent one, and a second region inside a container that is itself replaced
+    by the swap is not reliably announced anyway — the Phase 3 contact-reveal
+    lesson, and the reason the count was moved out of `#results` at Phase 4.
+    {% endcomment %}
+    <p class="dir-more__status">Showing {{ page.end_index }} of {{ page.total }}</p>
+  </div>
 
 {% else %}
 

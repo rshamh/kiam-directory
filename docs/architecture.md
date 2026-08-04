@@ -154,7 +154,7 @@ then. The `directory` models (also authored) land in Phase 1.
 | `/accessibility/` | `pages:accessibility` | |
 | `/terms/` `/privacy/` `/cookies/` | `pages:terms` etc. | placeholders. `TODO(sign-off)` — solicitor |
 | `/report-a-concern/` | `pages:report_concern` | writes a `ConcernReport`. Accepts `?listing=<slug>` to prefill |
-| `/search/` | `search:search` | the search page. Whole page on a normal GET, `partials/_results.html` when `request.htmx` — **same URL**, so there is no fragment-only address to index. `noindex, follow` on any faceted query string; the canonical is the base template's request-derived one, which excludes the query string and so already points at the bare path |
+| `/search/` | `search:search` | the search page. Whole page on a normal GET, `partials/_results.html` when `request.htmx` — **same URL**, so there is no fragment-only address to index. `noindex, follow` on any faceted query string; the canonical is the base template's request-derived one, which excludes the query string and so already points at the bare path. From Phase 5c the results are a **register** — one row per practitioner with a rail — and the next page **appends** (`hx-select` + `beforeend` + `hx-select-oob`), degrading to a plain `?page=2` link with script off |
 | `/search/places/` | `search:place_suggestions` | `<option>` elements for the location field's native `<datalist>`. No links, so nothing to crawl |
 | `/robots.txt` | `seo:robots` | this subdomain's own. Deliberately does **not** disallow `/search/` — the facet URLs must stay crawlable for their `noindex` to be read |
 | `/llms.txt` | `seo:llms` | this subdomain's own |
@@ -268,6 +268,18 @@ Built at Phase 4. Four things about it are decisions rather than implementation:
   rules.
 * **The shuffle seed is date-derived, not session-derived**, so running a search sets no cookie.
   It rides in pagination URLs and is overridable with `?seed=`.
+
+Phase 5c added two things to the same module and both are about cost:
+
+* **`facet_counts(params)`** — five queries for the whole sidebar, each group counted with its
+  OWN selection cleared so ticking one option does not zero its siblings. The under-18 gate is
+  re-applied by hand, because clearing the speciality selection also clears what
+  `_requests_minor_work` reads.
+* **`_card_facts()`** — the monogram initials, the fee line, the status note, the languages and
+  the town of the **public** address the distance was measured to, in two queries for the page.
+  `search.services.params.facets_with_counts()` merges the counts onto a **copy** of the cached
+  vocabulary; writing them onto the cached object would serve one visitor's numbers to everybody
+  with no shape change for `FACET_CACHE_VERSION` to catch.
 
 Geocoding is `apps/search/services/geocode.py` — postcodes.io for postcode → point and its `/places`
 endpoint (OS Open Names data) for autocomplete, keyless, aggressively cached in Redis, and

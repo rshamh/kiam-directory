@@ -1,32 +1,86 @@
 {% comment %}
-VerifiedBadge — "Credentials checked <date>", and nothing more than that.
+VerifiedBadge — "Verified", and what that does and does not mean.
 
   {% include "components/_verified_badge.html" with practitioner=practitioner %}
 
-The wording is fixed by docs/verification-policy.md and it is a narrow claim on
-purpose: the required documents were checked and remain in date. It is NOT a
-competence, quality or outcome claim, and the copy must never drift towards one
-— no "approved", no "trusted", no "recommended", no tick that reads as an
-endorsement. The link to /how-verification-works/ is part of the badge rather
-than an optional extra, because the policy requires the limits of the claim to
-be one click away from wherever the claim appears.
+The claim is narrow on purpose: the required documents were checked and remain in
+date. It is NOT a competence, quality or outcome claim, and the copy must never
+drift towards one — no "approved", no "trusted", no "recommended", no tick that
+reads as an endorsement. The link to /how-verification-works/ is part of the badge
+rather than an optional extra, because docs/verification-policy.md requires the
+limits of the claim to be one click away from wherever the claim appears.
 
-Absence is meaningful: a published listing whose insurance lapsed loses the
-badge automatically overnight and renders nothing here. There is deliberately no
-"not verified" state — a badge nobody can set by hand also should not be a label
-that shames the listing it is missing from.
+Absence is meaningful: a published listing whose insurance lapsed loses the badge
+automatically overnight and renders nothing here. There is deliberately no "not
+verified" state — a badge nobody can set by hand also should not be a label that
+shames the listing it is missing from.
 
 `practitioner.is_verified` and `credentials_checked_at` are COMPUTED
 (directory/services/verification.py). Never rendered from anything else.
 
-TODO(sign-off): Dr. Abbass — the badge wording. docs/verification-policy.md puts
-ANY public wording derived from it behind a clinical gate, and this is the
-shortest and most-repeated piece of that wording on the whole site.
+**THE DATE MOVED INTO THE PANEL, it did not go away.** The badge used to read
+"Credentials checked 30 July 2026" on its face. On a register of twenty rows that
+is four lines in a 232px rail where the reference design spends one, and the date
+is not the thing a visitor is scanning for — "is this one checked" is. It is still
+one hover or one focus away, and still on the profile page, because a freshness
+claim with no date behind it is not a freshness claim.
+
+WHAT THE PANEL SAYS IS WHAT IS ACTUALLY ENFORCED. `verification.BASE_REQUIRED` is
+photo ID, regulator/professional-body registration, qualification and professional
+indemnity insurance, plus prescriber status for a prescriber. The panel names those
+and nothing else — no DBS, which is a separate gate and not one of the badge's
+required checks.
+
+HOVER IS NOT THE ONLY WAY IN (WCAG 1.4.13, and 2.1.1 before it):
+
+* The trigger is a real LINK to the full explanation, so the panel is
+  supplementary. With JavaScript off `x-cloak` is never removed and the panel
+  simply does not exist; the link still works. That is the same choice the Phase 5b
+  hint row and the speciality filter box made.
+* `@focusin` opens it, so a keyboard user gets the same panel a mouse user does.
+* `@keydown.escape` dismisses it without moving focus.
+* It stays open while the pointer is inside the badge, because the handlers are on
+  the badge and the panel is inside it.
+* **Nothing interactive lives in the panel.** The reference design repeats "How
+  verification works" as a link inside it; that would be the same destination as
+  the trigger two tab stops away, twenty times on a results page, and a keyboard
+  user would have to tab INTO a hover panel to reach it. The trigger is the link.
+
+`aria-describedby` points at the panel, so when it is open a screen reader reads
+the explanation as the link's description — and when it is closed the panel is
+`display: none` and the description resolves to nothing, which is correct rather
+than a bug: the reader is not made to hear twenty explanations they did not ask
+for.
+
+TODO(sign-off): Dr. Abbass — ALL of the wording below. docs/verification-policy.md
+puts any public copy derived from it behind a clinical gate, this is the
+shortest and most-repeated piece of that wording on the whole site, and this
+revision shortens the face of the badge from "Credentials checked <date>" to
+"Verified" and adds a panel that did not previously exist. The panel is written to
+claim only what `BASE_REQUIRED` enforces; the gate is on the phrasing.
 {% endcomment %}
 {% if practitioner.is_verified and practitioner.credentials_checked_at %}
-<p class="dir-verified">
-  {% include "kiam_ui/components/icon.html" with name="shield-check" size=18 %}
-  <span class="dir-verified__label">Credentials checked {{ practitioner.credentials_checked_at|date:"j F Y" }}</span>
-  <a class="dir-verified__link" href="{% url 'pages:how_verification_works' %}">What this does and does not mean</a>
+<p class="dir-verified"
+   x-data="{ open: false }"
+   @mouseenter="open = true"
+   @mouseleave="open = false"
+   @focusin="open = true"
+   @focusout="open = false"
+   @keydown.escape="open = false">
+  {% include "kiam_ui/components/icon.html" with name="shield-check" size=17 %}
+  <span class="dir-verified__label">Verified</span>
+  <span class="dir-verified__sep" aria-hidden="true">·</span>
+  <a class="dir-verified__link"
+     href="{% url 'pages:how_verification_works' %}"
+     aria-describedby="verified-note-{{ practitioner.pk }}">what this means</a>
+
+  <span class="dir-verified__note" id="verified-note-{{ practitioner.pk }}" x-cloak x-show="open">
+    We checked {{ practitioner.full_name }}'s professional registration,
+    qualifications, professional indemnity insurance{% if practitioner.is_prescriber %},
+    prescriber status{% endif %} and photo ID on
+    {{ practitioner.credentials_checked_at|date:"j M Y" }} — all currently in date.
+    Verification is a freshness check, <strong>not an endorsement</strong> of
+    quality or outcomes.
+  </span>
 </p>
 {% endif %}

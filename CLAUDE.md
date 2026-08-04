@@ -196,30 +196,34 @@ and the documented WCAG contrast pairings. Read that rather than guessing, and *
 installed package and update it whenever the pin moves**. Do not re-specify colours, type or
 spacing anywhere in this repo — `kiam-ui` is the source of truth for those.
 
-**v1.1.0 ships 16 `components/directory/` partials this repo does not use, and that is a
-decision, not an oversight.** The package now has its own `search_bar`, `practitioner_card`,
-`verified_badge`, `independence_notice`, `contact_reveal` and eleven more — the same vocabulary
-this repo built locally as `dir-*` across Phases 3–5b. Adopting them is a **redesign**, not an
-upgrade: they take the "1a" direction (elevated search bar, single-column register results,
-dossier profile) with different markup, and the local versions carry behaviour the packaged ones
-know nothing about — the POST-only reveal with its focus move and per-IP limit, the two-place
-minors gate, the "no contact details on a card" rule, `headshot_priority`, and the independence
-notice as verbatim §5 copy. Swapping markup underneath any of those is a compliance change.
-So: **the pin moved, the components did not.** See §8 of `docs/design-system.md` for the
-component-by-component comparison, and treat adoption as its own scoped piece of work.
+**v1.1.0's `components/directory/` vocabulary is ADOPTED, and adopting it was a redesign
+rather than an upgrade.** The package's `search_bar`, `practitioner_card`, `verified_badge`,
+`independence_notice`, `contact_reveal` and the rest take the "1a" direction — elevated search
+bar, single-column register results, dossier profile — with different markup from the `dir-*`
+components this repo built across Phases 3–5b. What was adopted is the **anatomy and the CSS**;
+what stayed local is every piece of behaviour the packaged partials know nothing about: the
+POST-only reveal with its focus move and per-IP limit, the two-place minors gate, the "no contact
+details on a card" rule, `headshot_priority`, the badge that decides for itself whether to render,
+and the independence notice as verbatim §5 copy. **Swapping markup underneath any of those is a
+compliance change**, which is why the cards and the sidebar are `ds-dir-*` classes wrapping our
+own markup rather than `{% include %}`s of the packaged partials.
 
-Two consequences of the upgrade that are live now:
+Three consequences that are live now:
 
-- **The site does NOT set `.ds-dir`.** The changelog says the directory must; that is true only
-  for consumers of the new components. `.ds-dir` re-points `--focus-ring` to Sky Blue site-wide,
-  which would change every focus indicator on every page for no benefit while nothing renders a
-  `ds-dir-*` class. Add it in the same change that adopts the components, not before, and
-  re-measure focus contrast when you do — including under `html[data-contrast="high"]`, which
-  out-specifies `.ds-dir` and keeps green-900.
+- **`.ds-dir` IS set, on the body, in `templates/base.html`.** It re-points `--focus-ring` to Sky
+  Blue site-wide. Measured before it went on and again at Phase 5c: **3.12:1 on a panel, 3.06:1
+  on the page** — passing WCAG 1.4.11 with nothing to spare, so anything darker than mint-200
+  behind a control needs re-measuring rather than assuming. `html[data-contrast="high"]`
+  out-specifies `.ds-dir` (0,1,1 vs 0,1,0) and keeps green-900 at **9.51:1**, which is the right
+  outcome and an accident of specificity — `apps/pages/tests/test_chrome.py` pins it.
 - **The compiled `kiam-ui.css` grew 38.5 KB → 61.2 KB** (9.8 KB gzipped, up from 7.0 KB) and is
-  render-blocking on every page. Every added byte is `.ds-dir`-scoped and matches nothing here.
-  It is a real cost for a capability not yet used; it is small next to Gap 3's 68 KB of Google
-  Fonts, and it is the price of the components being available.
+  render-blocking on every page. Now that the `ds-dir-*` rules are actually matched this is the
+  price of the components rather than dead weight; it is still small next to Gap 3's 68 KB of
+  Google Fonts.
+- **Local overrides of packaged rules are documented, not scattered.** §10 of
+  `docs/design-system.md` is the complete list with the measurement that justified each, and two
+  of them are marked **raise upstream** (`.btn-ghost`'s 1.04:1 border, and the search bar's
+  focus ring on its own tint).
 
 Its §7 "Gaps" is the list of things the package does not give us and how each is worked around.
 Two matter for the next phases:
@@ -769,6 +773,78 @@ same rule as the browse links, and `homepage:hero` is in `publication.CACHE_KEY_
 suspension that empties a profession removes its chip within seconds. The scale line says
 "listed", never "checked": publication does not require verification, and a test asserts the word
 stays out. Tab stops before the grid went from 4 to 8 (4 controls, then 4 chips).
+
+### The results register and the panelled sidebar (Phase 5c)
+
+`/search/` rebuilt against a supplied reference: result rows with the commercial facts in a
+rail, and a sidebar of three white panels with a count against every option. The CSS is the
+`Phase 5c` block at the end of `static/src/app.css`; `docs/design-system.md` §10 lists every
+override of a packaged rule with the measurement behind it.
+
+Seven things are decisions rather than implementation.
+
+* **The card has a `variant`, and it changes CSS — with one exception.** `register` puts the
+  rail in a third column behind a hairline; `grid` (the home page) stacks it under the body.
+  Same elements, same order, same ids, one modifier class — the Phase 5b search-bar rule, for
+  the same reason: one keyboard pattern to keep right, not two. The exception is the **town**,
+  which renders on the register and not in the grid. Phase 5's rule is that the home page needs
+  two published practitioners in a town before it names it, because naming it beside one listing
+  identifies that person by where they work. A results page is a different act — the visitor
+  asked about a place, and the address is one the practitioner marked public. The rule is kept
+  where it was written rather than widened or quietly dropped;
+  `test_a_town_needs_more_than_one_practitioner_to_be_offered` is the line.
+* **Counts are measured with each group's OWN selection cleared** (`search.facet_counts`).
+  Count a group against a queryset that already has that group's filter applied and every sibling
+  reads 0 the moment you tick one. Across groups the filters stay on, so the number answers "and
+  how many of *these*". A **0** is rendered and the row disabled rather than removed — the
+  vocabulary must not change shape between searches — and **a ticked row is never disabled**,
+  because a disabled checkbox is not submitted and would silently drop the visitor's own filter.
+  The under-18 gate is re-applied by hand in `facet_counts`, because clearing the speciality
+  selection also clears what `_requests_minor_work` reads. One residual over-count is documented
+  there and closes with the open `recompute()` fix.
+* **"Show N more" APPENDS.** `hx-select` lifts the new `<li>`s out of the response,
+  `hx-swap="beforeend"` puts them on the end of the list being read, and `hx-select-oob` swaps the
+  control for the server's version of it. With script off it is a plain link to `?page=2` and
+  "Previous page" is rendered on the full page only. **Both branches carry `id="results-end"`** —
+  htmx restores focus by id, and this control replaces itself on every press, so without a stable
+  id the last press drops focus to `<body>`. `hx-replace-url="false"` opts out of the form's
+  inherited value, or the address bar would say `?page=3` while showing pages 1–3.
+* **The verified badge is "Verified · what this means" with a hover/focus panel.** The date and
+  the scope of the check moved into the panel; they did not go away. The trigger is a real link,
+  the panel holds nothing interactive, and with script off `x-cloak` is never removed so the panel
+  does not exist. Measured against WCAG 1.4.13: opens on `focusin`, dismissible with Escape
+  without moving focus, hoverable. The panel names only `verification.BASE_REQUIRED` —
+  **DBS is deliberately absent**, it is the safeguarding check and not one of the badge's
+  required ones. **TODO(sign-off): Dr. Abbass** — all of that wording is gated copy.
+* **"Paid placement", not "Featured".** The reference labels the slot "Featured", which says a
+  listing was chosen and not that it was bought. The pill takes the reference's placement and
+  colour and keeps the word that discloses it (`docs/content-compliance.md` §6).
+* **No contact button on a card, ever.** The reference puts "Show contact details" on the row.
+  Contact is revealed on the profile, through a POST, behind a per-IP limit. The rail's affordance
+  is "View profile", deliberately the same size and weight as the reference's button.
+* **The sidebar caps two lists and computes the "is anything inside selected" test in Python.**
+  Six funding rows then "All 15 funding options"; six categories then "Browse all N categories".
+  A closed `<details>` removes its contents from the accessibility tree, so a selection in the
+  tail has to force the group open (funding) or be sorted to the front (categories) — and "does
+  any speciality in this category appear in the selection" is not something a Django template can
+  ask. A template that cannot ask it silently answers no.
+
+**Three things only the browser showed**, which is the recurring lesson with three more
+instances:
+
+* **A `<select>`'s min-content width is its longest option.** "Typical wait" refused to go below
+  231px and dragged the sidebar track to 273px inside a 264px container at 320.
+* **The rail wore two borders at once.** The stacked layout's `border-block-start` was never
+  reset in the `≥56rem` rule that adds the vertical one, so the right-hand column had a stray
+  rule across its top separating nothing from nothing.
+* **The live region announced a page nobody was on.** After one "Show 9 more" it read
+  "29 practitioners · page 2 of 2" while all 29 rows were on screen. `_result_count.html` now
+  says "showing N" under htmx and keeps "page N of M" for the paging, no-JavaScript reading.
+
+The register also costs **five queries for the counts and two for the card** (languages, and the
+public location the distance was measured to). None of them is per-row, and
+`test_the_card_queries_do_not_grow_with_the_page` is what keeps it that way — the count test
+alone passes at a page size of one.
 
 ### The practitioner dashboard (Phase 6)
 

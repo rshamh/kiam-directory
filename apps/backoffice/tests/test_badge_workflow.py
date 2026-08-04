@@ -333,7 +333,7 @@ def test_the_listing_stays_live_while_the_edit_is_reviewed(client, live_and_veri
     response = client.get(f"/p/{live_and_verified.slug}/")
     body = response.content.decode()
     assert response.status_code == 200
-    assert "Credentials checked" not in body
+    assert 'class="dir-verified"' not in body
 
 
 def test_a_safe_edit_changes_nothing(live_and_verified):
@@ -614,7 +614,7 @@ def test_the_full_loop_from_the_visitors_side(client, superadmin, verifier):
     profile_url = f"/p/{practitioner.slug}/"
 
     def badge_on_page() -> bool:
-        return "Credentials checked" in client.get(profile_url).content.decode()
+        return 'class="dir-verified"' in client.get(profile_url).content.decode()
 
     # 1. Live, but nothing checked yet — no badge.
     assert not badge_on_page()

@@ -489,7 +489,7 @@ def test_an_unbadged_listing_can_appear_in_the_grid_which_is_why_the_copy_is_con
 
     assert chosen, "no grid to assert about"
     assert all(not p.is_verified for p in chosen)
-    assert "Credentials checked" not in grid_markup(client.get(URL).content.decode())
+    assert 'class="dir-verified"' not in grid_markup(client.get(URL).content.decode())
 
 
 def test_the_practitioner_cta_promises_no_message_relay(client):
