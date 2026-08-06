@@ -2539,7 +2539,6 @@ html[data-contrast="high"] .dir-facet__summary:focus-visible {
   .dir-practitioner--register .dir-practitioner__rail {
     grid-column: 3;
     grid-row: 1;
-    align-self: start;
     border-block-start: 0;
     padding-block-start: 0;
     border-inline-start: 1px solid var(--border-hover);
