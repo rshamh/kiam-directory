@@ -371,7 +371,12 @@ GEOCODE_USER_AGENT = env(
 # Search
 # ---------------------------------------------------------------------------
 
-SEARCH_PAGE_SIZE = env.int("SEARCH_PAGE_SIZE", default=20)
+# 12, not 20. The register row is a tall, dense card — twenty of them is a very
+# long page to scroll before the "Show N more" control, and this audience has a
+# high rate of anxiety and neurodevelopmental conditions (golden rule #3), for
+# whom a shorter page is a smaller thing to hold. 12 also matches the home grid,
+# and divides evenly by the 1/2/3-column layouts the register uses.
+SEARCH_PAGE_SIZE = env.int("SEARCH_PAGE_SIZE", default=12)
 
 # ---------------------------------------------------------------------------
 # Submission lint

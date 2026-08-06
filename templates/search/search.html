@@ -21,7 +21,20 @@ lesson as the Phase 3 contact reveal.
 {% load static %}
 
 {% block content %}
-<div class="container section dir-search">
+{% comment %}
+NOT `container section` on this element any more. The gradient band behind the
+search bar has to run the full width of the viewport, and a `.container` is
+`max-inline-size` + `margin-inline: auto` — a background on it stops at 84rem
+with two hard vertical edges. So the outer element is a plain block that carries
+only the `--container-max` override (a custom property, which inherits, so both
+`.container`s inside it still measure 84rem), and each band owns its own
+`.container` child.
+
+Deliberately NOT the `100vw` full-bleed trick: `vw` includes the scrollbar
+gutter, and this page already has a horizontal-overflow problem below ~400px
+that the trick would make worse on every width.
+{% endcomment %}
+<div class="dir-search">
 
   {% comment %}
   The visible header — eyebrow, H1, description — is gone by request: the search
@@ -60,34 +73,61 @@ lesson as the Phase 3 contact reveal.
         hx-sync="this:replace">
 
     {% comment %}
-    A bypass past the filters (WCAG 2.4.1). Seeded with the real taxonomy the
-    sidebar is ~196 tab stops and ~8,000px tall, and the chrome's skip link lands
-    at #main, which is ABOVE it — so a sighted keyboard user had no way to reach the
-    results at all. A screen-reader user could jump by heading or landmark; they
-    could not.
-    {% endcomment %}
-    <p class="dir-search__skip"><a href="#results">Skip to results</a></p>
+    THE HERO BAND. A gradient behind the search bar, so the page's opening move
+    reads as a deliberate surface rather than a form floating on white — which is
+    what it became once the eyebrow, H1 and description came off.
 
-    <div class="dir-search__bar">
-      {% include "components/_search_bar.html" %}
+    The gradient's stops are a CONTRAST RESULT, not a taste one, and they are in
+    absolute lengths rather than the percentages `.dir-hero` uses. The bar's
+    boundary is `--control-border`, which has to clear WCAG 1.4.11's 3:1, and it
+    only does so on the flat `--surface-page` end of this ramp: measured 2.60:1 on
+    mint-200, 2.85:1 on mint-100 and 3.21:1 on `--surface-page`. Percentage stops
+    move with the band's height, so a longer location label or a bigger font could
+    slide the bar back up into the tinted part and quietly fail. Absolute lengths
+    cannot: the ramp is flat by 3.5rem, the band's top padding is 4rem, so the bar
+    starts 8px past the last tinted pixel at every viewport and every font size.
+    See the Phase 5b note in CLAUDE.md — this is the same trap, one surface later.
+    {% endcomment %}
+    <div class="dir-search__hero">
+      <div class="container">
+
+        {% comment %}
+        A bypass past the filters (WCAG 2.4.1). Seeded with the real taxonomy the
+        sidebar is ~196 tab stops and ~8,000px tall, and the chrome's skip link lands
+        at #main, which is ABOVE it — so a sighted keyboard user had no way to reach the
+        results at all. A screen-reader user could jump by heading or landmark; they
+        could not.
+
+        Hidden until focused now — see `.dir-search__skip` in app.css for why that
+        is what a bypass block should have been doing all along.
+        {% endcomment %}
+        <p class="dir-search__skip"><a href="#results">Skip to results</a></p>
+
+        <div class="dir-search__bar">
+          {% include "components/_search_bar.html" %}
+        </div>
+
+        {% comment %}
+        Condensed, not deleted, and VISIBLE rather than `.sr-only` — the seo-reviewer
+        subagent's finding on this page: a `.sr-only`-clipped paragraph is exactly the
+        signature a readability-style extractor treats as boilerplate to skip, so
+        hiding the AEO answer paragraph here would have defeated the reason it exists
+        (docs/seo.md, "AEO / AI search") and weakened /search/'s one real defence
+        against reading as the textbook thin internal-search page — a bare form and a
+        result list. This is the page's first real paragraph now the H1 is hidden,
+        which is where docs/seo.md says the extracted answer has to live. Muted and
+        small on purpose: a visible sentence, not the visible paragraph it replaces.
+        {% endcomment %}
+        <p class="dir-search__summary">
+          Independent psychiatrists, psychologists, psychotherapists, counsellors and
+          other mental-health professionals, in person and online — contact them
+          directly. No account needed, and Kiam Clinic takes no payment.
+        </p>
+
+      </div>
     </div>
 
-    {% comment %}
-    Condensed, not deleted, and VISIBLE rather than `.sr-only` — the seo-reviewer
-    subagent's finding on this page: a `.sr-only`-clipped paragraph is exactly the
-    signature a readability-style extractor treats as boilerplate to skip, so
-    hiding the AEO answer paragraph here would have defeated the reason it exists
-    (docs/seo.md, "AEO / AI search") and weakened /search/'s one real defence
-    against reading as the textbook thin internal-search page — a bare form and a
-    result list. This is the page's first real paragraph now the H1 is hidden,
-    which is where docs/seo.md says the extracted answer has to live. Muted and
-    small on purpose: a visible sentence, not the visible paragraph it replaces.
-    {% endcomment %}
-    <p class="dir-search__summary">
-      Independent psychiatrists, psychologists, psychotherapists, counsellors and
-      other mental-health professionals, in person and online — contact them
-      directly. No account needed, and Kiam Clinic takes no payment.
-    </p>
+    <div class="container dir-search__body">
 
     <div class="dir-search__status-row">
       <div class="dir-search__status">
@@ -102,59 +142,22 @@ lesson as the Phase 3 contact reveal.
       </div>
 
       {% comment %}
-      Ranking transparency. A per-item "Paid placement" pill satisfies CAP at the
-      point of display, but a ranked list where payment can affect POSITION also
-      needs the main ranking parameters stated somewhere a visitor can reach
-      (DMCCA 2024, in force April 2025). Written now, before anything is featured,
-      for the same reason the pill was: a disclosure added alongside the first sale
-      is a disclosure somebody has to remember.
+      THE TRIGGER ONLY. The disclosure itself is the <dialog> after the form —
+      see the long comment there for why this is required at all and why it is
+      still not a "Sort" control.
 
-      Native <details>, so it costs nothing to ignore and needs no script. Styled
-      as `.dir-facet` — the sidebar's collapsed-group summary, chevron and all —
-      rather than a one-off, so it inherits the closed-`<details>` fix noted where
-      that class is defined (an author `display` on the content re-showed it once
-      already) instead of being a second place that bug can recur.
-
-      Left as "How these results are ordered", not relabelled "Sort" — there is
-      only one order, this explains it, and it is legally-reviewed wording
-      (TODO(sign-off) below). A control offering a choice that does not exist
-      would be worse than no control.
-
-      TODO(sign-off): solicitor — the paid-placement wording, alongside the
-      Listing Agreement that has to cover the tier at all.
+      A LINK, not a <button>. With script off it is an in-page jump to the
+      disclosure, which renders as a plain section at the foot of the page; with
+      script on the handler intercepts it and opens the same element as a modal.
+      A <button> would do nothing at all without script, which for a legally
+      required disclosure is not an acceptable failure mode.
       {% endcomment %}
-      <details class="dir-facet dir-search__sort">
-        <summary class="dir-facet__summary dir-search__sort-summary">
-          <span class="dir-facet__title">How these results are ordered</span>
-          {% include "kiam_ui/components/icon.html" with name="chevron-down" size=16 cls="dir-facet__chevron" %}
-        </summary>
-        <div class="prose dir-search__sort-panel">
-          <p>
-            Results are ordered by how well they match what you asked for. The
-            things that count, most first: how close the practitioner is to the
-            location you gave, how well their listing matches your words, how
-            complete their listing is, whether their credentials have been checked
-            and are in date, whether they are accepting new clients, and how
-            recently they updated their listing.
-          </p>
-          <p>
-            Practitioners with equally good matches are shuffled, and the shuffle
-            changes daily, so no one listing sits at the top permanently.
-          </p>
-          <p>
-            Practitioners can pay for a <strong>featured</strong> place near the top.
-            Featured listings are always labelled “Paid placement” where they
-            appear, and no more than {{ featured_cap }} can appear on a page.
-            Paying changes position only — it does not change whether somebody is
-            listed, and it has no effect at all on the verification checks.
-          </p>
-          <p>
-            Kiam Clinic does not rank practitioners by quality and does not
-            recommend one over another.
-            <a href="{% url 'pages:how_verification_works' %}">What the verification badge means</a>.
-          </p>
-        </div>
-      </details>
+      <a class="dir-search__ordering-link" href="#how-ordered" data-ordering-open>
+        {% comment %} `alert` is the sprite's circled "i"/"!" glyph — there is no `info`
+           in it, and adding one is a kiam-ui change, not a local SVG. {% endcomment %}
+        {% include "kiam_ui/components/icon.html" with name="alert" size=15 %}
+        How these results are ordered
+      </a>
     </div>
 
     {% if active_filters %}
@@ -199,7 +202,115 @@ lesson as the Phase 3 contact reveal.
         </div>
       </div>
     </div>
+
+    </div>{# /.dir-search__body #}
   </form>
 
+  {% comment %}
+  THE RANKING DISCLOSURE.
+  ===========================================================================
+  What it is for, because the question was asked: a per-item "Paid placement"
+  pill discloses that ONE listing was paid for, which satisfies CAP at the point
+  of display. It does not disclose that payment can affect POSITION in a ranked
+  list, and the DMCCA 2024 (in force April 2025) requires an online search
+  facility to state its main ranking parameters somewhere the visitor can reach.
+  That is what this is. It is not optional and it is not decoration —
+  `test_the_page_states_how_results_are_ordered` asserts its substance, and it
+  was written before anything is featured for the same reason the pill was: a
+  disclosure added alongside the first sale is one somebody has to remember.
+
+  It is NOT relabelled "Sort". There is one ranking order and no alternative to
+  choose, so a control that looks like a sort dropdown would promise a feature
+  that does not exist.
+
+  A <dialog> OUTSIDE the form — a nested <form method="dialog"> inside the search
+  form would be invalid HTML and would submit the search.
+
+  **It degrades to a plain section, and that is the whole design.** A legally
+  required disclosure may not depend on JavaScript, so the default state in CSS
+  is an ordinary block at the foot of the page that the trigger link jumps to.
+  `html.js` — set by the one-line script in `extra_head`, before first paint, so
+  there is no flash of the inline version — is what switches it to a real modal.
+  Native `showModal()` then supplies the focus trap, Esc-to-close, the backdrop
+  and `inert` on the rest of the page, none of which is worth hand-rolling.
+
+  TODO(sign-off): solicitor — the paid-placement wording, alongside the Listing
+  Agreement that has to cover the tier at all.
+  {% endcomment %}
+  <dialog id="how-ordered" class="dir-ordering" aria-labelledby="how-ordered-title">
+    <div class="dir-ordering__inner">
+      <div class="dir-ordering__head">
+        <h2 id="how-ordered-title" class="dir-ordering__title">How these results are ordered</h2>
+        {% comment %} `method="dialog"` closes the dialog with no script at all. The
+           whole control is hidden when the dialog is rendering inline, where there is
+           nothing to close. {% endcomment %}
+        <form method="dialog" class="dir-ordering__dismiss">
+          <button type="submit" class="dir-ordering__close">
+            {% include "kiam_ui/components/icon.html" with name="x" size=18 %}
+            <span class="sr-only">Close</span>
+          </button>
+        </form>
+      </div>
+
+      <div class="prose">
+        <p>
+          Results are ordered by how well they match what you asked for. The
+          things that count, most first: how close the practitioner is to the
+          location you gave, how well their listing matches your words, how
+          complete their listing is, whether their credentials have been checked
+          and are in date, whether they are accepting new clients, and how
+          recently they updated their listing.
+        </p>
+        <p>
+          Practitioners with equally good matches are shuffled, and the shuffle
+          changes daily, so no one listing sits at the top permanently.
+        </p>
+        <p>
+          Practitioners can pay for a <strong>featured</strong> place near the top.
+          Featured listings are always labelled “Paid placement” where they
+          appear, and no more than {{ featured_cap }} can appear on a page.
+          Paying changes position only — it does not change whether somebody is
+          listed, and it has no effect at all on the verification checks.
+        </p>
+        <p>
+          Kiam Clinic does not rank practitioners by quality and does not
+          recommend one over another.
+          <a href="{% url 'pages:how_verification_works' %}">What the verification badge means</a>.
+        </p>
+      </div>
+    </div>
+  </dialog>
+
 </div>
+{% endblock %}
+
+{% comment %}
+Sets `html.js` before the body paints, so the disclosure below never flashes as
+an inline section on its way to being a modal. It is in `extra_head` rather than
+with the handler for exactly that reason — a class added after first paint is a
+class the visitor sees applied.
+{% endcomment %}
+{% block extra_head %}<script>document.documentElement.classList.add("js")</script>{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var dialog = document.getElementById("how-ordered");
+    if (!dialog || typeof dialog.showModal !== "function") return;
+
+    document.querySelectorAll("[data-ordering-open]").forEach(function (trigger) {
+      trigger.addEventListener("click", function (event) {
+        event.preventDefault();
+        dialog.showModal();
+      });
+    });
+
+    /* Click on the backdrop closes it. The backdrop IS the dialog element as far
+       as the event target goes — anything inside is `.dir-ordering__inner` or a
+       descendant — so comparing the target to the dialog is the whole test. */
+    dialog.addEventListener("click", function (event) {
+      if (event.target === dialog) dialog.close();
+    });
+  })();
+</script>
 {% endblock %}

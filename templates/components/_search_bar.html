@@ -37,18 +37,31 @@ The radius is a `<select>`, not a slider — upstream's rule and ours. A slider
 needs a text alternative, is hard to operate with a motor impairment, is worse on
 a phone, and implies a precision the distance data does not have.
 
-**The hint text is one line, and which line depends on focus — in CSS, not
-script.** Each field keeps its own `<p>` and its own `aria-describedby`, so what
-a screen reader hears is byte-for-byte what it heard when all three were stacked
-under the box. They are stacked into one reserved row under the bar and revealed
-with `:focus-within`; the row's height is reserved, so revealing one shifts
-nothing. No `aria-live` — the text is already the accessible description of the
-field that has just taken focus, and announcing it a second time is the Phase 3
-contact-reveal mistake in a new place.
+**The per-field hints are `.sr-only` — in the DOM, never on the screen.**
 
-That mechanism is CSS-only on purpose. A scripted version would need an inline
-script to avoid a flash of the un-enhanced layout, and the one guarantee this
-component exists to keep is that it works with scripting off.
+They were a reserved row under the bar, revealed field-by-field on
+`:focus-within`. Requested removed: text appearing and disappearing under the
+box as focus moved read as the box malfunctioning rather than as help, which is
+the opposite of what it is for on a page whose audience has a high rate of
+anxiety and neurodevelopmental conditions.
+
+What is NOT lost, and is why this is a class change rather than a deletion:
+
+* Each `<p>` keeps its id and stays its field's `aria-describedby` target, so a
+  screen reader hears exactly what it heard before — byte for byte. `.sr-only`
+  is kiam-ui's clip-rect utility, not `display: none`; hiding these any other
+  way would silently drop the description.
+* The visible guidance they carried is already in the `placeholder` of both
+  fields ("ADHD assessment, anxiety, EMDR…", "Postcode or town"), so a sighted
+  visitor loses nothing they were reading.
+* The location-failure message they also carried is announced twice over
+  elsewhere — `partials/_result_count.html` (the live region) and
+  `partials/_results.html`'s `.dir-search__notice`. That was already true when
+  the hint was visible; it is what makes hiding this one safe.
+
+Still no `aria-live` and still nothing listening for focus:
+`test_the_hint_reveal_needs_no_javascript` and
+`test_the_hint_row_is_not_a_live_region` both still hold.
 
 `hx-get` on the location input populates the datalist as you type. `hx-trigger`
 carries a delay so it is not a request per keystroke, and `changed` so re-focusing
@@ -76,7 +89,7 @@ landmark.
                 compulsive" or "dissociation" removes a real aid. {% endcomment %}
              placeholder="ADHD assessment, anxiety, EMDR…"
              aria-describedby="search-q-help">
-      <p class="dir-searchbar__help" id="search-q-help">
+      <p class="dir-searchbar__help sr-only" id="search-q-help">
         A condition, an approach, or a practitioner's name. Leave it blank to browse everything.
       </p>
     </div>
@@ -99,7 +112,7 @@ landmark.
       <datalist id="place-options">
         {% include "search/partials/_place_options.html" %}
       </datalist>
-      <p class="dir-searchbar__help" id="search-near-help">
+      <p class="dir-searchbar__help sr-only" id="search-near-help">
         {% if location %}
           Showing practitioners near <strong>{{ location.label }}</strong>.
         {% elif location_failed %}

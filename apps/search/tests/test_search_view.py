@@ -37,6 +37,43 @@ pytestmark = pytest.mark.django_db
 URL = "/search/"
 EPSOM = (-0.2674, 51.3360)
 
+# How far past one page the pagination fixtures go. The tests below used to seed a
+# flat 25 listings and assert "Show 5 more" — arithmetic that silently encoded
+# `SEARCH_PAGE_SIZE = 20`, so dropping the page size to 12 broke two tests that are
+# not about the page size at all (page 2 stopped being the last page). Seeding
+# `page_size + OVERFLOW` states the intent instead: one full page, then a short
+# one, whatever the setting says.
+OVERFLOW = 5
+
+
+def result_cards(body: str) -> str:
+    """Just the `<ol>` of practitioner cards.
+
+    Was `body.split('<div id="results">')[1]` in the callers — everything from the
+    results container to the end of the document. That stopped being "the results"
+    the moment the ranking disclosure moved BELOW the register to become a modal:
+    its copy explains what the "Paid placement" label means, so it necessarily
+    contains the phrase, and both featured-listing tests started reading it as if a
+    card had rendered one. One failed loudly; the other — the one asserting the
+    label IS present — would have passed even if the card had stopped rendering it
+    entirely, which is exactly the regression that test exists to catch.
+
+    Anchored to the list rather than to the container, so page furniture can move
+    around the register without silently widening what these assertions cover.
+    """
+    return body.split('<ol id="results-list"', 1)[1].split("</ol>", 1)[0]
+
+
+@pytest.fixture
+def overflowing_register(settings):
+    """Exactly one full page of listings plus `OVERFLOW` more.
+
+    So page 1 offers "Show {OVERFLOW} more" and page 2 is the last page, at any
+    `SEARCH_PAGE_SIZE`.
+    """
+    for i in range(settings.SEARCH_PAGE_SIZE + OVERFLOW):
+        PractitionerFactory(published=True, slug=f"p{i:02d}")
+
 
 @pytest.fixture(autouse=True)
 def _no_network(monkeypatch):
@@ -205,28 +242,22 @@ def test_the_radius_control_is_a_select_not_a_slider(client, cohort):
     assert 'type="range"' not in body
 
 
-def test_the_show_more_control_is_a_real_anchor(client):
+def test_the_show_more_control_is_a_real_anchor(client, overflowing_register):
     """With script off it has to be an ordinary link to page 2 — that is the whole
     no-JavaScript path through a directory of more than one page."""
-    for i in range(25):
-        PractitionerFactory(published=True, slug=f"p{i:02d}")
-
     body = client.get(URL).content.decode()
 
     assert "dir-more" in body
     assert re.search(
         r'<a class="btn btn-ghost dir-more__button"\s+id="results-end"\s+href="\?[^"]*page=2', body
     )
-    assert "Show 5 more" in body
+    assert f"Show {OVERFLOW} more" in body
 
 
-def test_the_show_more_control_appends_rather_than_replacing(client):
+def test_the_show_more_control_appends_rather_than_replacing(client, overflowing_register):
     """`hx-select` lifts the new rows out of the response and `beforeend` puts them
-    on the end of the list the visitor is already reading, so "Show 5 more" is a
+    on the end of the list the visitor is already reading, so "Show N more" is a
     description of what happens rather than a euphemism for "Next"."""
-    for i in range(25):
-        PractitionerFactory(published=True, slug=f"p{i:02d}")
-
     control = re.search(
         r'<a class="btn btn-ghost dir-more__button".*?</a>', client.get(URL).content.decode(), re.S
     )
@@ -242,16 +273,15 @@ def test_the_show_more_control_appends_rather_than_replacing(client):
     assert 'hx-replace-url="false"' in markup
 
 
-def test_both_ends_of_the_register_carry_the_same_id_so_focus_survives_the_swap():
+def test_both_ends_of_the_register_carry_the_same_id_so_focus_survives_the_swap(
+    overflowing_register,
+):
     """htmx 2 restores focus after a swap only when the focused element had an `id`
     (`if (s.elt && !le(s.elt) && ee(s.elt, "id"))`). This control replaces ITSELF on
     every activation, so the id has to exist in both states — otherwise the last
     press, the one that exhausts the results, drops focus to <body> with the whole
     filter sidebar between the user and where they were."""
     from django.test import Client
-
-    for i in range(25):
-        PractitionerFactory(published=True, slug=f"p{i:02d}")
 
     more = Client().get(URL).content.decode()
     exhausted = Client().get(URL, {"page": "2"}).content.decode()
@@ -814,21 +844,19 @@ def test_a_featured_listing_is_labelled_at_the_point_of_display(client, vocabula
         featured_until=timezone.now() + timezone.timedelta(days=30),
     )
 
-    body = client.get(URL).content.decode()
-    results = body.split('<div id="results">', 1)[1]
+    cards = result_cards(client.get(URL).content.decode())
 
-    assert "Paid placement" in results
-    assert "ds-dir-pcard--featured" in results
+    assert "Paid placement" in cards
+    assert "ds-dir-pcard--featured" in cards
 
 
 def test_an_unfeatured_listing_carries_no_label(client, cohort):
-    """Scoped to the results: "Paid placement" also appears in the ranking
-    disclosure, which explains what the label means."""
-    body = client.get(URL).content.decode()
-    results = body.split('<div id="results">', 1)[1]
+    """Scoped to the CARDS: "Paid placement" also appears in the ranking
+    disclosure, which explains what the label means — see `result_cards`."""
+    cards = result_cards(client.get(URL).content.decode())
 
-    assert "Paid placement" not in results
-    assert "ds-dir-pcard--featured" not in results
+    assert "Paid placement" not in cards
+    assert "ds-dir-pcard--featured" not in cards
 
 
 def test_the_page_states_how_results_are_ordered(client, cohort):

@@ -481,26 +481,82 @@ html[data-contrast="high"] .dir-reveal:focus {
   margin-block-start: var(--space-8);
 }
 
-/* The bar is the page's opening move now the header chrome is gone, so it reads
-   as a focal object rather than a form spanning the full 84rem register width.
-   `margin-inline: auto` centres it; on a narrow viewport `max-inline-size` simply
-   stops mattering; there is no separate mobile rule to keep in step. */
+/* ---------- the hero band ----------
+
+   THE STOPS ARE A CONTRAST RESULT. `--control-border` is the search bar's own
+   boundary and has to clear WCAG 1.4.11's 3:1. Measured against this ramp:
+
+     mint-200  #D7E9E3   2.60:1   FAIL
+     mint-100  #E8F1EE   2.85:1   FAIL
+     (#EDF4F2 — the value Phase 5b's first draft landed on)  2.94:1   FAIL
+     --surface-page #FBFDFC       3.21:1   PASS
+
+   So the bar may only sit on the flat end of the ramp. `.dir-hero` on the home
+   page expresses that as percentages (flat by 52%); this uses ABSOLUTE LENGTHS
+   instead, because a percentage stop moves with the band's height — a longer
+   location label, a bigger font, an extra line of summary text and the bar
+   slides back up into the tinted part, failing silently and invisibly to every
+   automated checker (none samples a gradient at an element's own y-offset).
+   Flat by 3.5rem against 4rem of top padding is 8px of clearance that cannot
+   move, at any viewport and any font size. */
+.dir-search__hero {
+  background: linear-gradient(
+    180deg,
+    var(--surface-sunken-deep) 0,
+    var(--surface-sunken) 1.25rem,
+    var(--surface-page) 3.5rem
+  );
+  padding-block: 4rem var(--space-10);
+}
+
+/* The bar is the page's opening move now the header chrome is gone. Wider than
+   the first pass at 46rem: at that measure the three segments were cramped
+   enough that "What do you need help with?" wrapped to two lines while the band
+   around it sat empty. 64rem still stops well short of the 84rem register width,
+   so it reads as a focal object rather than a form spanning the page.
+   `margin-inline: auto` centres it; below 64rem `max-inline-size` simply stops
+   mattering, so there is no separate mobile rule to keep in step. */
 .dir-search__bar {
-  max-inline-size: 46rem;
+  max-inline-size: 64rem;
   margin-inline: auto;
 }
 
 /* The condensed AEO line — see the comment in search.html on why this exists and
-   is visible rather than `.sr-only`. Same measure and centring as the bar above
-   it, muted and small so it reads as a caption rather than reintroducing the lede
-   it replaces. */
+   is visible rather than `.sr-only`. Capped tighter than the bar it sits under:
+   this is prose, and 64rem is well past the ~75-character measure anything
+   readable stays inside. */
 .dir-search__summary {
-  max-inline-size: 46rem;
+  max-inline-size: 52ch;
   margin-inline: auto;
-  margin-block-start: var(--space-4);
+  margin-block-start: var(--space-5);
   color: var(--text-secondary);
   font-size: var(--text-body-sm);
   text-align: center;
+}
+
+/* The bar's resting caption is hidden on THIS surface only. It says one of two
+   things, and on `/search/` both are already on the page: the idle sentence
+   duplicates guidance now carried by the two placeholders, and the located
+   sentence ("Showing practitioners near Epsom, Surrey") duplicates the result
+   count immediately below it, word for word. Three muted lines stacked under the
+   bar was the clutter this pass exists to remove.
+
+   Kept on the home hero, where there is no summary line and no result count, so
+   it is the only orientation the box gets. `display: none` costs nothing to
+   assistive technology — the element is already `aria-hidden`, because every
+   sentence it can carry is a field's `aria-describedby` text. */
+.dir-search .dir-searchbar__resting {
+  display: none;
+}
+
+.dir-search__body {
+  padding-block-end: var(--space-24);
+}
+
+@media (max-width: 45rem) {
+  .dir-search__body {
+    padding-block-end: var(--space-16);
+  }
 }
 
 .dir-search__layout {
@@ -591,45 +647,125 @@ html[data-contrast="high"] .dir-reveal:focus {
   font-weight: var(--weight-semibold);
 }
 
-/* The ranking disclosure, restyled as a pill so it reads as a control that sits
-   in a status row rather than the plain-text accordion it was under the old page
-   header. `.dir-facet` / `.dir-facet__summary` / `.dir-facet__chevron` are the
-   sidebar's own collapsed-group classes, reused rather than duplicated: they
-   already carry the closed-`<details>` fix and the chevron's `[open]` rotation,
-   and both are keyed off the `.dir-facet` class name, so this only needed the
-   pill's own chrome on top.
+/* The ranking-disclosure trigger. A pill, so it reads as a control sitting in a
+   status row — but a LINK, because with script off it has to be an in-page jump
+   to the disclosure rendered inline at the foot of the page. See search.html.
 
-   The panel floats. The a11y-reviewer subagent caught the first version, which
-   left it in normal flow: `.dir-search__status-row` is a flex row, so opening the
-   panel grew the ROW's height, and the shorter count column — baseline-aligned,
-   nothing to grow into — sat stranded at the top of a now-tall row with a blank
-   rectangle beside it, reading as a broken layout under the result count. `.dir-
-   search__sort` is the positioning context and the panel is absolute against it,
-   so opening it overlays the page below rather than pushing it down — the same
-   reason a native `<select>` doesn't reflow the page under it. */
-.dir-search__sort {
-  position: relative;
-}
-
-.dir-search__sort-summary {
-  min-block-size: 3rem;
+   This replaces a `<details>` that lived here in two earlier passes. The first
+   pushed the page down when opened; the second floated its panel and stopped
+   doing that, but a 300-word legal disclosure unfolding beside the result count
+   was still the wrong shape for the information. It is a modal now. */
+.dir-search__ordering-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
   padding-inline: var(--space-4);
   border: 1px solid var(--control-border);
   border-radius: var(--radius-pill);
   background: var(--surface-card);
+  color: var(--text-secondary);
+  font-size: var(--text-body-sm);
+  text-decoration: none;
 }
 
-.dir-search__sort-panel {
-  position: absolute;
-  inset-inline-end: 0;
-  top: calc(100% + var(--space-3));
-  z-index: 20;
-  inline-size: min(26rem, calc(100vw - 2 * var(--space-4)));
-  padding: var(--space-4);
+.dir-search__ordering-link:hover {
+  color: var(--text-heading);
+  border-color: var(--text-secondary);
+}
+
+/* ---------- the ranking disclosure itself ----------
+
+   DEFAULT STATE IS THE NO-JS ONE: a plain section at the foot of the page. A
+   `<dialog>` is `display: none` until opened, which for a legally required
+   disclosure would mean script failure = disclosure gone, so the default is
+   overridden here and the MODAL is what has to be opted into. `html.js` is set
+   by a one-line script in `extra_head` before first paint. */
+.dir-ordering {
+  display: block;
+  position: static;
+  inline-size: auto;
+  max-inline-size: 68ch;
+  margin-block-start: var(--space-12);
+  margin-inline: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+}
+
+.dir-ordering__title {
+  font-size: var(--text-title-sm);
+  line-height: var(--line-height-heading);
+  font-weight: var(--weight-semibold);
+  margin: 0;
+}
+
+/* Nothing to close when it is rendering as a section. */
+.dir-ordering__dismiss {
+  display: none;
+}
+
+html.js .dir-ordering {
+  /* Back to the UA default so `showModal()` behaves: hidden until open, then
+     centred in the top layer with a backdrop. */
+  display: none;
+  position: fixed;
+  margin: auto;
+  max-inline-size: min(42rem, calc(100% - 2 * var(--space-4)));
+  max-block-size: calc(100dvh - 2 * var(--space-8));
+  padding: 0;
+  border-radius: var(--radius-lg);
   background: var(--surface-card);
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius-md);
   box-shadow: var(--shadow-soft);
+  overflow: auto;
+}
+
+html.js .dir-ordering[open] {
+  display: block;
+}
+
+html.js .dir-ordering::backdrop {
+  /* A neutral scrim. Not a token — there is no backdrop token in kiam-ui, and a
+     `::backdrop` cannot inherit custom properties from the page in every engine,
+     so this is one of the few literal colours in this file. */
+  background: rgb(15 42 36 / 55%);
+}
+
+html.js .dir-ordering__dismiss {
+  display: block;
+}
+
+.dir-ordering__inner {
+  padding: var(--space-6);
+}
+
+.dir-ordering__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-block-end: var(--space-4);
+}
+
+.dir-ordering__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 2.5.5 / 2.5.8: a real 44px target, not a 18px glyph. */
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.dir-ordering__close:hover {
+  background: var(--surface-sunken);
+  color: var(--text-heading);
 }
 
 /* The loading state. htmx-indicator is hidden until a request is in flight; no
@@ -809,25 +945,58 @@ html[data-contrast="high"] .dir-hero .ds-control:focus {
   text-underline-offset: 0.2em;
 }
 
-/* "Skip to results" — visible on focus, out of the way otherwise. Not `.sr-only`:
-   a sighted keyboard user needs to see it, and it is the only bypass past ~196
-   filter controls. */
+/* "Skip to results" — now hidden until it is focused.
+   ---------------------------------------------------------------------------
+   Requested removed from the page. It is NOT deleted, because it is a WCAG 2.4.1
+   bypass block and the only way past ~196 filter controls: the chrome's own skip
+   link lands at `#main`, which is ABOVE the sidebar, so deleting this would leave
+   a sighted keyboard user with no way to reach the results at all.
+   `test_there_is_a_bypass_past_the_filters` is the line and is unchanged.
+
+   What was actually wrong with it is that it was visible to everyone — including
+   the ~99% of visitors who will never press Tab, for whom it is a stray link
+   above the search box. A bypass block is supposed to be exactly this: absent
+   until the one person who needs it reaches for it. It is the same pattern
+   kiam-ui uses for its own "Skip to main content", and the same one this file
+   already uses for `.dir-searchbar__help`.
+
+   Hidden with clip rather than `display: none` or `visibility: hidden`, both of
+   which would take it out of the tab order and turn a bypass block into nothing.
+   The wrapper is zero-height and positioned, and the focused link is anchored to
+   its BOTTOM edge so it grows upward into the hero band's padding — it cannot
+   cover the search bar, and it shifts no layout when it appears. */
 .dir-search__skip {
-  margin-block-end: var(--space-3);
+  position: relative;
+  margin: 0;
+  block-size: 0;
 }
 
 .dir-search__skip a {
-  display: inline-block;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
-.dir-search__skip a:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 2px;
-  background: var(--surface-sunken);
+.dir-search__skip a:focus {
+  inline-size: auto;
+  block-size: auto;
+  overflow: visible;
+  clip: auto;
+  z-index: 20;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  /* The package's own skip-link pairing: white on green-800, which is already a
+     documented AA text pairing — not a new colour decision. */
+  background: var(--brand-primary-dark);
+  color: var(--white);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 /* "N selected" on a collapsed group is `.dir-facet__sub` in the Phase 5c block —
@@ -1995,68 +2164,66 @@ html[data-contrast="high"] .site-footer :focus {
    including the one this repo only learned by rendering it, that a bar whose
    segmentation appears on hover reads as one box at rest.
 
-   So all of it is gone from here. What remains is the one thing upstream does not
-   have: the per-field hint that follows focus. Upstream's bar has a single
-   `helper_template` slot for the whole component; ours has a sentence per field,
-   each of them that field's `aria-describedby` target.
-
-   The hints live inside their segments — that is what makes `:focus-within` and
-   the description association both work — and are positioned into one reserved
-   row under the bar. `.dir-searchbar` is the containing block, NOT the segment:
-   `position: relative` on a segment makes it the containing block for its own
-   hint, which then renders on top of the location input. That was a real bug,
-   found by rendering it, and it is why this rule is on the wrapper.
+   So all of it is gone from here, and after the hint reveal was removed what is
+   left is one static caption line. The per-field hints upstream has no equivalent
+   for are still ours and still each field's `aria-describedby` target — they are
+   just `.sr-only` now rather than a reserved row that animated on focus.
    ------------------------------------------------------------------------- */
 
-.dir-searchbar {
-  /* Three lines of caption on a phone, two on a wide bar, both scaling with the
-     type token — at a fixed rem it spilled 8px under
-     html[data-font-size="larger"], degrading in exactly the mode somebody turns
-     on because they are struggling to read. */
-  --hint-row: calc(var(--text-caption) * 1.35 * 3);
+/* THE REVEAL IS GONE. The per-field hints are `.sr-only` in the markup now — see
+   `_search_bar.html` for what that keeps and why it is safe. Text that appeared
+   and vanished under the box as focus moved between three fields read as the box
+   malfunctioning rather than as help.
 
-  position: relative;
-  padding-block-end: var(--hint-row);
-}
+   What that deletes with it is the whole reserved-row mechanism: the `--hint-row`
+   custom property, the `padding-block-end` that held space for it, the absolute
+   positioning, the top-anchoring that stopped an overflowing hint covering the
+   Search button, and the `html[data-font-size="larger"]` spill that the
+   token-derived `calc()` existed to survive. Three of those were bug fixes for
+   problems only the reveal had.
 
-@media (min-width: 56rem) {
-  .dir-searchbar {
-    --hint-row: calc(var(--text-caption) * 1.35 * 2);
-  }
-}
-
-/* Every hint is stacked in the same reserved strip under the bar and hidden;
-   `:focus-within` on its own segment reveals it. `visibility` rather than
-   `display`, so the paragraph keeps its box and its id stays a valid
-   `aria-describedby` target at all times.
-
-   Anchored to the TOP of the strip, so anything that overflows grows downward
-   past the bar's edge — where it can look untidy but cannot cover a control. The
-   first version anchored to the bottom and grew upwards into the Search button. */
-.dir-searchbar__help,
+   The resting line stays, in NORMAL FLOW rather than absolutely positioned into a
+   reserved strip: it is one static sentence that never changes on focus, so it
+   needs no reserved height and can simply sit under the bar. It also no longer
+   hides on `:focus-within` — with no per-field hint arriving to replace it, that
+   only made a sentence disappear for no reason the visitor could see. */
 .dir-searchbar__resting {
-  position: absolute;
-  inset-inline: var(--space-4);
-  inset-block-start: calc(100% - var(--hint-row));
-  margin: 0;
+  margin: var(--space-2) 0 0;
+  padding-inline: var(--space-4);
   color: var(--text-secondary);
   font-size: var(--text-caption);
   line-height: 1.35;
 }
 
-.dir-searchbar__help {
-  visibility: hidden;
-}
+/* THE BAR'S OWN BOUNDARY — a WCAG 1.4.11 fix, and a regression the v1.1.0
+   adoption introduced without anybody noticing.
+   ---------------------------------------------------------------------------
+   Phase 5b's hand-built bar put the boundary on the CELL rather than on each
+   input, and CLAUDE.md records the consequence: "the boundary that has to meet
+   WCAG 1.4.11 is now the bar and the dividers (`--control-border`, 3.21:1 and
+   3.28:1 measured)". Nothing else identifies where the text fields are — the
+   inputs themselves have no border and no background — so that edge is the
+   control, not decoration.
 
-.dir-searchbar__field:focus-within .dir-searchbar__help {
-  visibility: visible;
-}
+   The packaged `.ds-dir-search` draws it with `--border-default` instead:
+   #E4ECEA, which MEASURES 1.18:1 on `--surface-page` and 1.04:1 on mint-100.
+   Sampled off the rendered page, not read off a selector — the border pixel
+   under the search bar came back #E4ECEA. So the 3:1 boundary this project
+   measured, documented and depended on has been absent from both `/search/` and
+   the home-page hero since the components were adopted, on the one control the
+   whole site is built around.
 
-/* The resting sentence steps aside as soon as anything in the bar has focus,
-   including the submit button — at which point the row is empty, which is
-   correct: the button needs no hint and a stale one under it would be worse. */
-.dir-searchbar:focus-within .dir-searchbar__resting {
-  visibility: hidden;
+   `--control-border` is the project's documented ≥3:1 boundary token and puts it
+   back at 3.21:1 on the flat end of the hero ramp, which is the surface the band
+   above guarantees the bar sits on. Scoped to `.dir-searchbar`, so it lands on
+   both surfaces that render this component and on nothing else.
+
+   RAISE UPSTREAM: `.ds-dir-search` needs a border token that meets 3:1 — the
+   same defect and the same note as `.dir-practitioner__cta` and `.btn-ghost`
+   further up this file. This is the third instance, which makes it a token
+   problem in kiam-ui rather than three local accidents. */
+.dir-searchbar .ds-dir-search {
+  border-color: var(--control-border);
 }
 
 /* ---------- focus, now that `.ds-dir` is on the body ----------
@@ -2240,7 +2407,14 @@ html[data-contrast="high"] .ds-dir :focus-visible {
 
    No lede-width rule follows this one any more: the paragraph it constrained is
    `.sr-only` now (search.html), so nothing on the page reads at the 1124px this
-   was capping. */
+   was capping.
+
+   `.dir-search` is NOT itself a `.container` any more — the hero band has to run
+   the full width of the viewport, so the element that used to be the container is
+   now a plain wrapper and each band owns its own `.container` child. This rule
+   still reaches both of them because a custom property inherits; that is the
+   whole reason the override is expressed as a property rather than as a
+   `max-inline-size` here. */
 .dir-search {
   --container-max: 84rem;
 }
