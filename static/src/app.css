@@ -622,17 +622,30 @@ html[data-contrast="high"] .dir-reveal:focus {
 
 /* ---------- status, sort, chips ---------- */
 
-/* The count on the left, the ranking disclosure on the right — `space-between`
-   rather than two independently-positioned elements, so the row degrades to two
-   stacked lines on a narrow viewport instead of the disclosure drifting to
-   wherever its own margin happens to place it. */
+/* Holds the count and the busy indicator. The ranking disclosure used to sit at
+   the far end of this row under `justify-content: space-between`; it is in
+   `.dir-search__endnotes` below the register now, so the row is a single group
+   again and the `space-between` that positioned the pair has gone with it. */
 .dir-search__status-row {
   margin-block-start: var(--space-8);
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  justify-content: space-between;
   gap: var(--space-4);
+}
+
+/* The independence notice and the ranking-disclosure trigger, below the register.
+   Separated from the last card by more than the gap between cards, so it reads as
+   a note ABOUT the list rather than as another row in it. */
+.dir-search__endnotes {
+  margin-block-start: var(--space-12);
+  display: grid;
+  gap: var(--space-5);
+  justify-items: start;
+}
+
+.dir-search__endnotes-actions {
+  margin: 0;
 }
 
 .dir-search__status {
@@ -1017,10 +1030,17 @@ html[data-contrast="high"] .dir-hero .ds-control:focus {
    same move for the one interactive element we put there instead. Without it the
    card has a link the eye can see and the mouse cannot reach — and the rule that
    the limits of the claim stay one click from the claim would hold only on
-   paper. */
+   paper.
+
+   **2, not 1, and the difference is the explanation panel.** The packaged
+   `.ds-dir-pcard__actions` is also `position: relative; z-index: 1` — measured,
+   not assumed — and it is the NEXT SIBLING, so at equal z-index it won on DOM
+   order and drew "View profile" straight through the middle of the open panel.
+   Raising this block to 2 puts the badge and everything it owns above the button
+   without touching the packaged rule. */
 .dir-practitioner__trust {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 /* 80px where the packaged monogram is 56px, because this card carries a real
@@ -2195,6 +2215,37 @@ html[data-contrast="high"] .site-footer :focus {
   line-height: 1.35;
 }
 
+/* THE THREE SEGMENTS ARE NOT EQUAL. Upstream gives every segment `flex: 1 1 0`,
+   which splits the bar in three — so "Within", whose entire job is to hold the
+   words "10 miles", got exactly as much room as the box somebody types
+   "obsessive compulsive disorder assessment" into. The query field is the
+   primary control on the site; the radius is a five-option select with a fixed
+   longest value.
+
+   `--radius` is sized to its content and does not grow. The remaining space is
+   split between the other two, weighted towards the query. `min-inline-size: 0`
+   is already on the packaged segment, so the two flexible ones can still shrink
+   below their content width rather than pushing the bar wide.
+
+   SCOPED TO THE HORIZONTAL BAR ONLY, and the media query is not optional: below
+   861px the packaged CSS switches `.ds-dir-search` to `flex-direction: column`,
+   where `flex-basis` resolves against the BLOCK axis — a fixed basis here would
+   become a fixed row HEIGHT and give the radius segment a 10rem-tall box on a
+   phone. 861px is the exact complement of upstream's `max-width: 860px`. */
+@media (min-width: 861px) {
+  .dir-searchbar__field--query {
+    flex: 1.9 1 0;
+  }
+
+  .dir-searchbar__field--location {
+    flex: 1.1 1 0;
+  }
+
+  .dir-searchbar__field--radius {
+    flex: 0 0 auto;
+  }
+}
+
 /* THE BAR'S OWN BOUNDARY — a WCAG 1.4.11 fix, and a regression the v1.1.0
    adoption introduced without anybody noticing.
    ---------------------------------------------------------------------------
@@ -3016,7 +3067,14 @@ html[data-contrast="high"] .dir-facet__summary:focus-visible {
    the panel is free to be wider than the column it hangs off. `z-index` is above
    `.ds-dir-pcard__link::after`, which covers the whole card — the same lift
    `.dir-practitioner__trust` already needed for the link itself. */
+/* HIDDEN HERE, shown by the `is-open` class Alpine adds — never the reverse. The
+   panel used to rely on `x-show` writing `display: none` onto an element this
+   stylesheet left visible, which fails OPEN the moment anything stops Alpine
+   applying the directive. Measured after an htmx filter swap: 11 of 12 rows
+   rendered with the panel hanging open, `x-cloak` stripped and no inline
+   `display` ever written. See `_verified_badge.html`. */
 .dir-verified__note {
+  display: none;
   position: absolute;
   z-index: 2;
   inset-block-start: calc(100% + var(--space-2));
@@ -3031,6 +3089,32 @@ html[data-contrast="high"] .dir-facet__summary:focus-visible {
   font-weight: var(--weight-regular);
   line-height: var(--line-height-body);
   text-align: start;
+}
+
+.dir-verified__note.is-open {
+  display: block;
+}
+
+/* THE PANEL HAS TO ESCAPE ITS OWN CARD.
+   ---------------------------------------------------------------------------
+   `.ds-dir-pcard:hover` applies `transform: translateY(-3px)`, and a transform
+   creates a STACKING CONTEXT. You have to be hovering the card to reach the badge
+   inside it, so the card is always a stacking context at the moment the panel
+   opens — which traps the panel in that card's layer no matter what `z-index` it
+   carries. The panel overflows the card downwards, so the next row, painting
+   later in DOM order, went straight over the top of it.
+
+   Lifting the whole card while it is hovered or holds focus is the fix: the
+   card's layer, panel included, now paints above its siblings. `:focus-within`
+   is not optional — the badge opens on `@focusin` too, and a keyboard user was
+   getting the same panel underneath the next row.
+
+   Note this could never be reproduced under `prefers-reduced-motion: reduce`,
+   where the packaged CSS sets `transform: none` and the card therefore creates no
+   stacking context at all. */
+.dir-practitioner:hover,
+.dir-practitioner:focus-within {
+  z-index: 3;
 }
 
 .dir-verified__note strong {

@@ -163,7 +163,13 @@ def test_the_hero_search_is_the_shared_component_not_a_copy(client):
     # assertion that the packaged design is actually in use rather than
     # reimplemented locally for a second time.
     assert '<div class="ds-dir-search">' in body
-    assert body.count('class="ds-dir-search__segment dir-searchbar__field"') == 3
+    # No closing quote in the match: each segment now carries a third, per-field
+    # modifier (`--query` / `--location` / `--radius`) so the bar can give the
+    # query box the room the radius select was taking. The base pair is still what
+    # proves all three come from the shared partial.
+    assert body.count('class="ds-dir-search__segment dir-searchbar__field') == 3
+    for modifier in ("--query", "--location", "--radius"):
+        assert f"dir-searchbar__field{modifier}" in body
 
     # The two variants are CSS. Anything the hero renders that /search/ does not
     # is a second implementation starting to grow, which is what this guards.

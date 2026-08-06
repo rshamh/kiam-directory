@@ -77,7 +77,7 @@ landmark.
 
   <div class="ds-dir-search">
 
-    <div class="ds-dir-search__segment dir-searchbar__field">
+    <div class="ds-dir-search__segment dir-searchbar__field dir-searchbar__field--query">
       <label class="ds-dir-search__label" for="search-q">What do you need help with?</label>
       <input class="ds-dir-search__input"
              type="search"
@@ -94,7 +94,7 @@ landmark.
       </p>
     </div>
 
-    <div class="ds-dir-search__segment dir-searchbar__field">
+    <div class="ds-dir-search__segment dir-searchbar__field dir-searchbar__field--location">
       <label class="ds-dir-search__label" for="search-near">Where are you?</label>
       <input class="ds-dir-search__input"
              type="text"
@@ -124,7 +124,7 @@ landmark.
       </p>
     </div>
 
-    <div class="ds-dir-search__segment dir-searchbar__field">
+    <div class="ds-dir-search__segment dir-searchbar__field dir-searchbar__field--radius">
       {% comment %} "Within" alone announces as "Within, combo box" with nothing to say what
          it measures (WCAG 2.4.6), so the rest of the accessible name is carried in
          `.sr-only`. The visible word is the FIRST word of the accessible name, which

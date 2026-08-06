@@ -140,24 +140,6 @@ that the trick would make worse on every width.
         </p>
         <p id="search-busy" class="dir-search__busy htmx-indicator" aria-hidden="true">Searching…</p>
       </div>
-
-      {% comment %}
-      THE TRIGGER ONLY. The disclosure itself is the <dialog> after the form —
-      see the long comment there for why this is required at all and why it is
-      still not a "Sort" control.
-
-      A LINK, not a <button>. With script off it is an in-page jump to the
-      disclosure, which renders as a plain section at the foot of the page; with
-      script on the handler intercepts it and opens the same element as a modal.
-      A <button> would do nothing at all without script, which for a legally
-      required disclosure is not an acceptable failure mode.
-      {% endcomment %}
-      <a class="dir-search__ordering-link" href="#how-ordered" data-ordering-open>
-        {% comment %} `alert` is the sprite's circled "i"/"!" glyph — there is no `info`
-           in it, and adding one is a kiam-ui change, not a local SVG. {% endcomment %}
-        {% include "kiam_ui/components/icon.html" with name="alert" size=15 %}
-        How these results are ordered
-      </a>
     </div>
 
     {% if active_filters %}
@@ -191,8 +173,6 @@ that the trick would make worse on every width.
       </div>
     {% endif %}
 
-    {% include "kiam_ui/components/feedback/disclaimer.html" with title="About the practitioners listed here" heading_level=2 body_template="components/_independence_notice.html" %}
-
     <div class="dir-search__layout">
       {% include "components/_filter_sidebar.html" %}
 
@@ -201,6 +181,48 @@ that the trick would make worse on every width.
           {% include "search/partials/_results.html" %}
         </div>
       </div>
+    </div>
+
+    {% comment %}
+    THE ENDNOTES — the independence notice and the ranking-disclosure trigger,
+    both moved BELOW the register by request.
+
+    **The notice's position is a compliance decision, so it is written down.**
+    docs/content-compliance.md §5 requires the sentence verbatim on every
+    search-results page; it does not say where, and the brief this project was
+    built from explicitly allowed "above the fold or immediately below the grid".
+    Directly under the register is the second of those, so this is inside the
+    rule rather than an exception to it, and
+    `test_the_search_page_carries_the_independence_notice` is unchanged.
+
+    Worth knowing when reading CLAUDE.md, which records the OPPOSITE choice for
+    the home page: "above is strictly better, because the sentence a visitor needs
+    before reading twelve names and photographs on a Kiam-branded page cannot be
+    below them." That reasoning is recorded there as a home-page decision and it
+    still holds there — the home page's twelve listings are ones Kiam SELECTED,
+    which is what makes reading them under Kiam's branding without the notice a
+    problem. A results page is a different act: the visitor asked, and the
+    ordering is disclosed. Both surfaces should not silently drift apart, so if
+    this ever needs revisiting it needs revisiting as one question.
+
+    The ranking-disclosure TRIGGER lives here too now rather than beside the
+    result count. A LINK, not a <button>: with script off it is an in-page jump to
+    the disclosure, which renders as a plain section immediately below; with
+    script on the handler intercepts it and opens that same element as a modal. A
+    <button> would do nothing at all without script, which for a legally required
+    disclosure is not an acceptable failure mode.
+    {% endcomment %}
+    <div class="dir-search__endnotes">
+      {% include "kiam_ui/components/feedback/disclaimer.html" with title="About the practitioners listed here" heading_level=2 body_template="components/_independence_notice.html" %}
+
+      <p class="dir-search__endnotes-actions">
+        <a class="dir-search__ordering-link" href="#how-ordered" data-ordering-open>
+          {% comment %} `alert` is the sprite's circled "i"/"!" glyph — there is no `info`
+             in it, and adding one is a kiam-ui change, not a local SVG. {% endcomment %}
+          {% include "kiam_ui/components/icon.html" with name="alert" size=15 %}
+          How these results are ordered
+        </a>
+      </p>
     </div>
 
     </div>{# /.dir-search__body #}

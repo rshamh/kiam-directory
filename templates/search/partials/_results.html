@@ -8,9 +8,11 @@ guarded on `request.htmx` because on a full-page render the region is rendered
 directly and a second copy would appear as stray text.
 
 The independence notice is NOT in this fragment — it is in `search/search.html`,
-inside the form but above `.dir-search__layout`, so it is on the page before the
-results and stays put when they swap. §5 requires it on every search-results page
-and it is there; saying so here just made it look like this file's job.
+in `.dir-search__endnotes` below `.dir-search__layout`, so it stays put when the
+results swap rather than being re-rendered with them. §5 requires it on every
+search-results page and it is there; saying so here just made it look like this
+file's job. (It moved from above the layout to below it; the reasoning, including
+why the home page keeps the opposite arrangement, is in that block's comment.)
 {% endcomment %}
 
 {% if request.htmx %}

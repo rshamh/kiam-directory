@@ -31,11 +31,30 @@ indemnity insurance, plus prescriber status for a prescriber. The panel names th
 and nothing else — no DBS, which is a separate gate and not one of the badge's
 required checks.
 
+**THE PANEL IS HIDDEN BY CSS AND SHOWN BY A CLASS — never the other way round.**
+It was `x-cloak x-show="open"`, which hides by having Alpine write
+`display: none` onto an element the stylesheet leaves visible. That fails OPEN:
+anything that stops Alpine applying `x-show` to a node leaves the panel on the
+screen. It did, and reliably — after an htmx filter swap, **11 of the 12** rows
+rendered with their explanation panel hanging open, `x-cloak` already stripped
+and no inline `display` ever written. Alpine's MutationObserver picked the
+swapped-in nodes up far enough to remove the cloak and not far enough to run the
+directive.
+
+So the default now lives in the stylesheet (`.dir-verified__note { display: none }`)
+and Alpine only ever ADDS `is-open`. Every failure mode — script off, Alpine not
+loaded, an htmx swap Alpine misses, a JS error earlier on the page — now leaves
+the panel closed instead of open, which is the same fail-closed reasoning as the
+antivirus backend and the POM dictionary. The `aria-describedby` behaviour is
+unchanged: a closed panel is still `display: none`, so the description still
+resolves to nothing rather than making a reader hear twelve explanations nobody
+asked for.
+
 HOVER IS NOT THE ONLY WAY IN (WCAG 1.4.13, and 2.1.1 before it):
 
 * The trigger is a real LINK to the full explanation, so the panel is
-  supplementary. With JavaScript off `x-cloak` is never removed and the panel
-  simply does not exist; the link still works. That is the same choice the Phase 5b
+  supplementary. With JavaScript off the class is never added and the panel simply
+  does not appear; the link still works. That is the same choice the Phase 5b
   hint row and the speciality filter box made.
 * `@focusin` opens it, so a keyboard user gets the same panel a mouse user does.
 * `@keydown.escape` dismisses it without moving focus.
@@ -74,7 +93,7 @@ claim only what `BASE_REQUIRED` enforces; the gate is on the phrasing.
      href="{% url 'pages:how_verification_works' %}"
      aria-describedby="verified-note-{{ practitioner.pk }}">what this means</a>
 
-  <span class="dir-verified__note" id="verified-note-{{ practitioner.pk }}" x-cloak x-show="open">
+  <span class="dir-verified__note" id="verified-note-{{ practitioner.pk }}" :class="{ 'is-open': open }">
     We checked {{ practitioner.full_name }}'s professional registration,
     qualifications, professional indemnity insurance{% if practitioner.is_prescriber %},
     prescriber status{% endif %} and photo ID on

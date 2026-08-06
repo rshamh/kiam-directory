@@ -776,15 +776,29 @@ def test_the_card_uses_the_shared_verified_badge(client, cohort):
 def test_the_badge_explanation_is_reachable_without_a_pointer(client, cohort):
     """The panel opens on hover AND on focus, and it is supplementary in the first
     place: the trigger is a real link to the full explanation, so with scripting
-    off `x-cloak` is never removed, the panel never renders, and the link still
-    works. A tooltip that is the only way to reach the limits of a verification
-    claim would fail 2.1.1 twenty times on one page."""
+    off the panel never renders and the link still works. A tooltip that is the
+    only way to reach the limits of a verification claim would fail 2.1.1 twenty
+    times on one page."""
     body = client.get(URL).content.decode()
     badge = body.split('<p class="dir-verified"', 1)[1].split("</p>", 1)[0]
 
     assert "@focusin" in badge, "the panel opens on hover only"
     assert "keydown.escape" in badge, "the panel cannot be dismissed from the keyboard"
-    assert "x-cloak" in badge, "the panel would render with scripting off"
+
+    # THE PANEL MUST FAIL CLOSED, and this used to assert `x-cloak` — the old
+    # mechanism, where the stylesheet left the panel visible and Alpine hid it with
+    # `x-show`. That fails OPEN: measured after an htmx filter swap, 11 of 12 rows
+    # rendered with the explanation hanging open, cloak stripped and no inline
+    # `display` written. The panel is `display: none` in the stylesheet now and
+    # Alpine only ever ADDS `is-open`, so every way this can go wrong leaves it
+    # shut. Asserting the guarantee rather than the mechanism: nothing here may
+    # depend on script running in order to stay hidden.
+    assert ":class" in badge, "nothing adds the class that opens the panel"
+    assert "is-open" in badge
+    assert "x-show" not in badge, (
+        "x-show hides by writing display:none from script — it fails OPEN when a "
+        "swap outruns Alpine, which is the bug this replaced"
+    )
     # The trigger is the link, not something inside the panel.
     assert '<a class="dir-verified__link"' in badge
     assert "/how-verification-works/" in badge.split('class="dir-verified__note"', 1)[0]
