@@ -2546,13 +2546,26 @@ html[data-contrast="high"] .dir-facet__summary:focus-visible {
   }
 }
 
+/* Flex column, not grid: the actions button anchors to the FOOT of the rail
+   with `margin-block-start: auto` below, the same trick `.dir-practitioner__meta`
+   already uses on the body column. A grid's implicit rows are auto-sized to
+   their own content, so once the rail box was made to stretch to the card's
+   full height (register layout), the leftover space sat below the last row
+   with nothing able to absorb it — "View profile" landed wherever the status,
+   fee and badge happened to stack up to, short of the card's bottom edge on
+   any row with a short rail (no fee, one line of tags). Flex lets the auto
+   margin claim that space instead. */
 .dir-practitioner__rail {
   grid-column: 1 / -1;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
-  align-content: start;
   border-block-start: 1px solid var(--border-hover);
   padding-block-start: var(--space-4);
+}
+
+.dir-practitioner__actions {
+  margin-block-start: auto;
 }
 
 .dir-practitioner--grid .dir-practitioner__rail {
