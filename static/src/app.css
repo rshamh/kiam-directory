@@ -481,6 +481,28 @@ html[data-contrast="high"] .dir-reveal:focus {
   margin-block-start: var(--space-8);
 }
 
+/* The bar is the page's opening move now the header chrome is gone, so it reads
+   as a focal object rather than a form spanning the full 84rem register width.
+   `margin-inline: auto` centres it; on a narrow viewport `max-inline-size` simply
+   stops mattering; there is no separate mobile rule to keep in step. */
+.dir-search__bar {
+  max-inline-size: 46rem;
+  margin-inline: auto;
+}
+
+/* The condensed AEO line — see the comment in search.html on why this exists and
+   is visible rather than `.sr-only`. Same measure and centring as the bar above
+   it, muted and small so it reads as a caption rather than reintroducing the lede
+   it replaces. */
+.dir-search__summary {
+  max-inline-size: 46rem;
+  margin-inline: auto;
+  margin-block-start: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--text-body-sm);
+  text-align: center;
+}
+
 .dir-search__layout {
   margin-block-start: var(--space-8);
   display: grid;
@@ -542,7 +564,20 @@ html[data-contrast="high"] .dir-reveal:focus {
   text-align: center;
 }
 
-/* ---------- status, chips ---------- */
+/* ---------- status, sort, chips ---------- */
+
+/* The count on the left, the ranking disclosure on the right — `space-between`
+   rather than two independently-positioned elements, so the row degrades to two
+   stacked lines on a narrow viewport instead of the disclosure drifting to
+   wherever its own margin happens to place it. */
+.dir-search__status-row {
+  margin-block-start: var(--space-8);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
 
 .dir-search__status {
   display: flex;
@@ -554,6 +589,47 @@ html[data-contrast="high"] .dir-reveal:focus {
 .dir-search__count {
   color: var(--text-heading);
   font-weight: var(--weight-semibold);
+}
+
+/* The ranking disclosure, restyled as a pill so it reads as a control that sits
+   in a status row rather than the plain-text accordion it was under the old page
+   header. `.dir-facet` / `.dir-facet__summary` / `.dir-facet__chevron` are the
+   sidebar's own collapsed-group classes, reused rather than duplicated: they
+   already carry the closed-`<details>` fix and the chevron's `[open]` rotation,
+   and both are keyed off the `.dir-facet` class name, so this only needed the
+   pill's own chrome on top.
+
+   The panel floats. The a11y-reviewer subagent caught the first version, which
+   left it in normal flow: `.dir-search__status-row` is a flex row, so opening the
+   panel grew the ROW's height, and the shorter count column — baseline-aligned,
+   nothing to grow into — sat stranded at the top of a now-tall row with a blank
+   rectangle beside it, reading as a broken layout under the result count. `.dir-
+   search__sort` is the positioning context and the panel is absolute against it,
+   so opening it overlays the page below rather than pushing it down — the same
+   reason a native `<select>` doesn't reflow the page under it. */
+.dir-search__sort {
+  position: relative;
+}
+
+.dir-search__sort-summary {
+  min-block-size: 3rem;
+  padding-inline: var(--space-4);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+}
+
+.dir-search__sort-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + var(--space-3));
+  z-index: 20;
+  inline-size: min(26rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-4);
+  background: var(--surface-card);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
 }
 
 /* The loading state. htmx-indicator is hidden until a request is in flight; no
@@ -2162,16 +2238,11 @@ html[data-contrast="high"] .ds-dir :focus-visible {
    the proportion the reference design uses. It is a local override of a kiam-ui
    token, scoped to this page — every other page keeps the packaged measure.
 
-   The lede then has to be capped, and that is not a side effect: it was already
-   running the full 1124px, which is well past the ~75-character measure anything
-   readable stays inside. Widening the container is what made an existing problem
-   impossible to keep ignoring. */
+   No lede-width rule follows this one any more: the paragraph it constrained is
+   `.sr-only` now (search.html), so nothing on the page reads at the 1124px this
+   was capping. */
 .dir-search {
   --container-max: 84rem;
-}
-
-.dir-search__lede {
-  max-inline-size: 70ch;
 }
 
 /* ---------- the sidebar shell ---------- */
