@@ -1,27 +1,54 @@
 {% comment %}
 FilterSidebar — every facet, as plain form controls inside the page's one form.
 
-Params: params · facets · wait_options
+Params: params · facets · wait_options · gender_options · experience_options ·
+        fee_options · active_filters
 
-Structure is a stack of <fieldset>s, each one a FilterGroup with its own <legend>,
-so the groups are navigable rather than being one undifferentiated run of forty
-checkboxes. The speciality tree is two levels: a category checkbox that matches
-everything beneath it, then its own specialities.
+THREE PANELS, and the split is by how often somebody reaches for the thing rather
+than by what kind of control it is:
 
-`<details>` for the long groups, open by default for the ones people use most.
-Collapsing is native — no script, keyboard-operable, and the state is visible in
-the markup rather than held in JavaScript.
+  1. The four that narrow a search most and are used almost every time —
+     availability, wait, funding, prescribing.
+  2. What they can help with. It is the reason people came, it is 150 options,
+     and it gets the whole middle of the sidebar and its own filter box.
+  3. Everything else, collapsed, each row saying what it holds and what you have
+     already chosen from it.
 
-**Nothing in here requires JavaScript.** The submit button at the bottom is a
-second real submit for anyone who has scrolled past the one at the top; with HTMX
-running, the form's `change` trigger means neither is usually needed.
+Panel 3's rows are `<details>`, not a scroll area: a collapsed group is one tab
+stop, and the alternative — every group open — is the ~196 tab stops and ~8,000px
+the Phase 4 gate measured, with the results below the lot.
 
-Accessibility filters carry a note, because ticking one narrows the results to
-practitioners with a physical address — "step-free access" cannot describe a video
-call, so the "…or works online" fallback is switched off when one is set. That is
-enforced in `directory.services.search.SearchParams.wants_physical_venue`, and
-saying so here is the difference between a filter that behaves oddly and one that
-behaves as described.
+**Nothing in here requires JavaScript.** Every control is a real input inside the
+page's one form, the submit button at the bottom is a real submit, and the
+speciality filter box is `hidden` in the markup and revealed by Alpine — so with
+script off it is not a dead control, it is not there at all. That is the same
+choice the Phase 5b hint row made and for the same reason: this is the component
+whose whole point is that it works with scripting off.
+
+FOUR THINGS THAT LOOK COSMETIC AND ARE NOT
+
+* **A collapsed group holding a selection renders OPEN.** A closed `<details>`
+  removes its contents from the accessibility tree entirely, so arriving from a
+  shared URL would HIDE an applied filter rather than merely scroll past it. Every
+  `<details>` below is `open` when anything inside it is set; for the speciality
+  tree that test is `category.selected`, computed in
+  `search.services.params.facets_with_counts` because a template cannot ask "does
+  any speciality in this category appear in the selection".
+* **Counts are rendered, including zeroes.** A `0` is the difference between
+  "nobody here takes EAP referrals" and "we forgot to offer that option". The row
+  is disabled rather than removed, so the vocabulary does not change shape between
+  searches — a filter list that reorders itself under somebody mid-task is exactly
+  what golden rule #3 rules out.
+* **The toggles are checkboxes with `role="switch"`**, not buttons. They submit
+  with the form, they hold their state in the URL, and they work with script off.
+  The switch is CSS on a real input; the input keeps its own focus ring.
+* **The accessibility group carries a note**, because ticking one narrows the
+  results to practitioners with a physical address — "step-free access" cannot
+  describe a video call, so the "…or works online" fallback is switched off when
+  one is set. That is enforced in
+  `directory.services.search.SearchParams.wants_physical_venue`, and saying so
+  here is the difference between a filter that behaves oddly and one that behaves
+  as described.
 {% endcomment %}
 {% comment %}
 TODO(sign-off): Dr. Abbass — the under-18 wording on the client-group filter.
@@ -32,215 +59,315 @@ check has been verified", which is the same wide claim that was REMOVED from
 reintroduced here, unqualified, next to the "Children (0–11)" checkbox. Narrowed to
 the enforced claim: the under-18 CLIENT GROUPS are what the DBS gate covers.
 {% endcomment %}
-<aside class="dir-search__sidebar" aria-labelledby="filters-heading">
-  <h2 class="dir-search__sidebar-title" id="filters-heading">Filters</h2>
+<aside class="dir-search__sidebar dir-filters" aria-labelledby="filters-heading">
 
-  {% comment %}
-  CLOSED by default, and open when it holds a selection.
+  <div class="ds-dir-filters__head dir-filters__head">
+    <h2 class="dir-search__sidebar-title" id="filters-heading">Filters</h2>
+    {% comment %}
+    A plain link, not an `hx-get`. The Phase 4 chips learned this the hard way:
+    swapping only `#results` leaves every checkbox in the sidebar ticked, so the
+    control state disagrees with the results (WCAG 4.1.2) and the next `change`
+    event puts the filters straight back. A full navigation re-renders the
+    sidebar, the chips and the results from one source of truth.
 
-  Seeded with the real taxonomy this group is 18 categories and 138 specialities —
-  ~156 checkboxes, which is what made the sidebar ~196 tab stops and ~8,000px tall
-  with the results below all of it. It is also why a collapsed group must open when
-  something inside it is ticked: a closed <details> removes its contents from the
-  accessibility tree entirely, so arriving from a shared URL would hide an applied
-  filter rather than merely scroll past it.
-  {% endcomment %}
-  <details class="ds-dir-filters__details dir-filter-block" {% if params.specialities or params.speciality_categories %}open{% endif %}>
-    <summary class="ds-dir-filters__legend">
-      What they treat{% if params.specialities or params.speciality_categories %}
-        <span class="dir-filter-block__count">{{ params.specialities|length|add:params.speciality_categories|length }} selected</span>
-      {% endif %}
-    </summary>
-    {% comment %} The two-level tree. {% endcomment %}
-    {% for category in facets.speciality_tree %}
-      <fieldset class="ds-dir-filters__group dir-filter-group dir-filter-group--tree">
-        <legend class="ds-dir-filters__legend">{{ category.name }}</legend>
-            <label class="ds-dir-filters__row" for="filter-category-{{ category.value }}">
-              <input class="ds-dir-filters__box" type="checkbox"
-                     id="filter-category-{{ category.value }}"
-                     name="category"
-                     value="{{ category.value }}"
-                     {% if category.value in params.speciality_categories %}checked{% endif %}>
-              <span>Anything in {{ category.name }}</span>
-            </label>
-          {% for speciality in category.specialities %}
-              <label class="ds-dir-filters__row" for="filter-speciality-{{ speciality.value }}">
-                <input class="ds-dir-filters__box" type="checkbox"
-                       id="filter-speciality-{{ speciality.value }}"
-                       name="speciality"
-                       value="{{ speciality.value }}"
-                       {% if speciality.value in params.specialities %}checked{% endif %}>
-                <span>{{ speciality.name }}</span>
-              </label>
-          {% endfor %}
-      </fieldset>
-    {% endfor %}
-  </details>
+    Rendered only when there is something to clear — "Clear all (0)" is a control
+    that does nothing, offered to somebody who has done nothing.
+    {% endcomment %}
+    {% if active_filters %}
+      <a class="dir-search__clear dir-filters__clear" href="{% url 'search:search' %}">Clear all ({{ active_filters|length }})</a>
+    {% endif %}
+  </div>
 
-  <details class="ds-dir-filters__details dir-filter-block" open>
-    <summary class="ds-dir-filters__legend">Who they see</summary>
-    {% include "components/_filter_group.html" with legend="Client groups" name="group" options=facets.client_groups selected=params.client_groups help=dbs_help %}
-  </details>
+  {% comment %} ---------- panel 1: the four that narrow most ---------- {% endcomment %}
+  <div class="dir-panel dir-panel--stack">
 
-  <details class="ds-dir-filters__details dir-filter-block" open>
-    <summary class="ds-dir-filters__legend">Availability</summary>
-    <fieldset class="ds-dir-filters__group dir-filter-group">
-      <legend class="ds-dir-filters__legend">Availability</legend>
-          <label class="ds-dir-filters__row" for="filter-accepting">
-            <input class="ds-dir-filters__box" type="checkbox" id="filter-accepting" name="accepting" value="1"
-                   {% if params.accepting_new_clients %}checked{% endif %}>
-            <span>Accepting new clients</span>
-          </label>
-          <label class="ds-dir-filters__row" for="filter-evening">
-            <input class="ds-dir-filters__box" type="checkbox" id="filter-evening" name="evening" value="1"
-                   {% if params.evening %}checked{% endif %}>
-            <span>Evening appointments</span>
-          </label>
-          <label class="ds-dir-filters__row" for="filter-weekend">
-            <input class="ds-dir-filters__box" type="checkbox" id="filter-weekend" name="weekend" value="1"
-                   {% if params.weekend %}checked{% endif %}>
-            <span>Weekend appointments</span>
-          </label>
-    </fieldset>
+    <label class="dir-panel__row dir-switch" for="filter-accepting">
+      <span class="dir-switch__label">Accepting new clients</span>
+      <span class="ds-dir-filters__count">{{ facet_counts.accepting }}</span>
+      <input class="dir-switch__input" type="checkbox" role="switch" id="filter-accepting" name="accepting" value="1"
+             {% if params.accepting_new_clients %}checked{% endif %}>
+      <span class="dir-switch__track" aria-hidden="true"></span>
+    </label>
 
-    <div class="dir-filter-group">
-      <label class="ds-dir-filters__legend" for="filter-wait">Typical wait — no longer than</label>
-      <select class="ds-control ds-control--select" id="filter-wait" name="wait">
-        <option value="">Any wait</option>
+    <div class="dir-panel__row dir-panel__row--select">
+      <label class="dir-panel__label" for="filter-wait">Typical wait</label>
+      {% comment %}
+      `background-color`, never the `background` shorthand, wherever this select is
+      restyled — the shorthand resets `background-image` and kiam-ui draws the
+      chevron with one, so the control renders as plain text with no affordance
+      that it opens anything. Measured in Phase 5b as `backgroundImage: "none"`.
+      {% endcomment %}
+      <select class="ds-control ds-control--select dir-panel__select" id="filter-wait" name="wait">
+        <option value="">Any</option>
         {% for option in wait_options %}
-          <option value="{{ option.value }}" {% if option.value == params.max_wait %}selected{% endif %}>
-            {{ option.label }}
-          </option>
+          <option value="{{ option.value }}" {% if option.value == params.max_wait %}selected{% endif %}>{{ option.label }}</option>
         {% endfor %}
       </select>
     </div>
-  </details>
 
-  <details class="ds-dir-filters__details dir-filter-block" open>
-    <summary class="ds-dir-filters__legend">How you meet</summary>
-    <fieldset class="ds-dir-filters__group dir-filter-group">
-      <legend class="ds-dir-filters__legend">In person or online</legend>
+    <fieldset class="dir-panel__group">
+      <legend class="dir-panel__eyebrow">Funding accepted</legend>
+      {% for option in facets.funding_visible %}
+        {% include "components/_filter_row.html" with name="funding" option=option selected=params.funding %}
+      {% endfor %}
+
+      {% comment %}
+      The tail. `funding_more_selected` is computed in `facets_with_counts` — a
+      closed <details> takes its contents out of the accessibility tree, so a
+      ticked insurer arriving from a shared URL has to force the group open or the
+      applied filter is invisible rather than merely scrolled past.
+      {% endcomment %}
+      {% if facets.funding_more %}
+        <details class="dir-more-options" {% if facets.funding_more_selected %}open{% endif %}>
+          <summary class="ds-dir-filters__more">All {{ facets.funding|length }} funding options</summary>
+          {% for option in facets.funding_more %}
+            {% include "components/_filter_row.html" with name="funding" option=option selected=params.funding %}
+          {% endfor %}
+        </details>
+      {% endif %}
+    </fieldset>
+
+    <label class="dir-panel__row dir-switch" for="filter-prescriber">
+      <span class="dir-switch__label">
+        Can prescribe
+        <span class="dir-panel__sub">psychiatrists and nurse prescribers</span>
+      </span>
+      <span class="ds-dir-filters__count">{{ facet_counts.prescriber }}</span>
+      <input class="dir-switch__input" type="checkbox" role="switch" id="filter-prescriber" name="prescriber" value="1"
+             {% if params.is_prescriber %}checked{% endif %}>
+      <span class="dir-switch__track" aria-hidden="true"></span>
+    </label>
+  </div>
+
+  {% comment %}
+  ---------- panel 2: what they can help with ----------
+
+  The client-side filter box is the only scripted thing in the sidebar. It hides
+  rows; it never changes what is submitted, so a speciality scrolled out of view
+  by a search term is still ticked and still in the URL.
+
+  `hidden` in the markup and unhidden by `x-init`, so no-JS visitors never see a
+  box that would not do anything. `@toggle` records the visitor's own open/closed
+  state and `:open` restores it the moment the box is cleared — without the `!q`
+  guard, Alpine's own opening of a matching category would be recorded as if the
+  visitor had done it, and clearing the box would leave all eighteen open.
+  {% endcomment %}
+  <div class="dir-panel dir-panel--specialities" x-data="{ q: '', hit(haystack) { return !this.q || haystack.includes(this.q.toLowerCase()) } }">
+    <p class="dir-panel__eyebrow" id="speciality-heading">What they can help with</p>
+
+    <div class="dir-facet-search" hidden x-init="$el.hidden = false">
+      {% include "kiam_ui/components/icon.html" with name="search" size=16 cls="dir-facet-search__icon" %}
+      <label class="sr-only" for="speciality-filter">Filter the list of specialities</label>
+      <input class="ds-control dir-facet-search__input" type="search" id="speciality-filter"
+             placeholder="Search {{ facets.speciality_total }} specialities…"
+             autocomplete="off" x-model="q">
+    </div>
+
+    {% for category in facets.speciality_visible %}
+      {% include "components/_filter_category.html" with category=category %}
+    {% endfor %}
+
+    {% comment %}
+    The tail. Eighteen categories is ~840px of summary rows before anybody has
+    opened anything, so six are listed and the rest are one control away.
+
+    A category holding a SELECTION is sorted to the front in
+    `facets_with_counts`, so it is never in here — which is why this <details>
+    does not need its own "open when something inside is ticked" test the way the
+    funding overflow does.
+
+    `:open` forces it open while the filter box has text, or a search for
+    "bereavement" would silently match nothing in the twelve categories the
+    visitor cannot see. `@toggle` is guarded the same way as a category's.
+    {% endcomment %}
+    {% if facets.speciality_more %}
+      <details class="dir-more-options"
+               x-data="{ was: false }"
+               @toggle="if (!q) was = $el.open"
+               :open="q ? true : was">
+        <summary class="ds-dir-filters__more">Browse all {{ facets.speciality_tree|length }} categories</summary>
+        {% for category in facets.speciality_more %}
+          {% include "components/_filter_category.html" with category=category %}
+        {% endfor %}
+      </details>
+    {% endif %}
+  </div>
+
+  {% comment %}
+  ---------- panel 3: everything else ----------
+
+  Each row says what is inside it and what you have already chosen, so a
+  collapsed group is still readable. `dir-facet__value` is the current selection
+  where a group has exactly one ("Both"), and a count where it can have many.
+  {% endcomment %}
+  <div class="dir-panel dir-panel--rows">
+
+    <details class="dir-facet" {% if params.approaches %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Type of therapy" total=facets.approaches|length count=params.approaches|length %}
+      {% include "components/_filter_group.html" with legend="Type of therapy" name="approach" options=facets.approaches selected=params.approaches hide_legend="1" %}
+    </details>
+
+    <details class="dir-facet" {% if params.client_groups %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Who they work with" sub="age groups, couples, families" count=params.client_groups|length %}
+      {% include "components/_filter_group.html" with legend="Who they work with" name="group" options=facets.client_groups selected=params.client_groups help=dbs_help hide_legend="1" %}
+    </details>
+
+    <details class="dir-facet" {% if params.languages %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Languages" total=facets.languages|length count=params.languages|length %}
+      {% include "components/_filter_group.html" with legend="Languages" name="language" options=facets.languages selected=params.languages hide_legend="1" %}
+    </details>
+
+    <details class="dir-facet" {% if params.in_person_only or params.online_only %}open{% endif %}>
+      {% if params.in_person_only %}
+        {% include "components/_filter_summary.html" with title="In person or online" value="In person" %}
+      {% elif params.online_only %}
+        {% include "components/_filter_summary.html" with title="In person or online" value="Online" %}
+      {% else %}
+        {% include "components/_filter_summary.html" with title="In person or online" value="Both" %}
+      {% endif %}
+      <fieldset class="dir-filter-group">
+        <legend class="sr-only">In person or online</legend>
         {% comment %}
         Radios, not checkboxes: "in person" and "online" together is the default
         (everything), and two checkboxes both ticked would mean the same thing
         while looking like a narrower search.
         {% endcomment %}
-          <label class="ds-dir-filters__row" for="filter-delivery-any">
-            <input class="ds-dir-filters__box" type="radio" id="filter-delivery-any" name="delivery" value=""
-                   {% if not params.in_person_only and not params.online_only %}checked{% endif %}>
-            <span>Either</span>
-          </label>
-          <label class="ds-dir-filters__row" for="filter-delivery-in-person">
-            <input class="ds-dir-filters__box" type="radio" id="filter-delivery-in-person" name="delivery" value="in_person"
-                   {% if params.in_person_only %}checked{% endif %}>
-            <span>In person</span>
-          </label>
-          <label class="ds-dir-filters__row" for="filter-delivery-online">
-            <input class="ds-dir-filters__box" type="radio" id="filter-delivery-online" name="delivery" value="online"
-                   {% if params.online_only %}checked{% endif %}>
-            <span>Online</span>
-          </label>
-    </fieldset>
+        <label class="ds-dir-filters__row" for="filter-delivery-any">
+          <input class="ds-dir-filters__box" type="radio" id="filter-delivery-any" name="delivery" value=""
+                 {% if not params.in_person_only and not params.online_only %}checked{% endif %}>
+          <span>Either</span>
+        </label>
+        <label class="ds-dir-filters__row" for="filter-delivery-in-person">
+          <input class="ds-dir-filters__box" type="radio" id="filter-delivery-in-person" name="delivery" value="in_person"
+                 {% if params.in_person_only %}checked{% endif %}>
+          <span>In person</span>
+        </label>
+        <label class="ds-dir-filters__row" for="filter-delivery-online">
+          <input class="ds-dir-filters__box" type="radio" id="filter-delivery-online" name="delivery" value="online"
+                 {% if params.online_only %}checked{% endif %}>
+          <span>Online</span>
+        </label>
+      </fieldset>
+    </details>
 
-    {% include "components/_filter_group.html" with legend="Session format" name="format" options=facets.session_formats selected=params.session_formats %}
-  </details>
-
-  <details class="ds-dir-filters__details dir-filter-block" {% if params.step_free_access or params.parking_available or params.hearing_loop %}open{% endif %}>
-    <summary class="ds-dir-filters__legend">Access at the practice</summary>
-    <fieldset class="dir-filter-group" aria-describedby="filter-access-help">
-      <legend class="ds-dir-filters__legend">Accessibility</legend>
-      <p class="dir-filter-group__help" id="filter-access-help">
-        These describe a physical practice, so choosing one shows only practitioners
-        with an address that has it — online-only listings are left out.
-      </p>
-          <label class="ds-dir-filters__row" for="filter-step-free">
-            <input class="ds-dir-filters__box" type="checkbox" id="filter-step-free" name="step_free" value="1"
-                   {% if params.step_free_access %}checked{% endif %}>
-            <span>Step-free access</span>
-          </label>
-          <label class="ds-dir-filters__row" for="filter-parking">
-            <input class="ds-dir-filters__box" type="checkbox" id="filter-parking" name="parking" value="1"
-                   {% if params.parking_available %}checked{% endif %}>
-            <span>Parking available</span>
-          </label>
-          <label class="ds-dir-filters__row" for="filter-hearing-loop">
-            <input class="ds-dir-filters__box" type="checkbox" id="filter-hearing-loop" name="hearing_loop" value="1"
-                   {% if params.hearing_loop %}checked{% endif %}>
-            <span>Hearing loop</span>
-          </label>
-    </fieldset>
-  </details>
-
-  <details class="ds-dir-filters__details dir-filter-block" {% if params.professions or params.approaches or params.languages or params.genders or params.min_years_experience %}open{% endif %}>
-    <summary class="ds-dir-filters__legend">Who they are</summary>
-    {% include "components/_filter_group.html" with legend="Profession" name="profession" options=facets.professions selected=params.professions %}
-    {% include "components/_filter_group.html" with legend="Approach" name="approach" options=facets.approaches selected=params.approaches %}
-    {% include "components/_filter_group.html" with legend="Language" name="language" options=facets.languages selected=params.languages %}
-
-    <fieldset class="ds-dir-filters__group dir-filter-group">
-      <legend class="ds-dir-filters__legend">Practitioner gender</legend>
+    <details class="dir-facet" {% if params.genders %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Gender of practitioner" sub="as the practitioner describes it" count=params.genders|length %}
+      <fieldset class="dir-filter-group">
+        <legend class="sr-only">Gender of practitioner</legend>
         {% for value, label in gender_options %}
-            <label class="ds-dir-filters__row" for="filter-gender-{{ value }}">
-              <input class="ds-dir-filters__box" type="checkbox" id="filter-gender-{{ value }}" name="gender" value="{{ value }}"
-                     {% if value in params.genders %}checked{% endif %}>
-              <span>{{ label }}</span>
-            </label>
-        {% endfor %}
-    </fieldset>
-
-    <div class="dir-filter-group">
-      <label class="ds-dir-filters__legend" for="filter-experience">Years of experience — at least</label>
-      <select class="ds-control ds-control--select" id="filter-experience" name="experience">
-        <option value="">Any</option>
-        {% for years in experience_options %}
-          <option value="{{ years }}" {% if years == params.min_years_experience %}selected{% endif %}>
-            {{ years }} years
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-  </details>
-
-  <details class="ds-dir-filters__details dir-filter-block" {% if params.fee_max_pence or params.funding %}open{% endif %}>
-    <summary class="ds-dir-filters__legend">Cost and cover</summary>
-    <div class="dir-filter-group">
-      <label class="ds-dir-filters__legend" for="filter-fee">Fee per session — up to</label>
-      <select class="ds-control ds-control--select" id="filter-fee" name="fee_max">
-        <option value="">Any fee</option>
-        {% for option in fee_options %}
-          <option value="{{ option.pence }}" {% if option.pence == params.fee_max_pence %}selected{% endif %}>
-            £{{ option.pounds }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    {% include "components/_filter_group.html" with legend="Funding accepted" name="funding" options=facets.funding selected=params.funding %}
-  </details>
-
-  <details class="ds-dir-filters__details dir-filter-block" open>
-    <summary class="ds-dir-filters__legend">Verification</summary>
-    <fieldset class="dir-filter-group" aria-describedby="filter-verified-help">
-      <legend class="ds-dir-filters__legend">Checks and prescribing</legend>
-      <p class="dir-filter-group__help" id="filter-verified-help">
-        “Verified” means Kiam has checked the practitioner's documents and they are in
-        date. <a href="{% url 'pages:how_verification_works' %}">What that does and does not mean</a>.
-      </p>
-          <label class="ds-dir-filters__row" for="filter-verified">
-            <input class="ds-dir-filters__box" type="checkbox" id="filter-verified" name="verified" value="1"
-                   {% if params.verified_only %}checked{% endif %}>
-            <span>Verified listings only</span>
+          <label class="ds-dir-filters__row" for="filter-gender-{{ value }}">
+            <input class="ds-dir-filters__box" type="checkbox" id="filter-gender-{{ value }}" name="gender" value="{{ value }}"
+                   {% if value in params.genders %}checked{% endif %}>
+            <span>{{ label }}</span>
           </label>
-          <label class="ds-dir-filters__row" for="filter-prescriber">
-            <input class="ds-dir-filters__box" type="checkbox" id="filter-prescriber" name="prescriber" value="1"
-                   {% if params.is_prescriber %}checked{% endif %}>
-            <span>Can prescribe</span>
-          </label>
-    </fieldset>
-  </details>
+        {% endfor %}
+      </fieldset>
+    </details>
 
+    <details class="dir-facet" {% if params.fee_max_pence %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Session fees" sub="per session, up to" %}
+      <div class="dir-filter-group">
+        <label class="ds-dir-filters__legend" for="filter-fee">Fee per session — up to</label>
+        <select class="ds-control ds-control--select" id="filter-fee" name="fee_max">
+          <option value="">Any fee</option>
+          {% for option in fee_options %}
+            <option value="{{ option.pence }}" {% if option.pence == params.fee_max_pence %}selected{% endif %}>£{{ option.pounds }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </details>
+
+    <details class="dir-facet" {% if params.evening or params.weekend %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Evenings and weekends" sub="outside the working day" %}
+      <fieldset class="dir-filter-group">
+        <legend class="sr-only">Evenings and weekends</legend>
+        <label class="ds-dir-filters__row" for="filter-evening">
+          <input class="ds-dir-filters__box" type="checkbox" id="filter-evening" name="evening" value="1"
+                 {% if params.evening %}checked{% endif %}>
+          <span>Evening appointments</span>
+        </label>
+        <label class="ds-dir-filters__row" for="filter-weekend">
+          <input class="ds-dir-filters__box" type="checkbox" id="filter-weekend" name="weekend" value="1"
+                 {% if params.weekend %}checked{% endif %}>
+          <span>Weekend appointments</span>
+        </label>
+      </fieldset>
+    </details>
+
+    <details class="dir-facet" {% if params.step_free_access or params.parking_available or params.hearing_loop %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Accessibility" sub="step-free, parking, hearing loop" %}
+      <fieldset class="dir-filter-group" aria-describedby="filter-access-help">
+        <legend class="sr-only">Accessibility</legend>
+        <p class="dir-filter-group__help" id="filter-access-help">
+          These describe a physical practice, so choosing one shows only practitioners
+          with an address that has it — online-only listings are left out.
+        </p>
+        <label class="ds-dir-filters__row" for="filter-step-free">
+          <input class="ds-dir-filters__box" type="checkbox" id="filter-step-free" name="step_free" value="1"
+                 {% if params.step_free_access %}checked{% endif %}>
+          <span>Step-free access</span>
+        </label>
+        <label class="ds-dir-filters__row" for="filter-parking">
+          <input class="ds-dir-filters__box" type="checkbox" id="filter-parking" name="parking" value="1"
+                 {% if params.parking_available %}checked{% endif %}>
+          <span>Parking available</span>
+        </label>
+        <label class="ds-dir-filters__row" for="filter-hearing-loop">
+          <input class="ds-dir-filters__box" type="checkbox" id="filter-hearing-loop" name="hearing_loop" value="1"
+                 {% if params.hearing_loop %}checked{% endif %}>
+          <span>Hearing loop</span>
+        </label>
+      </fieldset>
+    </details>
+
+    <details class="dir-facet" {% if params.professions %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Profession" total=facets.professions|length count=params.professions|length %}
+      {% include "components/_filter_group.html" with legend="Profession" name="profession" options=facets.professions selected=params.professions hide_legend="1" %}
+    </details>
+
+    <details class="dir-facet" {% if params.session_formats %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Session type" sub="one to one, couples, groups" count=params.session_formats|length %}
+      {% include "components/_filter_group.html" with legend="Session type" name="format" options=facets.session_formats selected=params.session_formats hide_legend="1" %}
+    </details>
+
+    <details class="dir-facet" {% if params.min_years_experience %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Years of experience" sub="at least" %}
+      <div class="dir-filter-group">
+        <label class="ds-dir-filters__legend" for="filter-experience">Years of experience — at least</label>
+        <select class="ds-control ds-control--select" id="filter-experience" name="experience">
+          <option value="">Any</option>
+          {% for years in experience_options %}
+            <option value="{{ years }}" {% if years == params.min_years_experience %}selected{% endif %}>{{ years }} years</option>
+          {% endfor %}
+        </select>
+      </div>
+    </details>
+
+    <details class="dir-facet" {% if params.verified_only %}open{% endif %}>
+      {% include "components/_filter_summary.html" with title="Verified only" sub="documents checked and in date" %}
+      <fieldset class="dir-filter-group" aria-describedby="filter-verified-help">
+        <legend class="sr-only">Verification</legend>
+        <p class="dir-filter-group__help" id="filter-verified-help">
+          “Verified” means Kiam has checked the practitioner's documents and they are in
+          date. <a href="{% url 'pages:how_verification_works' %}">What that does and does not mean</a>.
+        </p>
+        <label class="ds-dir-filters__row" for="filter-verified">
+          <input class="ds-dir-filters__box" type="checkbox" id="filter-verified" name="verified" value="1"
+                 {% if params.verified_only %}checked{% endif %}>
+          <span>Verified listings only</span>
+        </label>
+      </fieldset>
+    </details>
+  </div>
+
+  {% comment %}
+  The real submit, for the no-JavaScript path. There is no second "Clear all"
+  here: the one in the head does the same thing, says how many it would clear, and
+  is above the panels rather than below 2,500px of them — and the results column
+  has its own next to the chips it removes. Three controls doing one thing is how
+  somebody ends up hunting for the difference between them.
+  {% endcomment %}
   <div class="dir-search__sidebar-actions">
     {% include "kiam_ui/components/core/button.html" with variant="primary" type="submit" label="Apply filters" full=True %}
-    <p><a class="dir-search__clear" href="{% url 'search:search' %}">Clear all filters</a></p>
   </div>
 </aside>

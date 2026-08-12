@@ -1,0 +1,35 @@
+{% comment %}
+FilterSummary — the visible line of one collapsed group in the sidebar's third
+panel. The `<details>` and `</details>` around it stay in the caller, so the
+markup balances in one file and a stray include cannot leave a tag open.
+
+  <details class="dir-facet" {% if params.approaches %}open{% endif %}>
+    {% include "components/_filter_summary.html" with title="Type of therapy" total=facets.approaches|length count=params.approaches|length %}
+    …the group…
+  </details>
+
+Params:
+  title  (required) what the group is.
+  sub    a plain descriptive line — what is inside, in words.
+  total  how many options the group offers. Rendered as "N options" when there
+         is no `sub`, because a number with no noun beside it is the Phase 5
+         browse-count defect: the page said "12" and never said twelve of what.
+  count  how many are currently selected. Wins over `sub`/`total` when non-zero.
+  value  the current single-valued selection ("Both"), for the groups that have
+         exactly one.
+
+The selected state has to be readable from OUTSIDE the closed `<details>` — a
+collapsed group removes its contents from the accessibility tree, so the summary
+line is the only place an applied filter can be announced from. That is why
+`count` outranks the descriptive text rather than sitting beside it.
+{% endcomment %}
+<summary class="dir-facet__summary">
+  <span class="dir-facet__title">
+    {{ title }}
+    {% if count %}<span class="dir-facet__sub">{{ count }} selected</span>
+    {% elif sub %}<span class="dir-facet__sub">{{ sub }}</span>
+    {% elif total %}<span class="dir-facet__sub">{{ total }} options</span>{% endif %}
+  </span>
+  {% if value %}<span class="dir-facet__value">{{ value }}</span>{% endif %}
+  {% include "kiam_ui/components/icon.html" with name="chevron-down" size=16 cls="dir-facet__chevron" %}
+</summary>

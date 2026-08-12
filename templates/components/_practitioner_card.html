@@ -1,26 +1,39 @@
 {% comment %}
-PractitionerCard — one row in the results register.
+PractitionerCard — one row in the results register, one tile in the home grid.
 
-  {% include "components/_practitioner_card.html" with practitioner=practitioner %}
+  {% include "components/_practitioner_card.html" with practitioner=practitioner variant="register" %}
   {% include "components/_practitioner_card.html" with practitioner=practitioner headshot_priority="lazy" %}
 
-Params: practitioner · headshot_priority ("auto" default | "lazy")
+Params: practitioner · variant ("grid" default | "register") · headshot_priority
+        ("auto" default | "lazy")
 
 **This is kiam-ui's `ds-dir-pcard` anatomy with our markup inside it** — the fixed
-order (identity → availability → specialities → place → verification), the
+order (identity → specialities → intro → place → availability → verification), the
 stretched link, the hover lift and the whole visual treatment are
-`components/directory/practitioner_card.html`'s CSS. This repo defines none of it.
+`components/directory/practitioner_card.html`'s CSS. This repo adds the rail and
+the register's three-column placement, and nothing else.
 
 The fixed order is the point of the register: comparing five strangers should be
 five vertical reads, not five re-orientations.
 
-Three things are ours and stay ours, each a compliance or performance decision the
+ONE MARKUP, TWO LAYOUTS — the Phase 5b search-bar rule, for the same reason.
+`variant` changes a modifier class and nothing else: the elements, their order and
+their ids are identical either way, so there is one keyboard pattern and one set
+of compliance rules to keep right rather than two components that drift. The
+register puts the rail in a third column against a hairline; the grid stacks it
+under the body. Both are CSS.
+
+Four things are ours and stay ours, each a compliance or performance decision the
 packaged partial has no way to know about:
 
 * **No contact details, and no contact button.** The packaged card renders a
   "Show contact" button when passed a `contact_id`; nothing here passes one and
   nothing may. Contact is revealed on the profile, through a POST, behind a
-  per-IP limit — see `directory/_contact_panel.html`.
+  per-IP limit — see `directory/_contact_panel.html`. The rail's affordance is
+  therefore "View profile", which is where the reveal lives. It is deliberately
+  the same size and weight as the reference design's contact button, because the
+  thing a visitor is looking for is the way in to this person, and that way in is
+  one screen further on than the reference assumes.
 * **`headshot_priority` and `srcset`.** Upstream's `monogram.html` renders a
   plain lazy `<img>` at a fixed 56px. The first card on `/search/` is the likely
   LCP element and must be eager; the same card in the home-page grid sits below
@@ -30,23 +43,23 @@ packaged partial has no way to know about:
   renders NOTHING for an unverified listing — the Phase 5 compliance finding —
   and carries the mandatory "What this does and does not mean" link. Upstream's
   card assumes a `verified_date` and renders a static span.
+* **"Paid placement", not "Featured".** The reference design labels the slot
+  "Featured", which says a listing was chosen and not that it was bought.
+  Undisclosed paid ranking breaches CAP rules (docs/content-compliance.md §6), so
+  the pill keeps the word that discloses it and takes the reference's placement
+  and colour instead.
 
 **Two tab stops, and the second is the badge's link rather than a contact button.**
 The name is a stretched link whose `::after` covers the card, so a click anywhere
 opens the profile while the accessible name stays "Dr Aisha Rahman" rather than
-the whole card read aloud. That is strictly better than the name-only link this
-replaced, which gave the same accessible name but a target the size of the text.
-The badge's explanation link lifts back above the stretch
-(`.dir-practitioner__trust`, in app.css) because the policy requires the limits of
-the claim to be one click away from wherever the claim appears — and on a results
-page the claim appears twenty times.
-
-**Featured listings are labelled here, at the point of display.** Nothing is
-featured yet; the label exists before the first person pays for one, because
-undisclosed paid ranking breaches CAP rules (docs/content-compliance.md §6) and a
-label added later is a label somebody has to remember to add.
+the whole card read aloud. The badge's explanation link lifts back above the
+stretch (`.dir-practitioner__trust`, in app.css) because the policy requires the
+limits of the claim to be one click away from wherever the claim appears — and on
+a results page the claim appears twenty times. "View profile" is `aria-hidden`
+with `tabindex="-1"`: it duplicates a target that already covers the whole row,
+and eighteen cards each offering the same link twice is eighteen wasted tab stops.
 {% endcomment %}
-<article class="ds-dir-pcard{% if practitioner.is_featured %} ds-dir-pcard--featured{% endif %} dir-practitioner">
+<article class="ds-dir-pcard{% if practitioner.is_featured %} ds-dir-pcard--featured{% endif %} dir-practitioner dir-practitioner--{{ variant|default:'grid' }}">
 
   {% if practitioner.headshot %}
     {% comment %}
@@ -78,43 +91,39 @@ label added later is a label somebody has to remember to add.
   {% else %}
     {% comment %} A practitioner without a photo is not an error state, so the tile carries
        no "photo to follow" caption and no upload prompt — it is simply how that listing
-       looks. `aria-hidden` because the name sits next to it in the markup. {% endcomment %}
+       looks. Initials rather than a generic person glyph: a monogram is a placeholder
+       that still tells the eye which row it is looking at, which is what a register of
+       near-identical rows needs. `initials` is attached by
+       `directory.services.search._card_facts`; the glyph is the fallback for any caller
+       that has not decorated its rows, because an empty tile is worse than a generic one.
+       `aria-hidden` because the name sits next to it in the markup. {% endcomment %}
     <span class="ds-dir-monogram dir-practitioner__headshot" aria-hidden="true">
-      {% include "kiam_ui/components/icon.html" with name="user" size=26 %}
+      {% if practitioner.initials %}{{ practitioner.initials }}{% else %}{% include "kiam_ui/components/icon.html" with name="user" size=26 %}{% endif %}
     </span>
   {% endif %}
 
   <div class="ds-dir-pcard__body">
 
-    {% if practitioner.is_featured %}
-      <p class="ds-dir-pcard__featured">Paid placement</p>
-    {% endif %}
+    {% comment %}
+    The name and the disclosure on one line, the disclosure at the end of it. In
+    flow rather than absolutely positioned in the card's corner: at register width
+    that corner belongs to the rail, and a pill floating over the availability line
+    would cover the one fact on the row that must not be obscured.
+    {% endcomment %}
+    <div class="dir-practitioner__head">
+      <h3 class="ds-dir-pcard__name">
+        <a class="ds-dir-pcard__link" href="{% url 'directory:profile' practitioner.slug %}">{{ practitioner.display_title }} {{ practitioner.full_name }}</a>{% if practitioner.post_nominals %}
+        <span class="ds-dir-pcard__cred dir-practitioner__cred">{{ practitioner.post_nominals }}</span>{% endif %}
+      </h3>
 
-    <h3 class="ds-dir-pcard__name">
-      <a class="ds-dir-pcard__link" href="{% url 'directory:profile' practitioner.slug %}">{{ practitioner.display_title }} {{ practitioner.full_name }}</a>
-    </h3>
-
-    {% if practitioner.post_nominals %}
-      <p class="ds-dir-pcard__cred">{{ practitioner.post_nominals }}</p>
-    {% endif %}
+      {% if practitioner.is_featured %}
+        <p class="ds-dir-pcard__featured">Paid placement</p>
+      {% endif %}
+    </div>
 
     {% if practitioner.profession %}
       <p class="ds-dir-pcard__prof">{{ practitioner.profession.name }}</p>
     {% endif %}
-
-    {% comment %}
-    Availability is a SENTENCE with a dot that only repeats it, never a colour on
-    its own — kiam-ui's `status.html` contract. `closed` is slate rather than red
-    because a full diary is a fact about a calendar, not a fault in the
-    practitioner or a rejection of the reader, and red would read as both.
-    {% endcomment %}
-    <div class="ds-dir-pcard__status">
-      {% if practitioner.accepting_new_clients %}
-        {% include "kiam_ui/components/directory/status.html" with tone="open" label="Accepting new clients" %}
-      {% else %}
-        {% include "kiam_ui/components/directory/status.html" with tone="closed" label="Not accepting new clients at the moment" %}
-      {% endif %}
-    </div>
 
     {% if practitioner.top_specialities %}
       <div class="ds-dir-pcard__tags">
@@ -124,31 +133,102 @@ label added later is a label somebody has to remember to add.
       </div>
     {% endif %}
 
-    <p class="ds-dir-pcard__meta">
+    {% comment %}
+    The intro, clamped by CSS rather than truncated in the template. `truncatechars`
+    would cut at a fixed count regardless of how wide the row actually is, so the
+    same card would show a stub on a desktop and an identical stub on a phone; the
+    clamp fills whatever line it has. The full text is on the profile, and it is
+    still in the DOM here, so a screen reader is not handed the ellipsis version.
+    {% endcomment %}
+    {% if practitioner.intro %}
+      <p class="ds-dir-pcard__intro dir-practitioner__intro">{{ practitioner.intro }}</p>
+    {% endif %}
+
+    <p class="ds-dir-pcard__meta dir-practitioner__meta">
       {% comment %}
-      Distance when we have one, "Online" when we do not. `distance_miles` is
-      computed in the service — a practitioner with no address, matched because
-      they work online, genuinely has no distance and must not be shown "0 miles".
+      How you meet them comes first and as a bordered chip, because it is the one
+      fact on the row that decides whether the rest of the row is relevant at all —
+      somebody who cannot travel is not reading the fees of an in-person-only
+      listing. `delivery_mode` is the single source: `offers_online` defaults True
+      and is set on listings that do not advertise online work.
+      {% endcomment %}
+      {% if practitioner.delivery_mode != "online" %}
+        <span class="dir-practitioner__mode">{% include "kiam_ui/components/icon.html" with name="pin" size=14 %} In person</span>
+      {% endif %}
+      {% if practitioner.delivery_mode != "in_person" %}
+        <span class="dir-practitioner__mode">{% include "kiam_ui/components/icon.html" with name="video" size=14 %} Online</span>
+      {% endif %}
+
+      {% comment %}
+      Distance when we have one, the place on its own when we do not, and the
+      online coverage line for somebody with no public address at all.
+      `distance_miles` is computed in the service — a practitioner with no address,
+      matched because they work online, genuinely has no distance and must not be
+      shown "0 miles". `nearest_place` is the town of the PUBLIC address the
+      distance was measured to, never a private one.
+
+      **The town is named on the register and not in the home grid**, and that is
+      the one place the two variants carry different content rather than different
+      layout. Phase 5's rule is that a town needs two published practitioners
+      before the home page names it, because "Practitioners in Loneton" next to one
+      listing identifies that person by where they work — `test_a_town_needs_more_
+      than_one_practitioner_to_be_offered` is the line. A results page is a
+      different act: the visitor asked about a place, the address is one the
+      practitioner marked public, and it is already on their profile. So the rule
+      is kept where it was written rather than widened or quietly dropped.
       {% endcomment %}
       {% if practitioner.distance_miles is not None %}
-        <span>{% include "kiam_ui/components/icon.html" with name="pin" size=14 %} {{ practitioner.distance_miles|floatformat:1 }} miles away</span>
-      {% elif practitioner.offers_online %}
-        <span>{% include "kiam_ui/components/icon.html" with name="video" size=14 %} Online</span>
+        <span>{{ practitioner.distance_miles|floatformat:1 }} miles{% if variant == "register" and practitioner.nearest_place %} — {{ practitioner.nearest_place }}{% endif %}</span>
+      {% elif variant == "register" and practitioner.nearest_place %}
+        <span>{{ practitioner.nearest_place }}</span>
+      {% elif practitioner.online_coverage %}
+        <span>{{ practitioner.online_coverage }}</span>
+      {% endif %}
+
+      {% if practitioner.languages_label %}
+        <span>{{ practitioner.languages_label }}</span>
       {% endif %}
     </p>
 
-    <div class="ds-dir-pcard__foot">
-      <div class="ds-dir-pcard__trust dir-practitioner__trust">
-        {% comment %}
-        The badge comes from the SHARED partial, not a copy. This card
-        reimplemented it inline once and lost three things: the mandatory
-        "What this does and does not mean" link, the date format, and
-        single-sourcing — so a Dr. Abbass-signed reword of the most-repeated
-        gated string on the site would have silently missed this copy.
-        {% endcomment %}
-        {% include "components/_verified_badge.html" with practitioner=practitioner %}
-      </div>
+  </div>
+
+  {% comment %}
+  The rail. In the register it is a third column behind a hairline; in the grid it
+  is the block under the body. Same markup, same order, one modifier class.
+
+  Availability is a SENTENCE with a dot that only repeats it, never a colour on
+  its own — kiam-ui's `status.html` contract. `closed` is slate rather than red
+  because a full diary is a fact about a calendar, not a fault in the practitioner
+  or a rejection of the reader, and red would read as both. The note carries the
+  practitioner's own words when they are closed (`availability_note` — "expected to
+  reopen in October") and the fact that changes the answer when they are open.
+  {% endcomment %}
+  <div class="dir-practitioner__rail">
+    <div class="ds-dir-pcard__status dir-practitioner__status">
+      {% if practitioner.accepting_new_clients %}
+        {% include "kiam_ui/components/directory/status.html" with tone="open" label="Accepting new clients" note=practitioner.status_note %}
+      {% else %}
+        {% include "kiam_ui/components/directory/status.html" with tone="closed" label="Not accepting new clients at the moment" note=practitioner.status_note %}
+      {% endif %}
     </div>
 
+    {% if practitioner.fee_label %}
+      <p class="ds-dir-pcard__fee dir-practitioner__fee">{{ practitioner.fee_label }}</p>
+    {% endif %}
+
+    <div class="ds-dir-pcard__trust dir-practitioner__trust">
+      {% comment %}
+      The badge comes from the SHARED partial, not a copy. This card
+      reimplemented it inline once and lost three things: the mandatory
+      "What this does and does not mean" link, the date format, and
+      single-sourcing — so a Dr. Abbass-signed reword of the most-repeated
+      gated string on the site would have silently missed this copy.
+      {% endcomment %}
+      {% include "components/_verified_badge.html" with practitioner=practitioner %}
+    </div>
+
+    <div class="ds-dir-pcard__actions dir-practitioner__actions">
+      <span class="btn btn-ghost dir-practitioner__cta" aria-hidden="true" tabindex="-1">View profile</span>
+    </div>
   </div>
 </article>

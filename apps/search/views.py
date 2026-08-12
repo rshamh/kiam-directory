@@ -88,6 +88,7 @@ def search(request):
     metrics.record_search_impressions(page.items, request=request)
 
     wider = search_service.wider_radius(params.radius_miles)
+    counts = search_service.facet_counts(params)
 
     context = {
         "params": params,
@@ -96,7 +97,8 @@ def search(request):
         "near": near,
         "location": location,
         "location_failed": location_failed,
-        "facets": params_service.facets(),
+        "facets": params_service.facets_with_counts(counts, params),
+        "facet_counts": counts,
         "active_filters": params_service.active_filters(params, request.GET),
         "wait_options": [
             {"value": value, "label": label} for value, label in params_service.WAIT_LABELS.items()

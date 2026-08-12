@@ -208,17 +208,41 @@ def test_the_first_paragraph_answers_the_question(client, published):
 
 
 def test_the_badge_shows_its_date_and_links_to_its_limits(client):
+    """The date moved off the face of the badge and into the panel behind it; it
+    did not go away. A freshness claim with no date behind it is not a freshness
+    claim, so this asserts the date is still in the markup — and that the link to
+    the limits of the claim is still one click from the claim, which is
+    docs/verification-policy.md's requirement rather than a layout preference."""
     practitioner = PractitionerFactory(published=True, slug="verified-example", verified=True)
 
     body = _get(client, practitioner).content.decode()
 
-    assert "Credentials checked" in body
+    assert 'class="dir-verified"' in body
+    assert "Verified" in body
+    assert practitioner.credentials_checked_at.strftime("%-d %b %Y") in body
     assert "/how-verification-works/" in body
+
+
+def test_the_badge_never_claims_more_than_the_required_checks(client):
+    """The panel names what `verification.BASE_REQUIRED` actually enforces. DBS is
+    deliberately absent: it is the safeguarding check, not one of the badge's
+    required ones, and a panel that listed it would have the badge asserting a
+    clearance nobody granted."""
+    practitioner = PractitionerFactory(published=True, slug="claims-example", verified=True)
+
+    body = _get(client, practitioner).content.decode()
+    panel = body.split('class="dir-verified__note"', 1)[1].split("</span>", 1)[0]
+
+    assert "professional registration" in panel
+    assert "insurance" in panel
+    assert "photo ID" in panel
+    assert "not an endorsement" in panel
+    assert "DBS" not in panel
 
 
 def test_an_unverified_listing_shows_no_badge(client, published):
     body = _get(client, published).content.decode()
-    assert "Credentials checked" not in body
+    assert 'class="dir-verified"' not in body
 
 
 def test_a_listing_with_almost_nothing_on_it_still_renders(client):

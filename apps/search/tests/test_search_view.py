@@ -37,6 +37,43 @@ pytestmark = pytest.mark.django_db
 URL = "/search/"
 EPSOM = (-0.2674, 51.3360)
 
+# How far past one page the pagination fixtures go. The tests below used to seed a
+# flat 25 listings and assert "Show 5 more" — arithmetic that silently encoded
+# `SEARCH_PAGE_SIZE = 20`, so dropping the page size to 12 broke two tests that are
+# not about the page size at all (page 2 stopped being the last page). Seeding
+# `page_size + OVERFLOW` states the intent instead: one full page, then a short
+# one, whatever the setting says.
+OVERFLOW = 5
+
+
+def result_cards(body: str) -> str:
+    """Just the `<ol>` of practitioner cards.
+
+    Was `body.split('<div id="results">')[1]` in the callers — everything from the
+    results container to the end of the document. That stopped being "the results"
+    the moment the ranking disclosure moved BELOW the register to become a modal:
+    its copy explains what the "Paid placement" label means, so it necessarily
+    contains the phrase, and both featured-listing tests started reading it as if a
+    card had rendered one. One failed loudly; the other — the one asserting the
+    label IS present — would have passed even if the card had stopped rendering it
+    entirely, which is exactly the regression that test exists to catch.
+
+    Anchored to the list rather than to the container, so page furniture can move
+    around the register without silently widening what these assertions cover.
+    """
+    return body.split('<ol id="results-list"', 1)[1].split("</ol>", 1)[0]
+
+
+@pytest.fixture
+def overflowing_register(settings):
+    """Exactly one full page of listings plus `OVERFLOW` more.
+
+    So page 1 offers "Show {OVERFLOW} more" and page 2 is the last page, at any
+    `SEARCH_PAGE_SIZE`.
+    """
+    for i in range(settings.SEARCH_PAGE_SIZE + OVERFLOW):
+        PractitionerFactory(published=True, slug=f"p{i:02d}")
+
 
 @pytest.fixture(autouse=True)
 def _no_network(monkeypatch):
@@ -205,30 +242,53 @@ def test_the_radius_control_is_a_select_not_a_slider(client, cohort):
     assert 'type="range"' not in body
 
 
-def test_pagination_links_are_real_anchors(client):
-    for i in range(25):
-        PractitionerFactory(published=True, slug=f"p{i:02d}")
-
+def test_the_show_more_control_is_a_real_anchor(client, overflowing_register):
+    """With script off it has to be an ordinary link to page 2 — that is the whole
+    no-JavaScript path through a directory of more than one page."""
     body = client.get(URL).content.decode()
 
-    assert "dir-pagination" in body
-    assert re.search(r'<a class="dir-pagination__link"\s+id="pagination-next"\s+href="\?[^"]*page=2', body)
+    assert "dir-more" in body
+    assert re.search(
+        r'<a class="btn btn-ghost dir-more__button"\s+id="results-end"\s+href="\?[^"]*page=2', body
+    )
+    assert f"Show {OVERFLOW} more" in body
 
 
-def test_pagination_links_carry_an_id_so_focus_survives_the_swap():
+def test_the_show_more_control_appends_rather_than_replacing(client, overflowing_register):
+    """`hx-select` lifts the new rows out of the response and `beforeend` puts them
+    on the end of the list the visitor is already reading, so "Show N more" is a
+    description of what happens rather than a euphemism for "Next"."""
+    control = re.search(
+        r'<a class="btn btn-ghost dir-more__button".*?</a>', client.get(URL).content.decode(), re.S
+    )
+    assert control, "no show-more control on a two-page result set"
+    markup = control.group(0)
+
+    assert 'hx-target="#results-list"' in markup
+    assert 'hx-swap="beforeend"' in markup
+    assert 'hx-select="#results-list > li"' in markup
+    assert 'hx-select-oob="#results-more"' in markup
+    # Without this the address bar would say ?page=3 while the page showed pages
+    # 1-3, and a reload would drop the first forty rows.
+    assert 'hx-replace-url="false"' in markup
+
+
+def test_both_ends_of_the_register_carry_the_same_id_so_focus_survives_the_swap(
+    overflowing_register,
+):
     """htmx 2 restores focus after a swap only when the focused element had an `id`
-    (`if (s.elt && !le(s.elt) && ee(s.elt, "id"))`). These anchors are inside
-    #results and are destroyed by it, so without one, activating "Next" dropped
-    focus to <body> — with the whole filter sidebar between the user and the link
-    they had just used."""
+    (`if (s.elt && !le(s.elt) && ee(s.elt, "id"))`). This control replaces ITSELF on
+    every activation, so the id has to exist in both states — otherwise the last
+    press, the one that exhausts the results, drops focus to <body> with the whole
+    filter sidebar between the user and where they were."""
     from django.test import Client
 
-    for i in range(25):
-        PractitionerFactory(published=True, slug=f"p{i:02d}")
+    more = Client().get(URL).content.decode()
+    exhausted = Client().get(URL, {"page": "2"}).content.decode()
 
-    body = Client().get(URL).content.decode()
-
-    assert 'id="pagination-next"' in body
+    assert 'id="results-end"' in more
+    # Focusable, or htmx has an element to find and nothing to focus.
+    assert '<p class="dir-more__done" id="results-end" tabindex="-1">' in exhausted
 
 
 # ---------------------------------------------------------------------------
@@ -417,11 +477,26 @@ def test_a_result_card_shows_what_the_brief_asks_for(client, cohort, epsom):
 
     assert "Dr Aisha Rahman" in body
     assert "MBBS MRCPsych" in body
-    assert "Credentials checked" in body
+    assert 'class="dir-verified"' in body
     assert "Adult ADHD assessment" in body
     assert "Accepting new clients" in body
     assert f'href="/p/{local.slug}/"' in body
-    assert "miles away" in body
+    assert re.search(r"[\d.]+ miles", body)
+
+
+def test_a_register_row_carries_the_facts_somebody_is_comparing(client, cohort, epsom):
+    """Availability, fee, delivery and verification are what a visitor reads across
+    twenty strangers, so they are on the row rather than one click away."""
+    local, _ = cohort
+    from apps.directory.models import Practitioner
+
+    Practitioner.objects.filter(pk=local.pk).update(fee_min=9500, fee_max=9500)
+
+    body = client.get(URL, {"near": "KT18 5EP", "radius": "25"}).content.decode()
+
+    assert "£95 / session" in body
+    assert "dir-practitioner__rail" in body
+    assert "In person" in body or "Online" in body
 
 
 def test_an_online_practitioner_is_labelled_online_not_zero_miles(client, cohort, epsom):
@@ -619,14 +694,21 @@ def test_there_is_a_bypass_past_the_filters(client, cohort):
     assert body.index("Skip to results") < body.index("dir-search__sidebar")
 
 
-def test_the_big_speciality_group_is_collapsed_by_default(client, cohort):
-    """138 specialities in one open <details> is what made the sidebar 8,000px tall."""
-    body = client.get(URL).content.decode()
-    # The <details> TAG only — the card markup further down now contains
-    # `ds-dir-status--open`, and a substring check over a whole block would find it.
-    tag = body.split("What they treat", 1)[0].rsplit("<details", 1)[1].split(">", 1)[0]
+def test_every_speciality_category_is_collapsed_by_default(client, cohort):
+    """138 specialities in open <details> elements is what made the sidebar 8,000px
+    tall. Phase 5c split the one big group into a category per row, which is only
+    an improvement while they all still ship closed."""
+    from django.core.management import call_command
 
-    assert " open" not in tag, f"the speciality group ships open: <details{tag}>"
+    call_command("seed_taxonomy", verbosity=0)
+
+    body = client.get(URL).content.decode()
+    tags = re.findall(r"<details class=\"dir-cat\"([^>]*)>", body)
+
+    assert tags, "no speciality categories rendered at all"
+    assert not [tag for tag in tags if " open" in tag], (
+        f"{len([t for t in tags if ' open' in t])} of {len(tags)} categories ship open"
+    )
 
 
 def test_a_group_holding_a_selection_is_open(client, cohort):
@@ -634,8 +716,19 @@ def test_a_group_holding_a_selection_is_open(client, cohort):
     shared URL would hide an applied filter rather than merely scroll past it."""
     body = client.get(URL, {"speciality": "adult-adhd"}).content.decode()
 
-    assert re.search(r'<details class="ds-dir-filters__details dir-filter-block"\s+open>', body)
-    assert "selected</span>" in body
+    # The speciality's own category. `selected` is computed in
+    # `facets_with_counts` because a template cannot ask "does any speciality in
+    # this category appear in the selection" — and a template that cannot ask it
+    # silently answers no, which closes the group over an applied filter.
+    assert re.search(r'<details class="dir-cat"\s+open', body)
+
+
+def test_a_collapsed_group_says_how_many_are_selected(client, cohort):
+    """The summary line is the only place an applied filter can be read from when
+    the group holding it is closed."""
+    body = client.get(URL, {"gender": ["female", "male"]}).content.decode()
+
+    assert "2 selected</span>" in body
 
 
 def test_removing_a_filter_is_a_plain_navigation(client, cohort):
@@ -670,14 +763,45 @@ def test_filter_changes_replace_history_rather_than_stacking_it(client, cohort):
 
 
 def test_the_card_uses_the_shared_verified_badge(client, cohort):
-    """Not a second copy. The badge's own docstring requires the "what this does and
-    does not mean" link to be one click from wherever the claim appears — on a
-    results page the claim appears once per card."""
+    """Not a second copy. The badge's own docstring requires the limits of the
+    claim to be one click from wherever the claim appears — on a results page the
+    claim appears once per card."""
     body = client.get(URL).content.decode()
 
-    assert "Credentials checked" in body
+    assert 'class="dir-verified"' in body
     assert "/how-verification-works/" in body
-    assert "What this does and does not mean" in body
+    assert "what this means" in body
+
+
+def test_the_badge_explanation_is_reachable_without_a_pointer(client, cohort):
+    """The panel opens on hover AND on focus, and it is supplementary in the first
+    place: the trigger is a real link to the full explanation, so with scripting
+    off the panel never renders and the link still works. A tooltip that is the
+    only way to reach the limits of a verification claim would fail 2.1.1 twenty
+    times on one page."""
+    body = client.get(URL).content.decode()
+    badge = body.split('<p class="dir-verified"', 1)[1].split("</p>", 1)[0]
+
+    assert "@focusin" in badge, "the panel opens on hover only"
+    assert "keydown.escape" in badge, "the panel cannot be dismissed from the keyboard"
+
+    # THE PANEL MUST FAIL CLOSED, and this used to assert `x-cloak` — the old
+    # mechanism, where the stylesheet left the panel visible and Alpine hid it with
+    # `x-show`. That fails OPEN: measured after an htmx filter swap, 11 of 12 rows
+    # rendered with the explanation hanging open, cloak stripped and no inline
+    # `display` written. The panel is `display: none` in the stylesheet now and
+    # Alpine only ever ADDS `is-open`, so every way this can go wrong leaves it
+    # shut. Asserting the guarantee rather than the mechanism: nothing here may
+    # depend on script running in order to stay hidden.
+    assert ":class" in badge, "nothing adds the class that opens the panel"
+    assert "is-open" in badge
+    assert "x-show" not in badge, (
+        "x-show hides by writing display:none from script — it fails OPEN when a "
+        "swap outruns Alpine, which is the bug this replaced"
+    )
+    # The trigger is the link, not something inside the panel.
+    assert '<a class="dir-verified__link"' in badge
+    assert "/how-verification-works/" in badge.split('class="dir-verified__note"', 1)[0]
 
 
 def test_the_search_landmark_does_not_wrap_the_results(client, cohort):
@@ -697,7 +821,7 @@ def test_lists_keep_their_semantics_when_markers_are_removed(client, cohort):
     "list, 20 items" is how a VoiceOver user learns how many results there are."""
     body = client.get(URL).content.decode()
 
-    assert '<ol class="dir-results" role="list">' in body
+    assert '<ol id="results-list" class="dir-results" role="list">' in body
 
 
 def test_only_the_first_headshot_is_eager(client, cohort):
@@ -734,21 +858,19 @@ def test_a_featured_listing_is_labelled_at_the_point_of_display(client, vocabula
         featured_until=timezone.now() + timezone.timedelta(days=30),
     )
 
-    body = client.get(URL).content.decode()
-    results = body.split('<div id="results">', 1)[1]
+    cards = result_cards(client.get(URL).content.decode())
 
-    assert "Paid placement" in results
-    assert "ds-dir-pcard--featured" in results
+    assert "Paid placement" in cards
+    assert "ds-dir-pcard--featured" in cards
 
 
 def test_an_unfeatured_listing_carries_no_label(client, cohort):
-    """Scoped to the results: "Paid placement" also appears in the ranking
-    disclosure, which explains what the label means."""
-    body = client.get(URL).content.decode()
-    results = body.split('<div id="results">', 1)[1]
+    """Scoped to the CARDS: "Paid placement" also appears in the ranking
+    disclosure, which explains what the label means — see `result_cards`."""
+    cards = result_cards(client.get(URL).content.decode())
 
-    assert "Paid placement" not in results
-    assert "ds-dir-pcard--featured" not in results
+    assert "Paid placement" not in cards
+    assert "ds-dir-pcard--featured" not in cards
 
 
 def test_the_page_states_how_results_are_ordered(client, cohort):
@@ -780,13 +902,15 @@ def test_the_sidebar_stays_navigable_with_the_real_taxonomy(client, django_asser
     before_results = body.split('<div id="results">', 1)[0]
 
     # Everything inside a collapsed <details> is out of the tab order, so the count
-    # that matters is what is left open.
-    open_blocks = re.findall(
-        r'<details class="ds-dir-filters__details dir-filter-block"\s+open>.*?</details>',
+    # that matters is the controls OUTSIDE every closed one — panel 1's four, plus
+    # anything a group left open.
+    reachable = re.sub(
+        r'<details class="dir-(?:cat|facet)"([^>]*)>.*?</details>',
+        lambda match: "" if " open" not in match.group(1) else match.group(0),
         before_results,
-        re.S,
+        flags=re.S,
     )
-    focusable_in_open_groups = sum(block.count("<input") for block in open_blocks)
+    focusable_in_open_groups = reachable.count("<input")
 
     assert focusable_in_open_groups < 60, (
         f"{focusable_in_open_groups} filter controls are open by default — the sidebar is a wall again"

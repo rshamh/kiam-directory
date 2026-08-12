@@ -1,0 +1,51 @@
+{% comment %}
+One speciality category in the sidebar: a collapsed row that opens onto its own
+specialities.
+
+  {% include "components/_filter_category.html" with category=category params=params %}
+
+Params: category (from `facets_with_counts`) · params
+
+Alpine does three things here and each of them degrades to nothing:
+
+* `x-show` hides the whole category when the filter box has text that matches
+  neither its name nor any speciality inside it. `haystack` is built and
+  lower-cased once in `facets_with_counts`, not joined per keystroke in the
+  browser.
+* `:open` opens a matching category while the box has text, and hands control
+  back to `was` — the visitor's own state — the moment it is cleared.
+* `@toggle` records that state, guarded by `if (!q)`. Without the guard, Alpine's
+  own opening of a matching category is recorded as if the visitor had done it,
+  and clearing the box leaves all eighteen open.
+
+With script off, none of the attributes do anything: the category renders with
+whatever `open` the server decided, which is "open when it holds a selection".
+{% endcomment %}
+<details class="dir-cat" {% if category.selected %}open{% endif %}
+         data-haystack="{{ category.haystack }}"
+         x-show="hit($el.dataset.haystack)"
+         x-data="{ was: {% if category.selected %}true{% else %}false{% endif %} }"
+         @toggle="if (!q) was = $el.open"
+         :open="q ? true : was">
+  <summary class="dir-cat__summary">
+    {% include "kiam_ui/components/icon.html" with name="chevron-down" size=16 cls="dir-cat__chevron" %}
+    <span class="dir-cat__name">{{ category.name }}</span>
+    <span class="ds-dir-filters__count">{{ category.count }}</span>
+  </summary>
+
+  <fieldset class="dir-cat__group">
+    <legend class="sr-only">{{ category.name }}</legend>
+
+    {% comment %}
+    "Anything in <category>" is a real filter value, not a select-all convenience:
+    `category` is its own GET parameter (ADOPTION CHANGE 5 in the search service)
+    so the two-level tree works as a plain form. A JavaScript select-all would
+    tick twelve boxes and produce a twelve-value URL.
+    {% endcomment %}
+    {% include "components/_filter_row.html" with name="category" option=category selected=params.speciality_categories label_prefix="Anything in " no_count="1" %}
+
+    {% for speciality in category.specialities %}
+      {% include "components/_filter_row.html" with name="speciality" option=speciality selected=params.specialities searchable="1" %}
+    {% endfor %}
+  </fieldset>
+</details>
