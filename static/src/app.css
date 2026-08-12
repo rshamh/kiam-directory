@@ -477,8 +477,17 @@ html[data-contrast="high"] .dir-reveal:focus {
    phone "change what I searched for" is the thing people reach for.
    ============================================================ */
 
+/* NOT `margin-block-start: var(--space-8)` any more. That rule dates from when
+   the visible eyebrow/H1/description sat above the form and the form needed
+   breathing room below them. Now the form's first child is `.dir-search__hero`,
+   which is the first VISIBLE thing on the page — so that margin became a 32px
+   band of plain page background wedged between the header's bottom border and
+   the gradient, measured on the rendered page (header ends y=129, tint starts
+   y=162). The hero band supplies its own clearance: `padding-block: 4rem …` on
+   `.dir-search__hero` itself. */
+
 .dir-search__form {
-  margin-block-start: var(--space-8);
+  margin-block-start: 0;
 }
 
 /* ---------- the hero band ----------
@@ -522,11 +531,13 @@ html[data-contrast="high"] .dir-reveal:focus {
 }
 
 /* The condensed AEO line — see the comment in search.html on why this exists and
-   is visible rather than `.sr-only`. Capped tighter than the bar it sits under:
-   this is prose, and 64rem is well past the ~75-character measure anything
-   readable stays inside. */
+   is visible rather than `.sr-only`. Matched to the bar's own 64rem by request,
+   rather than the ~75-character prose measure that capped it at 52ch before —
+   at three short sentences and centred, it does not run long enough to actually
+   reach 64rem on most viewports, so this mostly widens where it WOULD wrap
+   rather than how many lines it takes. */
 .dir-search__summary {
-  max-inline-size: 52ch;
+  max-inline-size: 64rem;
   margin-inline: auto;
   margin-block-start: var(--space-5);
   color: var(--text-secondary);
